@@ -20,6 +20,7 @@ before_install:
 # Get includes from the website's repo
 - git clone https://github.com/openva/richmondsunlight.com.git
 - rm richmondsunlight.com/htdocs/includes/settings.inc.php
+- mkdir includes
 - cp richmondsunlight.com/htdocs/includes/*.php includes/
 - rm -Rf richmondsunlight.com
 install:
