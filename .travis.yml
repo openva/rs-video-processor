@@ -14,7 +14,7 @@ addons:
       - php5.6-curl
       - awscli
       - mplayer
-      - tesseract
+      - tesseract-ocr
       - imagemagick
 before_install:
 # Get includes from the website's repo

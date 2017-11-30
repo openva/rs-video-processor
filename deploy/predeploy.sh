@@ -14,4 +14,4 @@
 #sudo apt-get -y upgrade
 
 # Install necessary packages.
-#sudo apt-get install -y php5.6-cli php5.6-mysql php5.6-curl awscli mplayer tesseract imagemagick
+#sudo apt-get install -y php5.6-cli php5.6-mysql php5.6-curl awscli mplayer tesseract-ocr imagemagick
