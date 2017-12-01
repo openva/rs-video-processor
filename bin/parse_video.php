@@ -1,11 +1,7 @@
 <?php
 
-ini_set('display_errors', 1);
-ini_set('error_reporting', 'E_ALL');
-error_reporting(1);
-
-require_once('../includes/settings.inc.php');
-require_once('../includes/functions.inc.php');
+require_once(__DIR__ . '/../includes/settings.inc.php');
+require_once(__DIR__ . '/../includes/functions.inc.php');
 
 # Connect to the database.
 $mdb2 = connect_to_db('pdo');
@@ -16,21 +12,18 @@ function format_time($secs)
 	return gmdate('H:i:s', $secs);
 }
 
-// Invoke mplayer, convert, and the OCR software from here, using proc_open to fire each of them
-// up, proc_get_status to keep tabs on it, and proc_close to wrap each one up.
-
-// Get the "where" from...well, something.
 // Set capture_rate by dividing the total number of frames in the video by the total number of
 // frames in the video directory. That'll almost certainly require some rounding.
 
-if (!isset($_GET['id']) || empty($_GET['id']))
+$video_id = $_SERVER['argv'][1];
+if (!isset($video_id) || empty($video_id))
 {
 	die('No video ID specified.');
 }
 
 $sql = 'SELECT *
 		FROM video_index
-		WHERE file_id=' . $_GET['id'];
+		WHERE file_id=' . $video_id;
 $result = $mdb2->query($sql);
 if ($result->rowCount() > 0)
 {
@@ -40,11 +33,11 @@ if ($result->rowCount() > 0)
 $sql = 'SELECT chamber, path, capture_directory, length, capture_rate, capture_directory, date,
 		fps, width, height
 		FROM files
-		WHERE id='.$_GET['id'];
+		WHERE id=' . $video_id;
 $result = $mdb2->query($sql);
 if ($result->rowCount() == 0)
 {
-	die('Invalid video ID specified '.$sql);
+	die('Invalid video ID specified');
 }
 $file = $result->fetch();
 $file = array_map('stripslashes', $file);
@@ -53,20 +46,20 @@ $file = array_map('stripslashes', $file);
 # the database.
 if (empty($file['capture_directory']) && !empty($file['date']))
 {
-	$file['capture_directory'] = '/video/'.$file['chamber'].'/floor/'
-		.str_replace('-', '', $file['date']).'/';
+	$file['capture_directory'] = '/video/' . $file['chamber'] . '/floor/'
+		. str_replace('-', '', $file['date']) . '/';
 		
 	# If the directory turns out not to exist, though, abandon ship.
-	if (!file_exists($_SERVER['DOCUMENT_ROOT'].$file['capture_directory']))
+	if (!file_exists($_SERVER['DOCUMENT_ROOT'] . $file['capture_directory']))
 	{
-		echo '<p>No such directory as '.$file['capture_directory'].'</p>';
-		echo '<p>You must go to the command line and run ~/process-video '.$file['capture_directory'].' [chamber]';
+		echo 'No such directory as ' . $file['capture_directory'];
+		echo 'You must go to the command line and run ~/process-video ' . $file['capture_directory'] . '.mp4 [chamber]';
 		unset($file['capture_directory']);
 	}
 }
 if (empty($file['path']) && !empty($file['date']))
 {
-	$file['path'] = '/floor/'.str_replace('-', '', $file['date']).'.mp4';
+	$file['path'] = '/floor/' . str_replace('-', '', $file['date']) . '.mp4';
 }
 		
 $vid = new Video;
@@ -90,15 +83,15 @@ foreach ($vid as $key => $value)
 
 # Now store these new bits of information about the video in the database.
 $sql = 'UPDATE files
-		SET fps='.$file['fps'].', width='.$file['width'].', height='.$file['height'].',
-		length="'.$file['length'].'", path="'.$file['path'].'",
-		capture_rate='.$file['capture_rate'].',
-		capture_directory="'.$file['capture_directory'].'"
-		WHERE id='.$_GET['id'];
+		SET fps=' . $file['fps'] . ', width=' . $file['width'] . ', height=' . $file['height'] . ',
+		length="' . $file['length'] . '", path="' . $file['path'] . '",
+		capture_rate=' . $file['capture_rate'] . ',
+		capture_directory="' . $file['capture_directory'] . '"
+		WHERE id=' . $video_id;
 $mdb2->query($sql);
 
 # Store the environment variables.
-$video['id'] = $_GET['id'];
+$video['id'] = $video_id;
 $video['chamber'] = $file['chamber'];	// The chamber of this video.
 $video['where'] = 'floor';				// Where the video was taken. Most will be "floor."
 $video['date'] = $file['date'];			// The date of the video in question.
@@ -232,7 +225,7 @@ foreach ($dir as $file)
 			# Finish assembling the SQL string.
 			$sql .= 'type="bill", raw_text="' . addslashes($bill) . '"';
 		
-			echo '<li>' . $bill . '</li>';
+			echo $bill . "\n";
 		
 			# Unset this variable so that we won't use it the next time around.
 			unset($bill);
@@ -246,7 +239,7 @@ foreach ($dir as $file)
 			# Finish assembling the SQL string.
 			$sql .= 'type="legislator", raw_text="' . addslashes($legislator) . '"';
 		
-			echo '<li>' . $legislator . '</li>';
+			echo $legislator . "\n";
 		
 			# Unset this variable so that we won't use it the next time around.
 			unset($legislator);
@@ -254,10 +247,6 @@ foreach ($dir as $file)
 		}
 	
 		$result = $mdb2->query($sql);
-		/*if (PEAR::isError($result))
-		{
-			echo '<p style="color: #f00;">Failed: ' . $sql . '</p>';
-		}*/
 	
 		unset($sql);
 	}
@@ -268,17 +257,3 @@ foreach ($dir as $file)
 	# We've used this a few times here, so let's unset it, just in case.
 	unset($tmp);
 }
-
-/*
-// This isn't going to work -- the web user doesn't have permissions.
-exec('/home/ubuntu/youtube-upload-master/bin/youtube-upload '
-	. '--tags="virginia, legislature, general assembly" '
-	. '--default-language="en" '
-	. '--default-audio-language="en" '
-	. '--title="Virginia ' . ucfirst($video['chamber']) . ', ' . date('F j, Y', strtotime($video['date'])) . '" '
-	. '--recording-date="' . $video['date'] . 'T00:00:00.0Z" '
-	. $video['dir'] . ' &> /dev/null &');
-echo '<p>Uploading video <a href="https://www.youtube.com/channel/UCt0nWtbTmFhYuwnDfAHh8Pw">to YouTube</a>.</p>';*/
-
-echo '<p><a href="/utilities/resolve_chyrons.php?id=' . trim($_GET['id']) . '">Resolve Chyrons &gt;&gt;</a></p>';
-

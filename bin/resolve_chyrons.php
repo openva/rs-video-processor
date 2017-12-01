@@ -1,16 +1,7 @@
  <?php
 
-// Store the prior match and try it as the first option on the next time around. No need to
-// start from zero when we know there's a pretty good chance that each name is going to
-// occur repeatedly.
-
-set_time_limit(120);
-	
-# INCLUDES
-# Include any files or libraries that are necessary for this specific
-# page to function.
-include_once('../includes/settings.inc.php');
-include_once('../includes/functions.inc.php');
+require_once(__DIR__ . '/../includes/settings.inc.php');
+require_once(__DIR__ . '/../includes/functions.inc.php');
 	
 # DECLARATIVE FUNCTIONS
 # Run those functions that are necessary prior to loading this specific
@@ -30,10 +21,11 @@ function insert_match($linked_id, $chyron_id)
 	$result = mysql_query($sql);
 	if (!$result)
 	{
-		echo '<p style="color: #f00;">Insert of chyron ID ' . $chyron_id . ' failed.</p>';
-		return false;
+		return FALSE;
 	}
 }
+
+$video_id = trim($_SERVER['argv'][1]);
 
 
 ###
@@ -41,14 +33,14 @@ function insert_match($linked_id, $chyron_id)
 ###
 
 # If we've passed an ID, use that.
-if (isset($_GET['id']))
+if (!empty($video_id))
 {
 	$sql = 'SELECT video_index.file_id, files.date, files.chamber
 			FROM video_index
 			LEFT JOIN files
 				ON video_index.file_id=files.id
 			WHERE video_index.type="bill" AND video_index.linked_id IS NULL
-			AND files.id=' . $_GET['id'] . '
+			AND files.id=' . $video_id . '
 			GROUP BY file_id';
 }
 else
@@ -115,8 +107,8 @@ if (mysql_num_rows($result) > 0)
 			WHERE session_id=
 				(SELECT id
 				FROM sessions
-				WHERE "'.$video['date'].'" > date_started
-				AND ("'.$video['date'].'" < date_ended OR date_ended IS NULL)
+				WHERE "' . $video['date'] . '" > date_started
+				AND ("' . $video['date'] . '" < date_ended OR date_ended IS NULL)
 				ORDER BY date_started DESC
 				LIMIT 1)';
 	$result = mysql_query($sql);
@@ -133,7 +125,7 @@ if (mysql_num_rows($result) > 0)
 	# Step through each bill chyron.
 	$sql = 'SELECT id, raw_text
 			FROM video_index
-			WHERE file_id='.$video['file_id'].' AND type="bill" AND linked_id IS NULL
+			WHERE file_id=' . $video['file_id'] . ' AND type="bill" AND linked_id IS NULL
 			AND ignored = "n"
 			ORDER BY time ASC';
 
@@ -160,7 +152,7 @@ if (mysql_num_rows($result) > 0)
 			(substr($chyron['raw_text'], 0, 2) == '$8')
 		)
 		{
-			$chyron['raw_text'] = 'SB'.substr($chyron['raw_text'], 2);
+			$chyron['raw_text'] = 'SB' . substr($chyron['raw_text'], 2);
 		}
 		elseif (
 			(substr($chyron['raw_text'], 0, 3) == 'sir')
@@ -168,7 +160,7 @@ if (mysql_num_rows($result) > 0)
 			(substr($chyron['raw_text'], 0, 3) == 'sjr')
 		)
 		{
-			$chyron['raw_text'] = 'SJ'.substr($chyron['raw_text'], 3);
+			$chyron['raw_text'] = 'SJ' . substr($chyron['raw_text'], 3);
 		}
 		elseif (
 			(substr($chyron['raw_text'], 0, 3) == 'hjr')
@@ -180,7 +172,7 @@ if (mysql_num_rows($result) > 0)
 			(substr($chyron['raw_text'], 0, 3) == 'i-ur')
 		)
 		{
-			$chyron['raw_text'] = 'hj'.substr($chyron['raw_text'], 3);
+			$chyron['raw_text'] = 'hj' . substr($chyron['raw_text'], 3);
 		}
 		elseif (
 			(substr($chyron['raw_text'], 0, 2) == 'I ')
@@ -200,7 +192,7 @@ if (mysql_num_rows($result) > 0)
 		$bill_id = array_search(strtolower($chyron['raw_text']), $bills);
 		if ( ($bill_id !== FALSE) && !empty($bill_id) )
 		{
-			echo '<li>'.$chyron['raw_text'].' matched to '.$bills[$bill_id].' ('.$bill_id.')</li>';
+			echo $chyron['raw_text'] . ' matched to ' . $bills[$bill_id] . ' (' . $bill_id . ")\n";
 			insert_match($bill_id, $chyron['id']);
 		}
 		
@@ -212,7 +204,7 @@ if (mysql_num_rows($result) > 0)
 			$bill_id = array_search(strtolower($chyron['raw_text']), $all_bills);
 			if ( ($bill_id !== FALSE) && !empty($bill_id) )
 			{
-				echo '<li>'.$chyron['raw_text'].' matched to '.$bills[$bill_id].' ('.$bill_id.')</li>';
+				echo $chyron['raw_text'] . ' matched to ' . $bills[$bill_id] . ' (' . $bill_id . ")\n";
 				insert_match($bill_id, $chyron['id']);
 			}
 		}
@@ -253,7 +245,7 @@ if (mysql_num_rows($result) > 0)
 		}
 	}
 	
-	echo '<p>Finished matching bill chyrons.</p>';
+	echo 'Finished matching bill chyrons';
 	
 	# Store the new bill number chyrons for this video.
 	if (isset($video['file_id']))
@@ -263,8 +255,8 @@ if (mysql_num_rows($result) > 0)
 		$vid->id = $video['file_id'];
 		$vid->store_clips();
 		
-		echo '<p>(Re)indexed '.$vid->clip_count.' clips, cued by updating bill number chyrons, and
-			stored those clips.</p>';
+		echo '(Re)indexed ' . $vid->clip_count . ' clips, cued by updating bill number chyrons, and
+			stored those clips.';
 		
 	}
 	
@@ -306,8 +298,8 @@ if (mysql_num_rows($result) > 0)
 		
 		# Assemble the array of legislator data into the same format as the chyron text, so that
 		# we can do a direct comparison later.
-		$legislator['complete'] = $legislator['prefix'].' '.pivot($legislator['name'])."\r"
-			.$legislator['place'].' ('.$legislator['party'].'-'.$legislator['district'].')';
+		$legislator['complete'] = $legislator['prefix'] . ' ' . pivot($legislator['name']) . "\r"
+			. $legislator['place'] . ' (' . $legislator['party'] . '-' . $legislator['district'] . ')';
 			
 		# Append this legislator to the array storing all of them.
 		$legislators[] = $legislator;
@@ -349,8 +341,8 @@ if (mysql_num_rows($result) > 0)
 		
 		# Assemble the array of legislator data into the same format as the chyron text, so that
 		# we can do a direct comparison later.
-		$legislator['complete'] = $legislator['prefix'].' '.$legislator['last_name']."\r"
-			.' ('.$legislator['party'].') '.$legislator['place'];
+		$legislator['complete'] = $legislator['prefix'] . ' ' . $legislator['last_name'] . "\r"
+			. ' (' . $legislator['party'] . ') ' . $legislator['place'];
 
 	}
 
@@ -441,7 +433,7 @@ while ($chyron = mysql_fetch_array($result))
 		if ($legislator['complete'] == $chyron['raw_text'])
 		{
 
-			echo '<li>Match found via a straight match. '.$legislator['complete'].' == '.$chyron['raw_text'].'</li>';
+			echo '<li>Made a straight match. ' . $legislator['complete'] . ' = ' . $chyron['raw_text'] . "\n";
 			insert_match($legislator['id'], $chyron['id']);
 			next;
 
@@ -457,7 +449,7 @@ while ($chyron = mysql_fetch_array($result))
 		$tmp = str_replace("\n", ' ', $chyron['raw_text']);
 		if (array_key_exists($tmp, $priors) === true)
 		{
-			echo '<li>Match found among prior matches. ('.$tmp.' == '.$chyron['raw_text'].')</li>';
+			echo 'Match found among priors. (' . $tmp . ' = '. $chyron['raw_text'] . "\n";
 			insert_match($priors[$tmp], $chyron['id']);
 			next;
 		}
@@ -475,7 +467,7 @@ while ($chyron = mysql_fetch_array($result))
 			# If the Levenshtein distance is within 20% of the string length.
 			if (levenshtein($legislator['complete'], $chyron['raw_text']) <= (strlen($chyron['raw_text']) * .2))
 			{
-				echo '<li>Match found within 80% confidence. ('.$tmp.' == '.$chyron['raw_text'].')</li>';
+				echo 'Match found within 80% confidence. (' . $tmp . ' = ' . $chyron['raw_text'] . "\n";
 				# Store this match.
 				$matches[$index] = levenshtein($legislator['complete'], $chyron);
 			}
@@ -496,10 +488,11 @@ while ($chyron = mysql_fetch_array($result))
 			
 			insert_match($match, $chyron['id']);
 			next;
+
 		}
 	}
 	
-	# Fourth, get a listing of all prior matches within 30%.
+	# Fourth, get a listing of all prior matches within 15%.
 	if (isset($priors))
 	{
 
@@ -515,7 +508,7 @@ while ($chyron = mysql_fetch_array($result))
 			# is 81.8% identical to "Senator Howell (D) Fairfax County."
 			if (levenshtein($text, $tmp) <= (strlen($tmp) * .15))
 			{
-				echo '<li>Match found within 85% confidence. ('.$tmp.' == '.$text.')</li>';
+				echo 'Match found within 85% confidence. (' . $tmp . ' == ' . $text . "\n";
 				# Store this match.
 				$matches[$id] = levenshtein($text, $tmp);
 			}
@@ -540,7 +533,7 @@ while ($chyron = mysql_fetch_array($result))
 	
 }
 
-echo '<p>Finished matching legislator chyrons.</p>';
+echo 'Finished matching legislator chyrons' . "\n";
 
 
 # Create a new instance of the Video class.
@@ -558,15 +551,15 @@ while ($file = mysql_fetch_array($result))
 
 	$video->id = $file['id'];
 	$video->store_clips();
-	echo '<p>Indexed video clips for file '.$file['id'].'.</p>';
+	echo 'Indexed video clips for file ' . $file['id'] . "\n";
 
 }
 
-if (isset($_GET['id']))
+if (isset($video_id))
 {
 
-	$video->id = $_GET['id'];
+	$video->id = $video_id;
 	$video->store_clips();
-	echo '<p>Indexed video clips for file '.$file['id'].'.</p>';
+	echo '<p>Indexed video clips for file ' . $file['id'] . "\n";
 	
 }
