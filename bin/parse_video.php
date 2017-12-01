@@ -3,6 +3,9 @@
 require_once(__DIR__ . '/../includes/settings.inc.php');
 require_once(__DIR__ . '/../includes/functions.inc.php');
 
+
+$video_dir = (__DIR__ . '/../video');
+
 # Connect to the database.
 $mdb2 = connect_to_db('pdo');
 
@@ -50,7 +53,7 @@ if (empty($file['capture_directory']) && !empty($file['date']))
 		. str_replace('-', '', $file['date']) . '/';
 		
 	# If the directory turns out not to exist, though, abandon ship.
-	if (!file_exists($_SERVER['DOCUMENT_ROOT'] . $file['capture_directory']))
+	if (!file_exists($video_dir . $file['capture_directory']))
 	{
 		echo 'No such directory as ' . $file['capture_directory'];
 		echo 'You must go to the command line and run ~/process-video ' . $file['capture_directory'] . '.mp4 [chamber]';
@@ -97,7 +100,7 @@ $video['where'] = 'floor';				// Where the video was taken. Most will be "floor.
 $video['date'] = $file['date'];			// The date of the video in question.
 $video['fps'] = $file['fps'];			// The frames per second at which the video was played.
 $video['capture_rate'] = $file['capture_rate'];	// We captured every X frames. "Framestep," in mplayer terms.
-$video['dir'] = $_SERVER['DOCUMENT_ROOT'] . $file['capture_directory'];
+$video['dir'] = $video_dir . $file['capture_directory'];
 
 # Iterate through the video array and make sure nothing is blank. If so, bail.
 foreach ($video as $name => $option)
