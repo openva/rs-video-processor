@@ -113,11 +113,16 @@ else
 	echo "AWS S3 sync didn't finish successfully, so screenshots were not thumbnailed or deleted"
 fi
 
-# Now analyze the chyrons.
-php parse_video.php
+########################################
+# SIMULATE THE AUTOCOMPLETED HTML FORM #
+# This has to return $VIDEO_ID.        #
+########################################
 
+# Insert the chyrons into the database.
+php parse_video.php "$VIDEO_ID"
 
-
+# Resolve the chyrons to individual legislators and bills.
+php resolve_chyrons.php  "$VIDEO_ID"
 
 
 /home/ubuntu/youtube-upload-master/bin/youtube-upload '
