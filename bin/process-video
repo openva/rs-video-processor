@@ -2,7 +2,7 @@
 
 # If the filename is missing, explain that it's required.
 if [ -z "$1" ]; then
-	echo "usage: $0 [filename] [chamber], omitting .mp4 extension"
+	echo "usage: $0 [YYYYMMDD.mp4] [chamber]"
 	exit
 fi
 
@@ -18,7 +18,7 @@ if [ -z "$2" ]; then
 	elif [[ ${1:0:1} == "s" ]]; then
 		CHAMBER="senate"
 	else
-		echo "usage: $0 [filename] [chamber], omitting .mp4 extension"
+		echo "usage: $0 [YYYYMMDD.mp4] [chamber]"
 		exit
 	fi
 fi
@@ -29,8 +29,8 @@ if [ -z "$CHAMBER" ]; then
 	CHAMBER="$2"
 fi
 
-if [ ! -f "$SRC".mp4 ]; then
-	echo "Error: $SRC.mp4 does not exist"
+if [ ! -f "$SRC" ]; then
+	echo "Error: $SRC does not exist"
 	exit 1;
 fi
 
@@ -43,15 +43,18 @@ else
 	exit
 fi
 
+# Extract the date from the 
+DATE=${SRC/.mp4/}
+
 # Have mplayer create a folder full of screenshots.
-if ! mplayer -vf framestep="$FRAMESTEP" -framedrop -nosound "$SRC".mp4 -speed 100 -vo jpeg:outdir="$SRC"
+if ! mplayer -vf framestep="$FRAMESTEP" -framedrop -nosound "$SRC" -speed 100 -vo jpeg:outdir="$DATE"
 then
 	exit "$?"
 fi
 
 echo "Extracting names and bill numbers from each frame"
 
-cd "$SRC" || exit
+cd "$DATE" || exit
 
 # Standardize screenshot dimensions
 if ! mogrify -resize 640x480 ./*
@@ -102,10 +105,26 @@ mogrify -resize 150x112 ./*-150.jpg
 
 # Copy screenshots to S3.
 # If the sync worked properly, delete screenshots.
-if aws s3 sync . s3://video.richmondsunlight.com/"$CHAMBER"/floor/"$SRC" --exclude "*" --include "*.jpg"
+if aws s3 sync . s3://video.richmondsunlight.com/"$CHAMBER"/floor/"$DATE" --exclude "*" --include "*.jpg"
 then
 	echo Deleting all local screenshots
 	rm ./*.jpg
 else
-	echo "aws s3 sync didn't finish successfully, so screenshots were not thumbnailed or deleted"
+	echo "AWS S3 sync didn't finish successfully, so screenshots were not thumbnailed or deleted"
 fi
+
+# Now analyze the chyrons.
+php parse_video.php
+
+
+
+
+
+/home/ubuntu/youtube-upload-master/bin/youtube-upload '
+	. '--tags="virginia, legislature, general assembly" '
+	. '--default-language="en" '
+	. '--default-audio-language="en" '
+	. '--title="Virginia ' . ucfirst($video['chamber']) . ', ' . date('F j, Y', strtotime($video['date'])) . '" '
+	. '--recording-date="' . $DATE . 'T00:00:00.0Z" '
+	. $DATE
+
