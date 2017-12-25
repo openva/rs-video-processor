@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Change to the directory containing this script.
+cd "$(dirname "$0")"
+
 # Retrieve the video, saving it to a file and to S3.
 php get_video.php
 
