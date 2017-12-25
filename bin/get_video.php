@@ -40,8 +40,8 @@ try
 }
 catch (AwsException $e)
 {
-	$log->put('Video processor was started up, but found no videos in the queue. SQS said: ' . $e->getMessage(), 5);
-	die();
+	$log->put('No pending videos found in SQS.', 1);
+	exit(1);
 }
 
 /*
@@ -86,4 +86,4 @@ catch (S3Exception $e)
 }
 
 $log->put('Found and stored new ' . ucfirst($video['chamber']) . ' video, for ' . $video['date']
-	. '.', 5);
+	. '.', 4);
