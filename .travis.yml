@@ -41,14 +41,3 @@ deploy:
     branch: master
   bucket: deploy.video.richmondsunlight.com
   region: us-east-1
-- provider: codedeploy
-  access_key_id: $AWS_ACCESS_KEY
-  secret_access_key: $AWS_SECRET_KEY
-  bucket: deploy.video.richmondsunlight.com
-  key: latest.zip
-  bundle_type: zip
-  application: RS-Video-Processor
-  deployment_group: RS-Video-Processor-Fleet
-  region: us-east-1
-  on:
-    branch: master
