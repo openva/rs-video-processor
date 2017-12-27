@@ -7,11 +7,14 @@
 
 # Define the list of environmental variables that we need to populate during deployment.
 variables=(
+	AWS_ACCESS_KEY
+	AWS_SECRET_KEY
 	PDO_DSN
 	PDO_SERVER
 	PDO_USERNAME
 	PDO_PASSWORD
 	MEMCACHED_SERVER
+	MYSQL_DATABASE
 	SLACK_WEBHOOK
 )
 
