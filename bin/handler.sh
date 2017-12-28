@@ -14,3 +14,6 @@ rm -f ./*.mp4
 
 # Run itself again, in case there are more videos in the queue.
 ./handler.sh
+
+# Stop this instance -- it's done.
+sudo shutdown -h now
