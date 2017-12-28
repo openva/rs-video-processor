@@ -1,2 +1,2 @@
 # On boot, run the video handler.
-@reboot /home/ubuntu/rs-video-processor/bin/handler.sh
+@reboot /home/ubuntu/video-processor/bin/handler.sh
