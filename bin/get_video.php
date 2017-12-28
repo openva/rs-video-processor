@@ -14,13 +14,20 @@ $log = new Log;
  */
 use Aws\S3\S3Client;
 $s3_client = new S3Client([
-    'profile' => 'default'
+    'profile'	=> 'default',
+  	'key'		=> AWS_ACCESS_KEY,
+  	'secret'	=> AWS_SECRET_KEY,
+    'region'	=> 'us-east-1',
+    'version'	=> '2006-03-01'
 ]);
 
 use Aws\Sqs\SqsClient;
 $sqs_client = new SqsClient([
-    'profile' => 'default',
-    'region'  => 'us-east-1'
+    'profile'	=> 'default',
+  	'key'		=> AWS_ACCESS_KEY,
+  	'secret'	=> AWS_SECRET_KEY,
+    'region'	=> 'us-east-1',
+    'version'	=> '2012-11-05'
 ]);
 
 /*
