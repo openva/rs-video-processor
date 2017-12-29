@@ -6,6 +6,14 @@ cd "$(dirname "$0")" || exit
 # Retrieve the video, saving it to a file and to S3.
 php get_video.php || exit
 
+# Figure out the filename and chamber we're processing.
+VIDEO_FILE="$(ls "*.mp4")"
+if [[ "$VIDEO_FILE" == "house"* ]]; then
+	CHAMBER="house";
+else
+	CHAMBER="senate";
+fi
+
 # Start the video processor.
 ./process-video "$VIDEO_FILE" "$CHAMBER"
 
