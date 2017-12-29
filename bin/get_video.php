@@ -41,7 +41,7 @@ try
 	]);
 	if (count($result->get('Messages')) > 0)
 	{
-		$video = json_decode($result->get('Messages')[0]);
+		$message = json_decode($result->get('Messages')[0]);
 	}
 
 }
@@ -50,6 +50,11 @@ catch (AwsException $e)
 	$log->put('No pending videos found in SQS.', 1);
 	exit(1);
 }
+
+/*
+ * Pull the video information out of the message body.
+ */
+$video = json_decode($message['Body']);
 
 if (!isset($video))
 {
@@ -62,9 +67,9 @@ if (!isset($video))
  */
 set_time_limit(0);
 
-$video['filename'] = $video['chamber'] . '-' . $video['date'] . '.mp4';
-$fp = fopen($video['filename'], 'w+');
-$ch = curl_init($video['url']);
+$video->filename = $video->chamber . '-' . $video->date . '.mp4';
+$fp = fopen($video->filename, 'w+');
+$ch = curl_init($video->url);
 curl_setopt($ch, CURLOPT_FILE, $fp);
 curl_setopt($ch, CURLOPT_FOLLOWLOCATION, TRUE);
 curl_exec($ch); 
@@ -74,7 +79,7 @@ fclose($fp);
 /*
  * Move the file to S3.
  */
-$s3_key = '/'  . $video['chamber'] . '/' . 'floor/' . $video['date'] . '.mp4';
+$s3_key = '/'  . $video->chamber . '/' . 'floor/' . $video->date . '.mp4';
 $s3_url = 'https://s3.amazon.com' . $s3_key;
 
 try
@@ -82,7 +87,7 @@ try
 	$result = $s3_client->putObject([
 	    'Bucket'     => 'video.richmondsunlight.com',
 	    'Key'        => $s3_key,
-	    'SourceFile' => $video['filename']
+	    'SourceFile' => $video->filename
 	]);
 
 	$s3_client->waitUntil('ObjectExists', [
@@ -92,10 +97,10 @@ try
 }
 catch (S3Exception $e)
 {
-	$log->put('Could not upload video ' . $filename . ' to S3. Error reported: '
+	$log->put('Could not upload video ' . $$video->filename . ' to S3. Error reported: '
 		. $e->getMessage(), 7);
 	die();
 }
 
-$log->put('Found and stored new ' . ucfirst($video['chamber']) . ' video, for ' . $video['date']
+$log->put('Found and stored new ' . ucfirst($video->chamber) . ' video, for ' . $video->date
 	. '.', 4);
