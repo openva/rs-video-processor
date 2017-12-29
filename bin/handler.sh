@@ -16,4 +16,4 @@ rm -f ./*.mp4
 ./handler.sh
 
 # Stop this instance -- it's done.
-sudo shutdown -h now
+#sudo shutdown -h now
