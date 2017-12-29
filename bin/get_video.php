@@ -51,11 +51,16 @@ catch (AwsException $e)
 	exit(1);
 }
 
+if (!isset($video))
+{
+	$log->put('No pending videos found in SQS.', 1);
+	exit(1);
+}
+
 /*
  * Take as long as necessary to get the video and then store it,
  */
 set_time_limit(0);
-
 
 $video['filename'] = $video['chamber'] . '-' . $video['date'] . '.mp4';
 $fp = fopen($video['filename'], 'w+');
