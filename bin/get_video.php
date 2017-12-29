@@ -41,7 +41,7 @@ try
 	]);
 	if (count($result->get('Messages')) > 0)
 	{
-		$video = $result->get('Messages')[0];
+		$video = json_decode($result->get('Messages')[0]);
 	}
 
 }
