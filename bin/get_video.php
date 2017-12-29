@@ -63,10 +63,11 @@ if (!isset($video))
 }
 
 /*
- * Take as long as necessary to get the video and then store it,
+ * Take as long as necessary to get the video and then store it.
  */
 set_time_limit(0);
 
+# Retrieve the file and store it locally.
 $video->filename = $video->chamber . '-' . $video->date . '.mp4';
 $fp = fopen($video->filename, 'w+');
 $ch = curl_init($video->url);
@@ -101,6 +102,14 @@ catch (S3Exception $e)
 		. $e->getMessage(), 7);
 	die();
 }
+
+/*
+ * Now that we have saved the file to S3, delete the message from SQS.
+ */
+$result = $sqs_client->DeleteMessage([
+				'QueueUrl' => 'https://sqs.us-east-1.amazonaws.com/947603853016/rs-video-harvester.fifo',
+				'ReceiptHandle' => $message['ReceiptHandle']
+			]);
 
 $log->put('Found and stored new ' . ucfirst($video->chamber) . ' video, for ' . $video->date
 	. '.', 4);
