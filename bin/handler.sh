@@ -41,7 +41,7 @@ VIDEO_ID="$(php save_metadata.php "$VIDEO_FILE")" || exit
 #php parse_video.php "$VIDEO_ID"
 
 # Resolve the chyrons to individual legislators and bills.
-#php resolve_chyrons.php  "$VIDEO_ID"
+php resolve_chyrons.php  "$VIDEO_ID"
 
 #/home/ubuntu/youtube-upload-master/bin/youtube-upload '
 #	. '--tags="virginia, legislature, general assembly" '

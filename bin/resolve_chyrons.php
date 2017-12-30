@@ -1,12 +1,13 @@
- <?php
+<?php
 
 require_once(__DIR__ . '/../includes/settings.inc.php');
 require_once(__DIR__ . '/../includes/functions.inc.php');
-	
-# DECLARATIVE FUNCTIONS
-# Run those functions that are necessary prior to loading this specific
-# page.
-connect_to_db();
+
+$video_dir = (__DIR__ . '/../video');
+
+# Connect to the database.
+$database = new Database;
+$database->connect_old();
 
 # Insert a matched chyron and ID.
 function insert_match($linked_id, $chyron_id)
@@ -25,7 +26,12 @@ function insert_match($linked_id, $chyron_id)
 	}
 }
 
+# Get the video ID from the command line.
 $video_id = trim($_SERVER['argv'][1]);
+if (empty($video_id))
+{
+	return FALSE;
+}
 
 
 ###
@@ -33,34 +39,13 @@ $video_id = trim($_SERVER['argv'][1]);
 ###
 
 # If we've passed an ID, use that.
-if (!empty($video_id))
-{
-	$sql = 'SELECT video_index.file_id, files.date, files.chamber
-			FROM video_index
-			LEFT JOIN files
-				ON video_index.file_id=files.id
-			WHERE video_index.type="bill" AND video_index.linked_id IS NULL
-			AND files.id=' . $video_id . '
-			GROUP BY file_id';
-}
-else
-{
-
-	# Pick a video file for which we have unresolved bills, selecting the one that has the largest
-	# number of unresolved bills.
-	$sql = 'SELECT video_index.file_id, files.date, files.chamber, COUNT(*) AS number
-			FROM video_index
-			LEFT JOIN files
-				ON video_index.file_id=files.id
-			WHERE
-				video_index.type="bill" AND
-				video_index.linked_id IS NULL AND
-				ignored = "n"
-			GROUP BY file_id
-			HAVING number > 100
-			ORDER BY RAND()
-			LIMIT 1';
-}
+$sql = 'SELECT video_index.file_id, files.date, files.chamber
+		FROM video_index
+		LEFT JOIN files
+			ON video_index.file_id=files.id
+		WHERE video_index.type="bill" AND video_index.linked_id IS NULL
+		AND files.id=' . $video_id . '
+		GROUP BY file_id';
 
 $result = mysql_query($sql);
 if (mysql_num_rows($result) > 0)
@@ -79,7 +64,7 @@ if (mysql_num_rows($result) > 0)
 	{
 
 		# If we can't get the bills heard on this date (generally because we're
-		# parsing the video on the same ay that it was recorded), then use all
+		# parsing the video on the same day that it was recorded), then use all
 		# bill numbers from this session, instead.
 		$sql = 'SELECT id, number
 				FROM bills
