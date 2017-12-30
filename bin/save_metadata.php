@@ -61,6 +61,6 @@ $file['title'] = ucfirst($file['chamber']) . ' Video';
 $video->video = $file;
 if ($video->submit() === FALSE)
 {
-	echo 'Metadata stored successfully';
+	echo $video->id;
 	return 0;
 }
