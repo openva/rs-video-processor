@@ -3,11 +3,11 @@
 require_once(__DIR__ . '/../includes/settings.inc.php');
 require_once(__DIR__ . '/../includes/functions.inc.php');
 
-
 $video_dir = (__DIR__ . '/../video');
 
 # Connect to the database.
-$mdb2 = connect_to_db('pdo');
+$database = new Database;
+$database->connect();
 
 # Convert a count of seconds to HH:MM:SS format.
 function format_time($secs)
@@ -27,7 +27,7 @@ if (!isset($video_id) || empty($video_id))
 $sql = 'SELECT *
 		FROM video_index
 		WHERE file_id=' . $video_id;
-$result = $mdb2->query($sql);
+$result = $db->query($sql);
 if ($result->rowCount() > 0)
 {
 	die('This video has already been parsed!');
@@ -37,7 +37,7 @@ $sql = 'SELECT chamber, path, capture_directory, length, capture_rate, capture_d
 		fps, width, height
 		FROM files
 		WHERE id=' . $video_id;
-$result = $mdb2->query($sql);
+$result = $db->query($sql);
 if ($result->rowCount() == 0)
 {
 	die('Invalid video ID specified');
@@ -91,7 +91,7 @@ $sql = 'UPDATE files
 		capture_rate=' . $file['capture_rate'] . ',
 		capture_directory="' . $file['capture_directory'] . '"
 		WHERE id=' . $video_id;
-$mdb2->query($sql);
+$db->query($sql);
 
 # Store the environment variables.
 $video['id'] = $video_id;
@@ -249,7 +249,7 @@ foreach ($dir as $file)
 		
 		}
 	
-		$result = $mdb2->query($sql);
+		$result = $db->query($sql);
 	
 		unset($sql);
 	}
