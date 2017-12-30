@@ -34,6 +34,9 @@ else
 	echo "AWS S3 sync didn't finish successfully, so screenshots were not thumbnailed or deleted"
 fi
 
+# Create the record for this video in the database.
+VIDEO_ID="$(php save_metadata.php "$VIDEO_FILE")" || exit
+
 # Insert the chyrons into the database.
 #php parse_video.php "$VIDEO_ID"
 
