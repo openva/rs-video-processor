@@ -68,7 +68,7 @@ if (!isset($video))
 set_time_limit(0);
 
 # Retrieve the file and store it locally.
-$video->filename = $video->chamber . '-' . $video->date . '.mp4';
+$video->filename = '../video/' . $video->chamber . '-' . $video->date . '.mp4';
 $fp = fopen($video->filename, 'w+');
 $ch = curl_init($video->url);
 curl_setopt($ch, CURLOPT_FILE, $fp);
@@ -78,7 +78,7 @@ curl_close($ch);
 fclose($fp);
 
 /*
- * Move the file to S3.
+ * Copy the file to S3.
  */
 $s3_key = '/'  . $video->chamber . '/' . 'floor/' . $video->date . '.mp4';
 $s3_url = 'https://s3.amazon.com' . $s3_key;
@@ -98,7 +98,7 @@ try
 }
 catch (S3Exception $e)
 {
-	$log->put('Could not upload video ' . $$video->filename . ' to S3. Error reported: '
+	$log->put('Could not upload video ' . $video->filename . ' to S3. Error reported: '
 		. $e->getMessage(), 7);
 	die();
 }
