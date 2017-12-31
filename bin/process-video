@@ -80,18 +80,9 @@ echo OCRing names and bill numbers
 find . -type f -name '*.name.jpg' -exec tesseract {} {} \;
 find . -type f -name '*.bill.jpg' -exec tesseract {} {} \;
 
-# Make sure we have the privileges to delete files, later, during the processing
-# stage (after this script is run).
-chgrp web ./*
-chmod g+w ./*
-
 # Delete all of the images that we just OCRed.
 find . -type f -name '*.name.jpg' -exec rm {} \;
 find . -type f -name '*.bill.jpg' -exec rm {} \;
-
-# Make the text files world-writable, so that the web server can delete them
-# post-import.
-chmod 777 ./*.txt
 
 # Duplicate all JPEGs with a -150 suffix.
 for F in $(ls -1 ./*.jpg |awk -F. '{print $2}')
