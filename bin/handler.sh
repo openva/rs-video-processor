@@ -47,9 +47,11 @@ else
 fi
 
 # Create the record for this video in the database.
+cd ..
 VIDEO_ID="$(php save_metadata.php "$VIDEO_FILE")" || exit
 
 # Insert the chyrons into the database.
+cd "$VIDEO_DIR"
 php parse_video.php "$VIDEO_ID"
 
 # Resolve the chyrons to individual legislators and bills.
