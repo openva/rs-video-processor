@@ -39,11 +39,11 @@ if ($video->extract_file_data() === FALSE)
 	exit(1);
 }
 
-$file['fps'] = $video['fps'];
-$file['width'] = $video['width'];
-$file['height'] = $video['height'];
-$file['length'] = $video['length'];
-$file['capture_rate'] = $video['capture_rate'];
+$file['fps'] = $video->fps;
+$file['width'] = $video->width;
+$file['height'] = $video->height;
+$file['length'] = $video->length;
+$file['capture_rate'] = $video->capture_rate;
 
 
 /*
