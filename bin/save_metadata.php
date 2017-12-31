@@ -3,7 +3,7 @@
 require_once(__DIR__ . '/../includes/settings.inc.php');
 require_once(__DIR__ . '/../includes/functions.inc.php');
 
-$video_dir = (__DIR__ . '/../video');
+$video_dir = (__DIR__ . '/../video/');
 
 /*
  * The filename must be specified at the command line.
@@ -13,9 +13,9 @@ $filename = $_SERVER['argv'][1];
 /*
  * Make sure the file exists.
  */
-if (file_exists($filename) === FALSE)
+if (file_exists($video_dir . $filename) === FALSE)
 {
-	echo $filename . ' does not exist';
+	echo $video_dir . $filename . ' does not exist';
 	exit(1);
 }
 
