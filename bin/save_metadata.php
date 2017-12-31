@@ -49,9 +49,9 @@ $file['capture_rate'] = $video->capture_rate;
 /*
  * Then, store information that we already know about this file.
  */
-$file['path'] = $s3_url;
-$file['chamber'] = ( strpos($file['chamber'], 'house') ? 'house' : 'senate');
-$file['date'] = substr($filename, -14, 10);
+$file['path'] = $s3_url;	// FIGURE OUT WHERE TO GET THIS FROM
+$file['chamber'] = 'que';	// FIGURE OUT WHERE TO GET THIS FROM
+$file['date'] = substr($filename, -14, 8); // WILL THIS WORK WITHOUT HYPHENS?
 $file['type'] = 'video';
 $file['title'] = ucfirst($file['chamber']) . ' Video';
 
