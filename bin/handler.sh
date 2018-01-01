@@ -13,23 +13,15 @@ php get_video.php || exit
 
 # Figure out the filename and chamber we're processing.
 cd $VIDEO_DIR || exit
-VIDEO_FILE="$(find ./*.mp4 |head -1)"
-if [[ "$VIDEO_FILE" == "house"* ]]; then
-	CHAMBER="house"
-else
-	CHAMBER="senate"
-fi
 
-# Remove the chamber from the filename.
-NEW_FILENAME="${$VIDEO_FILE/$CHAMBER-/}"
-mv "$VIDEO_FILE" "$NEW_FILENAME"
-VIDEO_FILE="$NEW_FILENAME"
+# Turn the JSON into key/value pairs, and make them into Bash variables.
+eval "$(jq -r '. | to_entries | .[] | .key + "=\"" + .value + "\""' < metadata.json)"
 
 # Define the name of the directory that will store the extracted chyrons.
-VIDEO_DIR="${$VIDEO_FILE/.mp4/}"
+output_dir="${$filename/.mp4/}"
 
 # Start the video processor.
-../bin/process-video "$VIDEO_FILE" "$CHAMBER" || exit
+../bin/process-video "$filename" "$chamber" || exit
 
 ############
 ## TO DO
@@ -38,7 +30,7 @@ VIDEO_DIR="${$VIDEO_FILE/.mp4/}"
 # Copy screenshots to S3.
 # If the sync worked properly, delete screenshots.
 cd "$VIDEO_DIR"
-if aws s3 sync . s3://video.richmondsunlight.com/"$CHAMBER"/floor/"$DATE" --exclude "*" --include "*.jpg"
+if aws s3 sync . s3://video.richmondsunlight.com/"$chamber"/floor/"$date" --exclude "*" --include "*.jpg"
 then
 	echo Deleting all local screenshots
 	rm ./*.jpg
@@ -48,7 +40,7 @@ fi
 
 # Create the record for this video in the database.
 cd ..
-VIDEO_ID="$(php save_metadata.php "$VIDEO_FILE")" || exit
+VIDEO_ID="$(php save_metadata.php "$filename")" || exit
 
 # Insert the chyrons into the database.
 cd "$VIDEO_DIR"
