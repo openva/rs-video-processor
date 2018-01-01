@@ -43,18 +43,18 @@ else
 	exit
 fi
 
-# Extract the date from the 
-DATE=${SRC/.mp4/}
+# Turn the JSON into key/value pairs, and make them into Bash variables.
+eval "$(jq -r '. | to_entries | .[] | .key + "=\"" + .value + "\""' < metadata.json)"
 
 # Have mplayer create a folder full of screenshots.
-if ! mplayer -vf framestep="$FRAMESTEP" -framedrop -nosound "$SRC" -speed 100 -vo jpeg:outdir="$DATE"
+if ! mplayer -vf framestep="$FRAMESTEP" -framedrop -nosound "$SRC" -speed 100 -vo jpeg:outdir="$date"
 then
 	exit "$?"
 fi
 
 echo "Extracting names and bill numbers from each frame"
 
-cd "$DATE" || exit
+cd "$date" || exit
 
 # Standardize screenshot dimensions
 if ! mogrify -resize 640x480 ./*
