@@ -68,7 +68,7 @@ if (!isset($video))
 set_time_limit(0);
 
 # Retrieve the file and store it locally.
-$video->filename = '../video/' . $video->chamber . '-' . $video->date . '.mp4';
+$video->filename = '../video/' . $video->date . '.mp4';
 $fp = fopen($video->filename, 'w+');
 $ch = curl_init($video->url);
 curl_setopt($ch, CURLOPT_FILE, $fp);
