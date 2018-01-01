@@ -55,9 +55,12 @@ $sql = 'UPDATE files
 $result = mysql_query($sql);
 if ($result === FALSE)
 {
-	$log->put('Captions could not be inserted into the database', 4);
+	$log->put('WebVTT file could not be inserted into the database', 4);
 }
 
+/*
+ * Turn the WebVTT file into a human-readable transcript (e.g., no timestamps).
+ */
 if ($captions->webvtt_to_transcript() === FALSE)
 {
 	$log->put('Could not generate transcript.', 4);
@@ -69,12 +72,19 @@ elseif (empty($captions->transcript))
 	return FALSE;
 }
 
+/*
+ * Atomize the transcripts into tiny, time-bound chunks, and store them as individual DB records.
+ */
 if ($captions->webvtt_to_database() === FALSE)
 {
 	$log->put('Could not atomize captions and store them in the database.', 4);
 	return FALSE;
 }
 
+/*
+ * Attempt to resolve each spoken line to a given legislator. (They are not identified within the
+ * transcripts, so it is necessary to infer their identity from the transcript text.)
+ */
 if ($captions->identify_speakers() === FALSE)
 {
 	$log->put('Could not identify speakers for captions stored in the database.', 4);
