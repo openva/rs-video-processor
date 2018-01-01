@@ -111,5 +111,17 @@ $result = $sqs_client->DeleteMessage([
 				'ReceiptHandle' => $message['ReceiptHandle']
 			]);
 
+/*
+ * Save metadata about this to a JSON file, to be used elsewhere in the processing pipeline.
+ */
+$metadata = [];
+$metadata['filename'] = $video->filename;
+$metadata['date'] = $video->date;
+$metadata['date_hyphens'] = substr($video->date, 0, 4) . '-' . substr($video->date, 4, 2) . '-'
+	. substr($video->date, 6, 2);
+$metadata['s3_url'] = $s3_url;
+$metadata['chamber'] = $video->chamber;
+file_put_contents('../video/metadata.json', json_encode($metadata));
+
 $log->put('Found and stored new ' . ucfirst($video->chamber) . ' video, for ' . $video->date
 	. '.', 4);
