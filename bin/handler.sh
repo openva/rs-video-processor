@@ -58,6 +58,8 @@ php resolve_chyrons.php  "$VIDEO_ID"
 #	. $DATE
 ##
 
+# Deal with captions
+
 # Delete everything from the /video/ directory -- we're done with it.
 rm -Rf ../video/
 
