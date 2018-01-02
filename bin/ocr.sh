@@ -74,7 +74,7 @@ fi
 for f in *[0-9].jpg; do convert "$f" -crop "$NAME_CROP" +repage -negate -fx '.8*r+.8*g+0*b' -compress none -depth 8 "$f".name.jpg; done
 for f in *[0-9].jpg; do convert "$f" -crop "$BILL_CROP" +repage -negate -fx '.8*r+.8*g+0*b' -compress none -depth 8 "$f".bill.jpg; done
 
-echo OCRing names and bill numbers
+echo "OCRing names and bill numbers"
 
 # We do this in two steps to avoid exceeding the limits of ls.
 find . -type f -name '*.name.jpg' -exec tesseract {} {} \;
