@@ -50,16 +50,14 @@ if (count($matches) == 0)
 	exit('No video clips found on the Granicus server.');
 }
 
-unset($matches[0]);
-
 /*
  * Iterate through every video until we find the one in question.
  */
-foreach ($matches as $match)
+for ($i=0; $i < count($matches['timestamp']); $i++)
 {
 
-	$clip_date = date('Y-m-d', $match['timestamp']);
-	$clip_id = $match['clip_id'];
+	$clip_date = date('Y-m-d', $matches['timestamp'][$i]);
+	$clip_id = $matches['clip_id'][$i];
 
 	if ($date == $clip_date)
 	{
