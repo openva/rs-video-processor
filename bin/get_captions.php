@@ -78,7 +78,7 @@ $captions = file_get_contents('http://virginia-house.granicus.com/videos/' . $cl
 	. '/captions.vtt');
 if ($captions !== FALSE)
 {
-	$filename = $date . '.vtt';
+	$filename = str_replace('-', '', $date) . '.vtt';
 	file_put_contents($video_dir . $filename, $captions);
 }
 
