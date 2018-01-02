@@ -12,7 +12,7 @@ mkdir -p $VIDEO_DIR
 php get_video.php || exit
 
 # Figure out the filename and chamber we're processing.
-cd $VIDEO_DIR || exit
+cd "$VIDEO_DIR" || exit
 
 # Turn the JSON into key/value pairs, and make them into Bash variables.
 eval "$(jq -r '. | to_entries | .[] | .key + "=\"" + .value + "\""' < metadata.json)"
@@ -23,13 +23,9 @@ output_dir="${$filename/.mp4/}"
 # OCR the video. This also generates screeshots and thumbnails.
 ../bin/ocr.sh "$filename" "$chamber" || exit
 
-############
-## TO DO
-############
-
-# Copy screenshots to S3.
-# If the sync worked properly, delete screenshots.
-cd "$VIDEO_DIR"
+# Move screenshots to S3.
+cd "$VIDEO_DIR" || exit
+cd "$output_dir" || exit
 if aws s3 sync . s3://video.richmondsunlight.com/"$chamber"/floor/"$date" --exclude "*" --include "*.jpg"
 then
 	echo Deleting all local screenshots
@@ -39,15 +35,17 @@ else
 fi
 
 # Create the record for this video in the database.
-cd ..
-VIDEO_ID="$(php save_metadata.php "$filename")" || exit
+cd "$VIDEO_DIR" || exit
+VIDEO_ID="$(php ../bin/save_metadata.php "$filename")" || exit
 
 # Insert the chyrons into the database.
-cd "$VIDEO_DIR"
-php parse_video.php "$VIDEO_ID"
+cd "$VIDEO_DIR" || exit
+php ../bin/parse_video.php "$VIDEO_ID"
 
 # Resolve the chyrons to individual legislators and bills.
-php resolve_chyrons.php  "$VIDEO_ID"
+php ../bin/resolve_chyrons.php "$VIDEO_ID"
+
+# Resolve the chyrons to individual legislators and bills.
 
 #/home/ubuntu/youtube-upload-master/bin/youtube-upload '
 #	. '--tags="virginia, legislature, general assembly" '
@@ -58,12 +56,13 @@ php resolve_chyrons.php  "$VIDEO_ID"
 #	. $DATE
 ##
 
-# Deal with captions
 
 # Delete everything from the /video/ directory -- we're done with it.
+cd "$VIDEO_DIR" || exit
+cd ..
 rm -Rf ../video/
 
-# Run itself again, in case there are more videos in the queue.
+# Run this again, in case there are more videos in the queue.
 ./handler.sh
 
 # Stop this instance -- it's done.
