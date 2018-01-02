@@ -42,7 +42,7 @@ $url = $chambers[$chamber];
  * Get the HTML for this chamber's video archives.
  */
 $list_html = get_content($url);
-$pcre = '/<timestamp>(?:[0-9]{10})<\/span>(?:.+?)&clip_id=(?<clip_id>[0-9]{3,5})/s';
+$pcre = '/(?<timestamp>[0-9]{10})(?:.+?)&clip_id=(?<clip_id>[0-9]{3,5})/s';
 preg_match_all($pcre, $list_html, $matches);
 
 if (count($matches) == 0)
