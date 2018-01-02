@@ -46,6 +46,10 @@ php ../bin/parse_video.php "$VIDEO_ID"
 php ../bin/resolve_chyrons.php "$VIDEO_ID"
 
 # Resolve the chyrons to individual legislators and bills.
+php ../bin/get_captions.php "$chamber" "$date"
+
+# Deal with captions
+php ../bin/process_captions.php "$chamber" "$date"
 
 #/home/ubuntu/youtube-upload-master/bin/youtube-upload '
 #	. '--tags="virginia, legislature, general assembly" '
