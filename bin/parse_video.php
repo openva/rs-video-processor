@@ -24,11 +24,12 @@ if (!isset($video_id) || empty($video_id))
 	die('No video ID specified.');
 }
 
-$sql = 'SELECT *
+$sql = 'SELECT file_id
 		FROM video_index
 		WHERE file_id=' . $video_id;
-$result = $db->query($sql);
-if ($result->rowCount() > 0)
+$stmt = $db->prepare($sql);
+$stmt->execute();
+if (!$stmt->fetch())
 {
 	die('This video has already been parsed!');
 }
@@ -37,12 +38,13 @@ $sql = 'SELECT chamber, path, capture_directory, length, capture_rate, capture_d
 		fps, width, height
 		FROM files
 		WHERE id=' . $video_id;
-$result = $db->query($sql);
-if ($result->rowCount() == 0)
+$stmt = $db->prepare($sql);
+$stmt->execute();
+$file = $result->fetch();
+if ($file == FALSE)
 {
 	die('Invalid video ID specified');
 }
-$file = $result->fetch();
 $file = array_map('stripslashes', $file);
 
 # If we're missing some basic information, start by trying to fill it in from available data within
