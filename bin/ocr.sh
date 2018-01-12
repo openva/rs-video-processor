@@ -50,9 +50,6 @@ else
 	exit
 fi
 
-# Turn the JSON into key/value pairs, and make them into Bash variables.
-eval "$(jq -r '. | to_entries | .[] | .key + "=\"" + .value + "\""' < metadata.json)"
-
 # Have mplayer create a folder full of screenshots.
 if ! mplayer -vf framestep="$FRAMESTEP" -framedrop -nosound "$SRC" -speed 100 -vo jpeg:outdir="$date"
 then
