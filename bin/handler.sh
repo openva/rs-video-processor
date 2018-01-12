@@ -35,11 +35,10 @@ else
 fi
 
 # Create the record for this video in the database.
-cd "$VIDEO_DIR" || exit
+cd ..
 VIDEO_ID="$(php ../bin/save_metadata.php "$filename")" || exit
 
 # Insert the chyrons into the database.
-cd "$VIDEO_DIR" || exit
 php ../bin/parse_video.php "$VIDEO_ID"
 
 # Resolve the chyrons to individual legislators and bills.
