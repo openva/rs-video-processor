@@ -41,7 +41,7 @@ try
 	]);
 	if (count($result->get('Messages')) > 0)
 	{
-		$message = json_decode($result->get('Messages')[0]);
+		$message = current($result->get('Messages'));
 	}
 
 }
