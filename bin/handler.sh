@@ -3,7 +3,7 @@
 # Change to the directory containing this script.
 cd "$(dirname "$0")" || exit
 
-VIDEO_DIR="../video/"
+export VIDEO_DIR="../video/"
 
 # Make a videos directory, if it doesn't already exist.
 mkdir -p $VIDEO_DIR
@@ -36,7 +36,7 @@ fi
 
 # Create the record for this video in the database.
 cd ..
-VIDEO_ID="$(php ../bin/save_metadata.php "$filename")" || exit
+export VIDEO_ID="$(php ../bin/save_metadata.php "$filename")" || exit
 
 # Insert the chyrons into the database.
 php ../bin/parse_video.php "$VIDEO_ID"
