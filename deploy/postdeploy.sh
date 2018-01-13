@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd /home/ubuntu/rs-video-processor/
+cd /home/ubuntu/video-processor/
 
 # Set up the crontab
 crontab deploy/crontab.txt
