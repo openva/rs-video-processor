@@ -113,10 +113,12 @@ $result = $sqs_client->DeleteMessage([
 
 /*
  * Save metadata about this to a JSON file, to be used elsewhere in the processing pipeline.
+ * Note that all values must be strings, or else jq will not convert them to environment
+ * variables correctly.
  */
 $metadata = [];
 $metadata['filename'] = $video->filename;
-$metadata['date'] = $video->date;
+$metadata['date'] = (string)$video->date;
 $metadata['date_hyphens'] = substr($video->date, 0, 4) . '-' . substr($video->date, 4, 2) . '-'
 	. substr($video->date, 6, 2);
 $metadata['s3_url'] = $s3_url;
