@@ -15,7 +15,7 @@ php get_video.php || exit
 cd "$VIDEO_DIR" || exit
 
 # Turn the JSON into key/value pairs, and make them into Bash variables.
-eval "$(jq -r '. | to_entries | .[] | .key + "=\"" + .value + "\""' < metadata.json)"
+export eval "$(jq -r '. | to_entries | .[] | .key + "=\"" + .value + "\""' < metadata.json)"
 
 # Define the name of the directory that will store the extracted chyrons.
 output_dir="${$filename/.mp4/}"
