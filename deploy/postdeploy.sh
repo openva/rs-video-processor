@@ -3,4 +3,4 @@
 cd /home/ubuntu/video-processor/
 
 # Set up the crontab
-crontab deploy/crontab.txt
+cat deploy/crontab.txt |sudo tee -a /etc/crontab
