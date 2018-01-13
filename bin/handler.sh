@@ -18,7 +18,7 @@ cd "$VIDEO_DIR" || exit
 export eval "$(jq -r '. | to_entries | .[] | .key + "=\"" + .value + "\""' < metadata.json)"
 
 # Define the name of the directory that will store the extracted chyrons.
-output_dir="${$filename/.mp4/}"
+export output_dir="${filename/.mp4/}"
 
 # OCR the video. This also generates screeshots and thumbnails.
 ../bin/ocr.sh "$filename" "$chamber" || exit
