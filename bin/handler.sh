@@ -1,5 +1,22 @@
 #!/bin/bash
 
+# Clean up before we're finished.
+function finish {
+
+	# Delete everything from the /video/ directory -- we're done with it.
+	cd "$VIDEO_DIR" || exit
+	cd ..
+	rm -Rf ../video/
+	
+	./handler.sh
+	
+	#sudo shutdown -h now
+
+}
+
+# Run the finish() function every time this script exits for any reason.
+trap finish EXIT
+
 # Change to the directory containing this script.
 cd "$(dirname "$0")" || exit
 
