@@ -80,7 +80,7 @@ fclose($fp);
 /*
  * Copy the file to S3.
  */
-$s3_key = '/'  . $video->chamber . '/' . 'floor/' . $video->date . '.mp4';
+$s3_key = $video->chamber . '/' . 'floor/' . $video->date . '.mp4';
 $s3_url = 'https://s3.amazonaws.com/video.richmondsunlight.com/' . $s3_key;
 
 try
