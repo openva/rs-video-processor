@@ -9,10 +9,16 @@ $video_dir = (__DIR__ . '/../video/');
  * The filename must be specified at the command line.
  */
 $filename = $_SERVER['argv'][1];
+$capture_dir = $_SERVER['argv'][2];
 
 if (empty($filename))
 {
 	die('You must specify the filename');
+}
+
+if (empty($capture_dir))
+{
+	die('You must specify the output directory');
 }
 
 /*
@@ -43,6 +49,7 @@ $file = array();
  * Use mplayer to get some metadata about this video.
  */
 $video->path = $filename;
+$video->capture_directory = $capture_dir;
 if ($video->extract_file_data() === FALSE)
 {
 	echo 'Could not get metadata about ' . $filename . ' from mplayer';

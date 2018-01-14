@@ -53,7 +53,7 @@ fi
 
 # Create the record for this video in the database.
 cd ..
-export VIDEO_ID="$(php ../bin/save_metadata.php "$filename")" || exit
+export VIDEO_ID="$(php ../bin/save_metadata.php "$filename" "$output_dir")" || exit
 
 # Insert the chyrons into the database.
 php ../bin/parse_video.php "$VIDEO_ID"
