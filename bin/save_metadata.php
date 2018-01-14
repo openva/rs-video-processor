@@ -10,6 +10,11 @@ $video_dir = (__DIR__ . '/../video/');
  */
 $filename = $_SERVER['argv'][1];
 
+if (empty($filename))
+{
+	die('You must specify the filename');
+}
+
 /*
  * Make sure the file exists.
  */
