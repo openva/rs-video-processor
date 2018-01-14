@@ -76,14 +76,3 @@ php ../bin/process_captions.php "$chamber" "$date"
 #	. $DATE
 ##
 
-
-# Delete everything from the /video/ directory -- we're done with it.
-cd "$VIDEO_DIR" || exit
-cd ..
-rm -Rf ../video/
-
-# Run this again, in case there are more videos in the queue.
-./handler.sh
-
-# Stop this instance -- it's done.
-#sudo shutdown -h now
