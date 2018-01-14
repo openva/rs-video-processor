@@ -62,13 +62,12 @@ $file['height'] = $video->height;
 $file['length'] = $video->length;
 $file['capture_rate'] = $video->capture_rate;
 
-
 /*
  * Then, store information that we already know about this file.
  */
-$file['path'] = $metadata['s3_url'];
-$file['chamber'] = $metadata['chamber'];
-$file['date'] = $metadata['date_hyphens'];
+$file['path'] = $metadata->s3_url;
+$file['chamber'] = $metadata->chamber;
+$file['date'] = $metadata->date_hyphens;
 $file['type'] = 'video';
 $file['title'] = ucfirst($file['chamber']) . ' Video';
 
