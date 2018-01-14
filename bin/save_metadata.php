@@ -70,6 +70,7 @@ $file['chamber'] = $metadata->chamber;
 $file['date'] = $metadata->date_hyphens;
 $file['type'] = 'video';
 $file['title'] = ucfirst($file['chamber']) . ' Video';
+$file['capture_directory'] = '/video/' . $metadata->chamber . '/floor/' . $metadata->date .'/';
 
 /*
  * Store this record in the database.
