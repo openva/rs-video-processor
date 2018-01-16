@@ -100,7 +100,7 @@ find . -type f -name '*.name.jpg' -exec rm {} \;
 find . -type f -name '*.bill.jpg' -exec rm {} \;
 
 # Duplicate all JPEGs with a -150 suffix.
-for F in $(find -1 ./*.jpg |awk -F. '{print $2}')
+for F in $(find ./*.jpg -maxdepth 1 |awk -F. '{print $2}')
 do
 	cp ."$F".jpg ."${F}"-150.jpg
 done
