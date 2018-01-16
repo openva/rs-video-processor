@@ -31,8 +31,13 @@ php get_video.php || exit
 # Figure out the filename and chamber we're processing.
 cd "$VIDEO_DIR" || exit
 
-# Turn the JSON into key/value pairs, and make them into Bash variables.
-export eval "$(jq -r '. | to_entries | .[] | .key + "=\"" + .value + "\""' < metadata.json)"
+# Turn the JSON into key/value pairs, and make them into environment variables.
+eval "$(jq -r '. | to_entries | .[] | .key + "=\"" + .value + "\""' < metadata.json)"
+set $filename
+set $date
+set $date_hyphens
+set $s3_url
+set $chamber
 
 # Define the name of the directory that will store the extracted chyrons.
 export output_dir="${filename/.mp4/}"
