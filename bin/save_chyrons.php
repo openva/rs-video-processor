@@ -15,13 +15,21 @@ function format_time($secs)
 	return gmdate('H:i:s', $secs);
 }
 
-// Set capture_rate by dividing the total number of frames in the video by the total number of
-// frames in the video directory. That'll almost certainly require some rounding.
-
+/*
+ * Get the video ID from the command line.
+ */
 $video_id = $_SERVER['argv'][1];
 if (!isset($video_id) || empty($video_id))
 {
 	die('No video ID specified.');
+}
+
+/*
+ * Optionally get the capture directory from the command line.
+ */
+if (isset($_SERVER['argv'][2]))
+{
+	$capture_directory = $_SERVER['argv'][2];
 }
 
 $sql = 'SELECT file_id
@@ -29,7 +37,7 @@ $sql = 'SELECT file_id
 		WHERE file_id=' . $video_id;
 $stmt = $db->prepare($sql);
 $stmt->execute();
-if (!$stmt->fetch())
+if ($stmt->fetch() === TRUE)
 {
 	die('This video has already been parsed!');
 }
@@ -40,60 +48,42 @@ $sql = 'SELECT chamber, path, capture_directory, length, capture_rate, capture_d
 		WHERE id=' . $video_id;
 $stmt = $db->prepare($sql);
 $stmt->execute();
-$file = $result->fetch();
+$file = $stmt->fetch();
 if ($file == FALSE)
 {
 	die('Invalid video ID specified');
 }
 $file = array_map('stripslashes', $file);
 
-# If we're missing some basic information, start by trying to fill it in from available data within
-# the database.
+/*
+ * If a capture directory has been specified on the command line, use that instead.
+ */
+if (!empty($capture_directory))
+{
+	$file['capture_directory'] = $capture_directory;
+}
+
+/*
+ * If we're missing some basic information, start by trying to fill it in from available data within
+ * the database.
+ */
 if (empty($file['capture_directory']) && !empty($file['date']))
 {
+
 	$file['capture_directory'] = '/video/' . $file['chamber'] . '/floor/'
 		. str_replace('-', '', $file['date']) . '/';
 		
-	# If the directory turns out not to exist, though, abandon ship.
+	/*
+	 * If the directory turns out not to exist, though, abandon ship.
+	 */
 	if (!file_exists($video_dir . $file['capture_directory']))
 	{
 		echo 'No such directory as ' . $file['capture_directory'];
 		echo 'You must go to the command line and run ~/process-video ' . $file['capture_directory'] . '.mp4 [chamber]';
 		unset($file['capture_directory']);
 	}
-}
-if (empty($file['path']) && !empty($file['date']))
-{
-	$file['path'] = '/floor/' . str_replace('-', '', $file['date']) . '.mp4';
-}
-		
-$vid = new Video;
-$vid->path = $file['path'];
-$vid->capture_directory = $file['capture_directory'];
-$vid->extract_file_data();
 
-# If we have a file length of zero, just unset the variable so that we can repopulate it.
-if ($file['length'] == '00:00:00')
-{
-	unset($file['length']);
 }
-
-foreach ($vid as $key => $value)
-{
-	if (!isset($file[$key]) || empty($file[$key]))
-	{
-		$file[$key] = $value;
-	}
-}
-
-# Now store these new bits of information about the video in the database.
-$sql = 'UPDATE files
-		SET fps=' . $file['fps'] . ', width=' . $file['width'] . ', height=' . $file['height'] . ',
-		length="' . $file['length'] . '", path="' . $file['path'] . '",
-		capture_rate=' . $file['capture_rate'] . ',
-		capture_directory="' . $file['capture_directory'] . '"
-		WHERE id=' . $video_id;
-$db->query($sql);
 
 # Store the environment variables.
 $video['id'] = $video_id;
@@ -102,14 +92,18 @@ $video['where'] = 'floor';				// Where the video was taken. Most will be "floor.
 $video['date'] = $file['date'];			// The date of the video in question.
 $video['fps'] = $file['fps'];			// The frames per second at which the video was played.
 $video['capture_rate'] = $file['capture_rate'];	// We captured every X frames. "Framestep," in mplayer terms.
-$video['dir'] = $video_dir . $file['capture_directory'];
+$video['dir'] = $file['capture_directory'] . '/';
+if (!isset($capture_directory))
+{
+	$video['dir'] = $video_dir . $file['capture_directory'];
+}
 
 # Iterate through the video array and make sure nothing is blank. If so, bail.
 foreach ($video as $name => $option)
 {
 	if (empty($option))
 	{
-		die('Cannot parse video without specifying '.$name.' in the files table.');
+		die('Cannot parse video without specifying ' . $name . ' in the files table.');
 	}
 }
 
@@ -134,7 +128,7 @@ foreach ($dir as $file)
 	# If the filename indicates that this is a bill number
 	if (strstr($file, 'bill'))
 	{
-		$bill = trim(file_get_contents($video['dir'].$file));
+		$bill = trim(file_get_contents($video['dir'] . $file));
 		$type = 'bill';
 	}
 
@@ -142,7 +136,7 @@ foreach ($dir as $file)
 	elseif (strstr($file, 'name'))
 	{
 	
-		$legislator = trim(file_get_contents($video['dir'].$file));
+		$legislator = trim(file_get_contents($video['dir'] . $file));
 	
 		# Fix a common OCR mistake.
 		$legislator = str_replace('—', '-', $legislator);
@@ -211,7 +205,7 @@ foreach ($dir as $file)
 		unset($legislator);
 	}
 
-	# If we've successfully gotten a bill number.
+	# If we've successfully gotten a bill number or a legislator name.
 	if (isset($bill) || isset($legislator))
 	{
 		
@@ -251,9 +245,11 @@ foreach ($dir as $file)
 		
 		}
 	
-		$result = $db->query($sql);
+		$insert_stmt = $db->prepare($sql);
+		$insert_stmt->execute();
 	
 		unset($sql);
+
 	}
 	
 	# Delete this file, now that we've handled it.
@@ -261,4 +257,5 @@ foreach ($dir as $file)
 	
 	# We've used this a few times here, so let's unset it, just in case.
 	unset($tmp);
+
 }
