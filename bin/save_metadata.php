@@ -76,7 +76,7 @@ $file['capture_directory'] = '/video/' . $metadata->chamber . '/floor/' . $metad
  * Store this record in the database.
  */
 $video->video = $file;
-if ($video->submit() === FALSE)
+if ($video->submit() !== FALSE)
 {
 	echo $video->id;
 	return;
