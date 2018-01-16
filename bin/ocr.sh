@@ -13,21 +13,10 @@ if [ -z "$1" ]; then
 	exit
 fi
 
-# If the chamber hasn't been specified, try to guess it.
+# If the chamber is missing, explain that it's required.
 if [ -z "$2" ]; then
-	FILE_PATH=$(dirname $(cd "$(dirname "$1")"; pwd)/$(basename "$1"))
-	if [[ "$FILE_PATH" == *"house"* ]]; then
-		CHAMBER="house"
-	elif [[ "$FILE_PATH" == *"senate"* ]]; then
-		CHAMBER="senate"
-	elif [[ ${1:0:1} == "h" ]]; then
-		CHAMBER="house"
-	elif [[ ${1:0:1} == "s" ]]; then
-		CHAMBER="senate"
-	else
-		echo "usage: $0 [YYYYMMDD.mp4] [chamber]"
-		exit
-	fi
+	echo "usage: $0 [YYYYMMDD.mp4] [chamber]"
+	exit
 fi
 
 # Reassign command-line variables to named variables.
