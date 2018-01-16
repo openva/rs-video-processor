@@ -12,7 +12,20 @@ $video_dir = (__DIR__ . '/../video/');
 /*
  * The filename must be specified at the command line.
  */
+if (!isset($_SERVER['argv'][1]))
+{
+	die('VTT filename must be provided.');
+}
 $filename = $_SERVER['argv'][1];
+
+/*
+ * The video ID must be specified at the command line.
+ */
+if (!isset($_SERVER['argv'][2]))
+{
+	die('Video ID must be provided.');
+}
+$video_id = $_SERVER['argv'][2];
 
 /*
  * Make sure the file exists.
@@ -22,6 +35,9 @@ if (file_exists($video_dir . $filename) === FALSE)
 	$log->put('Could not import caption file, because ' . $video_dir . $filename . ' does not exist', 4);
 	exit(1);
 }
+
+$db = new Database;
+$db->connect_old();
 
 $log = new Log;
 
@@ -34,11 +50,10 @@ $metadata = json_decode(file_get_contents($video_dir . 'metadata.json'));
  * Perform some basic cleanup on this WebVTT file.
  */
 $captions = new Video;
-$captions->webvtt = file_get_contents($filename);
+$captions->webvtt = trim(file_get_contents($filename));
 $captions->normalize_line_endings();
-$captions->eliminate_duplicates();
-$captions->offset = -18;
-$captions->time_shift_srt();
+//$captions->offset = -18;
+//$captions->time_shift_srt();
 
 if (strlen($captions->webvtt) < 200)
 {
@@ -49,35 +64,29 @@ if (strlen($captions->webvtt) < 200)
 /*
  * Store the WebVTT file in the database.
  */
-$sql = 'UPDATE files
-		SET webvtt = "' . mysql_real_escape_string($captions->webvtt) . '"
-		WHERE id = ' . $_GET['id'];
-$result = mysql_query($sql);
-if ($result === FALSE)
+$captions->file_id = $video_id;
+if ($captions->store_webvtt() === FALSE)
 {
-	$log->put('WebVTT file could not be inserted into the database', 4);
+	$log->put('WebVTT file could not be inserted into the database for video ID '. $video_id
+		. '.', 4);
 }
 
 /*
  * Turn the WebVTT file into a human-readable transcript (e.g., no timestamps).
  */
-if ($captions->webvtt_to_transcript() === FALSE)
+if ($captions->parse_webvtt() === FALSE)
 {
-	$log->put('Could not generate transcript.', 4);
-	return FALSE;
-}
-elseif (empty($captions->transcript))
-{
-	$log->put('No captions generated', 4);
+	$log->put('Could not atomize WebVTT for video ID ' . $video_id . '.', 4);
 	return FALSE;
 }
 
 /*
  * Atomize the transcripts into tiny, time-bound chunks, and store them as individual DB records.
  */
-if ($captions->webvtt_to_database() === FALSE)
+if ($captions->captions_to_database() === FALSE)
 {
-	$log->put('Could not atomize captions and store them in the database.', 4);
+	$log->put('Could not atomize captions and store them in the database for video ID ' . $video_id
+		. '.', 4);
 	return FALSE;
 }
 
@@ -87,7 +96,18 @@ if ($captions->webvtt_to_database() === FALSE)
  */
 if ($captions->identify_speakers() === FALSE)
 {
-	$log->put('Could not identify speakers for captions stored in the database.', 4);
+	$log->put('Could not identify speakers for captions stored in the database for video ID '
+		. $video_id . '.', 4);
 	return FALSE;
 }
 
+/*
+ * Generate a transcript.
+ * INSERT THESE IN THE DATABASE AFTERWARDS.
+ */
+if ($captions->generate_transcript() === FALSE)
+{
+	$log->put('Could not identify speakers for captions stored in the database for video ID '
+		. $video_id . '.', 4);
+	return FALSE;
+}

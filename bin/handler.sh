@@ -66,11 +66,11 @@ php ../bin/save_chyrons.php "$VIDEO_ID"
 # Resolve the chyrons to individual legislators and bills.
 php ../bin/resolve_chyrons.php "$VIDEO_ID"
 
-# Resolve the chyrons to individual legislators and bills.
-php ../bin/get_captions.php "$chamber" "$date"
+# Retrieve the captions.
+CAPTIONS_FILE="$(php ../bin/get_captions.php "$chamber" "$date_hyphens")"
 
-# Deal with captions
-php ../bin/process_captions.php "$chamber" "$date"
+# Process the captions.
+php ../bin/process_captions.php "$CAPTIONS_FILE" "$VIDEO_ID"
 
 #/home/ubuntu/youtube-upload-master/bin/youtube-upload '
 #	. '--tags="virginia, legislature, general assembly" '
@@ -80,4 +80,3 @@ php ../bin/process_captions.php "$chamber" "$date"
 #	. '--recording-date="' . $DATE . 'T00:00:00.0Z" '
 #	. $DATE
 ##
-

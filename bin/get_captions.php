@@ -58,7 +58,6 @@ for ($i=0; $i < count($matches['timestamp']); $i++)
 
 	$clip_date = date('Y-m-d', $matches['timestamp'][$i]);
 	$clip_id = $matches['clip_id'][$i];
-
 	if ($date == $clip_date)
 	{
 		break;
@@ -67,7 +66,7 @@ for ($i=0; $i < count($matches['timestamp']); $i++)
 }
 
 /*
- * The date from the clip needs to match the 
+ * The date from the clip needs to match the one in the metadata.
  */
 if ($date != $clip_date)
 {
