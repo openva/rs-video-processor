@@ -18,7 +18,7 @@ function finish {
 trap finish EXIT
 
 # Change to the directory containing this script.
-cd "$(dirname "$0")" || exit
+cd "$(dirname "$0")" || exit 1
 
 export VIDEO_DIR="../video/"
 
@@ -46,8 +46,8 @@ export output_dir="${filename/.mp4/}"
 ../bin/ocr.sh "$filename" "$chamber" || exit
 
 # Move screenshots to S3.
-cd "$VIDEO_DIR" || exit
-cd "$output_dir" || exit
+cd "$VIDEO_DIR" || exit $?
+cd "$output_dir" || exit $?
 if aws s3 sync . s3://video.richmondsunlight.com/"$chamber"/floor/"$date" --exclude "*" --include "*.jpg"
 then
 	echo Deleting all local screenshots
@@ -58,19 +58,19 @@ fi
 
 # Create the record for this video in the database.
 cd ..
-export VIDEO_ID="$(php ../bin/save_metadata.php "$filename" "$output_dir")" || exit
+export VIDEO_ID="$(php ../bin/save_metadata.php "$filename" "$output_dir")" || exit $?
 
 # Insert the chyrons into the database.
-php ../bin/save_chyrons.php "$VIDEO_ID"
+php ../bin/save_chyrons.php "$VIDEO_ID" || exit $?
 
 # Resolve the chyrons to individual legislators and bills.
-php ../bin/resolve_chyrons.php "$VIDEO_ID"
+php ../bin/resolve_chyrons.php "$VIDEO_ID" || exit $?
 
 # Retrieve the captions.
-CAPTIONS_FILE="$(php ../bin/get_captions.php "$chamber" "$date_hyphens")"
+CAPTIONS_FILE="$(php ../bin/get_captions.php "$chamber" "$date_hyphens")" || exit $?
 
 # Process the captions.
-php ../bin/process_captions.php "$CAPTIONS_FILE" "$VIDEO_ID"
+php ../bin/process_captions.php "$CAPTIONS_FILE" "$VIDEO_ID" || exit $?
 
 #/home/ubuntu/youtube-upload-master/bin/youtube-upload '
 #	. '--tags="virginia, legislature, general assembly" '
