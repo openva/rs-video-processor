@@ -81,6 +81,14 @@ if (!isset($video))
 }
 
 /*
+ * Now that we have the message, delete it from SQS.
+ */
+$result = $sqs_client->DeleteMessage([
+				'QueueUrl' => 'https://sqs.us-east-1.amazonaws.com/947603853016/rs-video-harvester.fifo',
+				'ReceiptHandle' => $message['ReceiptHandle']
+			]);
+
+/*
  * Take as long as necessary to get the video and then store it.
  */
 set_time_limit(0);
@@ -133,14 +141,6 @@ catch (S3Exception $e)
 		. $e->getMessage(), 7);
 	die();
 }
-
-/*
- * Now that we have saved the file to S3, delete the message from SQS.
- */
-$result = $sqs_client->DeleteMessage([
-				'QueueUrl' => 'https://sqs.us-east-1.amazonaws.com/947603853016/rs-video-harvester.fifo',
-				'ReceiptHandle' => $message['ReceiptHandle']
-			]);
 
 /*
  * Save metadata about this to a JSON file, to be used elsewhere in the processing pipeline.
