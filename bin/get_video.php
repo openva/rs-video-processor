@@ -131,7 +131,7 @@ fclose($fp);
 if (!file_exists('../video/' . $video->filename))
 {
 
-	$log->put('Could not upload save ' . $video->filename . ' locally.', 7);
+	$log->put('Could not upload, save ' . $video->filename . ' locally.', 7);
 	unset($video->filename);
 	requeue($video);
 	die();
