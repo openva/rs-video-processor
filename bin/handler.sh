@@ -26,10 +26,8 @@ export VIDEO_DIR="../video/"
 mkdir -p "$VIDEO_DIR"
 
 # Retrieve the video, saving it to a file and to S3.
-php get_video.php || exit
-
-# Figure out the filename and chamber we're processing.
-cd "$VIDEO_DIR" || exit
+cd "$VIDEO_DIR" || exit 1
+php ../bin/get_video.php || exit 1
 
 # Turn the JSON into key/value pairs, and make them into environment variables.
 eval "$(jq -r '. | to_entries | .[] | .key + "=\"" + .value + "\""' < metadata.json)"
