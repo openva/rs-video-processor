@@ -94,7 +94,7 @@ $result = $sqs_client->DeleteMessage([
 set_time_limit(0);
 
 # Retrieve the file and store it locally.
-$video->filename = '../video/' . $video->date . '.mp4';
+$video->filename = $video->date . '.mp4';
 $fp = fopen($video->filename, 'w+');
 $ch = curl_init($video->url);
 curl_setopt($ch, CURLOPT_FILE, $fp);
@@ -127,7 +127,7 @@ try
 	$result = $s3_client->putObject([
 	    'Bucket'     => 'video.richmondsunlight.com',
 	    'Key'        => $s3_key,
-	    'SourceFile' => $video->filename
+	    'SourceFile' => '../video/' . $video->filename
 	]);
 
 	$s3_client->waitUntil('ObjectExists', [
@@ -138,7 +138,7 @@ try
 catch (S3Exception $e)
 {
 	$log->put('Could not upload video ' . $video->filename . ' to S3. Error reported: '
-		. $e->getMessage(), 7);
+		. $e->getMessage(), 6);
 	die();
 }
 
