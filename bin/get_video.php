@@ -14,6 +14,13 @@ $log = new Log;
  */
 function requeue($message)
 {
+
+	global $sqs_client;
+	global $log;
+	global $message;
+	global $date;
+	global $url;
+
 	/*
 	 * Log this to SQS.
 	 */
