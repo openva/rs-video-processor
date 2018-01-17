@@ -94,6 +94,15 @@ if (!isset($video))
 }
 
 /*
+ * Decline to process old videos, which the RSS feed coughs up sometimes.
+ */
+if ( substr($video->date, 0, 4) != SESSION_YEAR)
+{
+	$log->put('Not processing video from ' . $video->date . ', because it’s too old.', 5);
+	exit(1);
+}
+
+/*
  * Now that we have the message, delete it from SQS.
  */
 $result = $sqs_client->DeleteMessage([
