@@ -23,6 +23,11 @@ if [ ! -f "$SRC" ]; then
 	exit 1;
 fi
 
+if [ -z ${output_dir+x} ]; then
+	echo "Error: output_dir is not set as an environment variable"
+	exit 1;
+fi
+
 if [ "$CHAMBER" = "house" ]; then
 	FRAMESTEP=150
 elif [ "$CHAMBER" = "senate" ]; then
@@ -40,7 +45,7 @@ fi
 
 echo "Extracting names and bill numbers from each frame"
 
-cd "$date" || exit
+cd "$output_dir" || exit
 
 # Standardize screenshot dimensions
 if ! mogrify -resize 640x480 ./*
