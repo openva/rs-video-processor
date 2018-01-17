@@ -10,6 +10,24 @@ include_once(__DIR__ . '/../includes/vendor/autoload.php');
 $log = new Log;
 
 /*
+ * Submit this video back to the queue. We run this if this process fails in any way.
+ */
+function requeue($message)
+{
+	/*
+	 * Log this to SQS.
+	 */
+	$sqs_client->sendMessage([
+		'MessageGroupId'			=> '1',
+		'MessageDeduplicationId'	=> mt_rand(),
+	    'QueueUrl'    				=> 'https://sqs.us-east-1.amazonaws.com/947603853016/rs-video-harvester.fifo',
+	    'MessageBody' 				=> json_encode($message)
+	]);
+
+	$log->put('Found new video, for ' . $date . ', at: ' . $url, 5);
+}
+
+/*
  * Instantiate methods for AWS.
  */
 use Aws\S3\S3Client;
@@ -76,6 +94,19 @@ curl_setopt($ch, CURLOPT_FOLLOWLOCATION, TRUE);
 curl_exec($ch); 
 curl_close($ch);
 fclose($fp);
+
+/*
+ * If the file transfer failed.
+ */
+if (!file_exists('../video/' . $video->filename))
+{
+
+	$log->put('Could not upload save ' . $video->filename . ' locally.', 7);
+	unset($video->filename);
+	requeue($video);
+	die();
+
+}
 
 /*
  * Copy the file to S3.
