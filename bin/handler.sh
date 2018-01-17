@@ -42,7 +42,7 @@ set $chamber
 export output_dir="${filename/.mp4/}"
 
 # OCR the video. This also generates screeshots and thumbnails.
-../bin/ocr.sh "$filename" "$chamber" || exit
+../bin/ocr.sh "$filename" "$chamber" || exit $?
 
 # Move screenshots to S3.
 cd "$VIDEO_DIR" || exit $?
