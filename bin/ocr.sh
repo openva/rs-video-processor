@@ -33,7 +33,7 @@ else
 fi
 
 # Have mplayer create a folder full of screenshots.
-if ! mplayer -vf framestep="$FRAMESTEP" -framedrop -nosound "$SRC" -speed 100 -vo jpeg:outdir="$date"
+if ! mplayer -vf framestep="$FRAMESTEP" -framedrop -nosound "$SRC" -speed 100 -vo jpeg:outdir="$output_dir"
 then
 	exit "$?"
 fi
