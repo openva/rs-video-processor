@@ -8,6 +8,7 @@ function finish {
 	cd ..
 	rm -Rf ../video/
 	
+	cd bin/
 	./handler.sh
 	
 	#sudo shutdown -h now
