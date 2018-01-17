@@ -23,7 +23,7 @@ cd "$(dirname "$0")" || exit 1
 export VIDEO_DIR="../video/"
 
 # Make a videos directory, if it doesn't already exist.
-mkdir -p $VIDEO_DIR
+mkdir -p "$VIDEO_DIR"
 
 # Retrieve the video, saving it to a file and to S3.
 php get_video.php || exit
