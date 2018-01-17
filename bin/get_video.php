@@ -69,6 +69,11 @@ try
 	{
 		$message = current($result->get('Messages'));
 	}
+	else
+	{
+		$log->put('No pending videos found in SQS.', 1);
+		exit(1);
+	}
 
 }
 catch (AwsException $e)
