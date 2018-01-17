@@ -1,12 +1,5 @@
 #!/bin/bash
 
-####
-#### TO DO
-#### SET $date SO WE HAVE AN OUTPUT DIRECTORY
-#### SUPPORT SENATE COMMITTEE VIDEO...SOMEHOW
-#### SUPPORT SHORT-FORM HOUSE COMMITTEE VIDEO
-####
-
 # If the filename is missing, explain that it's required.
 if [ -z "$1" ]; then
 	echo "usage: $0 [YYYYMMDD.mp4] [chamber]"
