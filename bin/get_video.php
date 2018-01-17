@@ -24,7 +24,8 @@ function requeue($message)
 	    'MessageBody' 				=> json_encode($message)
 	]);
 
-	$log->put('Found new video, for ' . $date . ', at: ' . $url, 5);
+	$log->put('Requeued video for ' . $date . '.', 5);
+
 }
 
 /*
