@@ -1,5 +1,11 @@
 <?php
 
+/*
+ * @returns 0 if successful
+ * @returns 1 if this one video fails, but there may be another
+ * @returns 2 if the queue is empty
+ */
+
 # INCLUDES
 # Include any files or libraries that are necessary for this specific
 # page to function.
@@ -90,7 +96,7 @@ try
 	else
 	{
 		$log->put('No pending videos found in SQS.', 1);
-		exit(1);
+		exit(2);
 	}
 
 }
