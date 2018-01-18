@@ -36,6 +36,24 @@ function requeue($message)
 }
 
 /*
+ * Delete this message from SQS.
+ */
+function delete($message)
+{
+
+	global $sqs_client;
+
+	/*
+	 * Now that we have the message, delete it from SQS.
+	 */
+	$sqs_client->DeleteMessage([
+		'QueueUrl' => 'https://sqs.us-east-1.amazonaws.com/947603853016/rs-video-harvester.fifo',
+		'ReceiptHandle' => $message['ReceiptHandle']
+	]);
+
+}
+
+/*
  * Instantiate methods for AWS.
  */
 use Aws\S3\S3Client;
@@ -99,16 +117,14 @@ if (!isset($video))
 if ( substr($video->date, 0, 4) != SESSION_YEAR)
 {
 	$log->put('Not processing video from ' . $video->date . ', because it’s too old.', 5);
+	delete($message);
 	exit(1);
 }
 
 /*
- * Now that we have the message, delete it from SQS.
+ * Delete this message from SQS.
  */
-$result = $sqs_client->DeleteMessage([
-				'QueueUrl' => 'https://sqs.us-east-1.amazonaws.com/947603853016/rs-video-harvester.fifo',
-				'ReceiptHandle' => $message['ReceiptHandle']
-			]);
+delete($message);
 
 /*
  * Take as long as necessary to get the video and then store it.
