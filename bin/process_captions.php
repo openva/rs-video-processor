@@ -9,6 +9,8 @@ include_once(__DIR__ . '/../includes/vendor/autoload.php');
 
 $video_dir = (__DIR__ . '/../video/');
 
+$log = new Log;
+
 /*
  * The filename must be specified at the command line.
  */
