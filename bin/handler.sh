@@ -69,7 +69,7 @@ cd ..
 export VIDEO_ID="$(php ../bin/save_metadata.php "$filename" "$output_dir")" || exit $?
 
 # Insert the chyrons into the database.
-php ../bin/save_chyrons.php "$VIDEO_ID" || exit $?
+php ../bin/save_chyrons.php "$VIDEO_ID" "$output_dir" || exit $?
 
 # Resolve the chyrons to individual legislators and bills.
 php ../bin/resolve_chyrons.php "$VIDEO_ID" || exit $?
