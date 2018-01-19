@@ -9,7 +9,7 @@ function finish {
 	rm -Rf ../video/
 	
 	if [[ -v "SHUTDOWN" ]]; then
-		echo "Done"
+		echo "[WOULD SHUT DOWN SERVER NOW]"
 		#sudo shutdown -h now
 	else
 		cd bin/
