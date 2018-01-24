@@ -23,7 +23,7 @@ if [ ! -f "$SRC" ]; then
 	exit 1;
 fi
 
-if [[ ! -v "$OUTPUT_DIR" ]]; then
+if [[ ! -v "$output_dir" ]]; then
 	echo "Error: output_dir is not set as an environment variable"
 	exit 1;
 fi
