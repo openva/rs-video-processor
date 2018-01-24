@@ -68,7 +68,7 @@ elif [ "$CHAMBER" = "senate-committee" ]; then
 	BILL_CROP="172x27+0+40"
 fi
 
-if "$NAME_CROP"; then
+if [[ -v NAME_CROP ]]; then
 	for f in *[0-9].jpg; do convert "$f" -crop "$NAME_CROP" +repage -negate -fx '.8*r+.8*g+0*b' -compress none -depth 8 "$f".name.jpg; done
 	for f in *[0-9].jpg; do convert "$f" -crop "$BILL_CROP" +repage -negate -fx '.8*r+.8*g+0*b' -compress none -depth 8 "$f".bill.jpg; done
 else
