@@ -63,7 +63,7 @@ $file['length'] = $video->length;
 $file['capture_rate'] = $video->capture_rate;
 
 /*
- * Then, store information that we already know about this file.
+ * Then, add information that we already know about this file.
  */
 $file['path'] = $metadata->s3_url;
 $file['chamber'] = $metadata->chamber;
