@@ -32,9 +32,10 @@ mkdir -p "$VIDEO_DIR"
 # Retrieve the video, saving it to a file and to S3.
 cd "$VIDEO_DIR" || exit 1
 php ../bin/get_video.php
-if [ $? -eq 1 ]; then
+GOT_VIDEO=$?
+if [ $GOT_VIDEO -eq 1 ]; then
 	exit 1
-elif [ $? -eq 2 ]; then
+elif [ $GOT_VIDEO -eq 2 ]; then
 	export SHUTDOWN=1
 	exit 1
 fi
