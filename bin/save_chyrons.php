@@ -191,7 +191,7 @@ foreach ($dir as $file)
 				$invalid++;
 			}
 		}
-		if ( ($invalid / strlen($bill)) > .33)
+		if ( ($invalid / strlen($legislator)) > .33)
 		{
 			unset($legislator);
 		}
