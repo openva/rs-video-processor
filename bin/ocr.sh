@@ -56,7 +56,7 @@ fi
 
 # All dimensions are width x height, horizontal offset + vertical offset (WxH+H+V).
 if [ "$CHAMBER" = "house" ]; then
-	NAME_CROP="120x380+333+60"
+	NAME_CROP="347x57+127+377"
 	BILL_CROP="465x42+129+27"
 elif [ "$CHAMBER" = "senate" ]; then
 	NAME_CROP="345x60+176+340"
