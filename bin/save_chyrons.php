@@ -172,6 +172,12 @@ foreach ($dir as $file)
 		{
 			unset($bill);
 		}
+
+		# If the bill has no numbers, then it's not a bill.
+		if (!eregi('[0-9]', $bill))
+		{
+			unset($bill);
+		}
 	
 	}
 	elseif (isset($legislator))
@@ -192,17 +198,13 @@ foreach ($dir as $file)
 	
 	}
 
-	# If the bill has no numbers, then it's not a bill.
-	if (!eregi('[0-9]', $bill))
-	{
-		unset($bill);
-	}
-
-	# If the legislator chyron lacks three consecutive letters, it's probably not a
-	# legislator (or, if it is, we'll never figure it out).
-	if (!eregi('([a-z]{3})', $legislator))
-	{
-		unset($legislator);
+		# If the legislator chyron lacks three consecutive letters, it's probably not a
+		# legislator (or, if it is, we'll never figure it out).
+		if (!eregi('([a-z]{3})', $legislator))
+		{
+			unset($legislator);
+		}
+	
 	}
 
 	# If we've successfully gotten a bill number or a legislator name.
