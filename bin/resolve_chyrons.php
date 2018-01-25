@@ -103,7 +103,7 @@ if (mysql_num_rows($result) > 0)
 		# Build up an array of bills, using the ID as the key and the number as the content.
 		while ($bill = mysql_fetch_array($result))
 		{
-			$all_bills[$bill{id}] = $bill['number'];
+			$all_bills[$bill{'id'}] = $bill['number'];
 		}
 	}
 	
@@ -352,7 +352,7 @@ if (mysql_num_rows($result) > 0)
 		$tmp['raw_text'] = stripslashes($tmp['raw_text']);
 		# We can't use a newline in an array key.
 		$tmp['raw_text'] = str_replace("\n", ' ', $tmp['raw_text']);
-		$priors[$tmp{raw_text}] = $tmp['linked_id'];
+		$priors[$tmp{'raw_text'}] = $tmp['linked_id'];
 	}
 
 }
@@ -510,7 +510,7 @@ while ($chyron = mysql_fetch_array($result))
 			$legislator_id = key($matches);
 			
 			insert_match($legislator_id, $chyron['id']);
-			next;
+			continue;
 
 		}
 
