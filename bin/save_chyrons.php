@@ -163,7 +163,7 @@ foreach ($dir as $file)
 		$invalid = 0;
 		foreach (str_split($bill) as $character)
 		{
-			if (ord($str) > 127)
+			if (ord($character) > 127)
 			{
 				$invalid++;
 			}
@@ -186,7 +186,7 @@ foreach ($dir as $file)
 		$invalid = 0;
 		foreach (str_split($legislator) as $character)
 		{
-			if (ord($str) > 127)
+			if (ord($character) > 127)
 			{
 				$invalid++;
 			}
@@ -195,8 +195,6 @@ foreach ($dir as $file)
 		{
 			unset($legislator);
 		}
-	
-	}
 
 		# If the legislator chyron lacks three consecutive letters, it's probably not a
 		# legislator (or, if it is, we'll never figure it out).
