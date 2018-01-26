@@ -138,7 +138,7 @@ delete($message);
 set_time_limit(0);
 
 # Retrieve the file and store it locally.
-$video->filename = $video->date . '.mp4';
+$video->filename = $video->chamber . '-' . $video->type . '-' . $video->date . '.mp4';
 $fp = fopen($video->filename, 'w+');
 $ch = curl_init($video->url);
 curl_setopt($ch, CURLOPT_FILE, $fp);
@@ -163,7 +163,14 @@ if (!file_exists('../video/' . $video->filename))
 /*
  * Copy the file to S3.
  */
-$s3_key = $video->chamber . '/' . 'floor/' . $video->date . '.mp4';
+if ($video->type == 'floor')
+{
+	$s3_key = $video->chamber . '/' . 'floor/' . $video->date . '.mp4';
+}
+elseif ($video->type == 'committee')
+{
+	$s3_key = $video->chamber . '/' . 'committee/' . urlencode(strtolower($video->committee)) . '/' . $video->date . '.mp4';
+}
 $s3_url = 'https://s3.amazonaws.com/video.richmondsunlight.com/' . $s3_key;
 
 try
@@ -198,7 +205,9 @@ $metadata['date_hyphens'] = substr($video->date, 0, 4) . '-' . substr($video->da
 	. substr($video->date, 6, 2);
 $metadata['s3_url'] = $s3_url;
 $metadata['chamber'] = $video->chamber;
+$metadata['type'] = $video->type;
+$metadata['committee'] = $video->committee;
 file_put_contents('../video/metadata.json', json_encode($metadata));
 
-$log->put('Found and stored new ' . ucfirst($video->chamber) . ' video, for ' . $video->date
-	. '.', 4);
+$log->put('Found and stored new ' . ucfirst($video->chamber) . ' ' . $video->type . ' video, for '
+	. $video->date . '.', 4);
