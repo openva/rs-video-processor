@@ -47,6 +47,7 @@ set $date
 set $date_hyphens
 set $s3_url
 set $chamber
+set $type
 
 # Define the name of the directory that will store the extracted chyrons.
 export output_dir="${filename/.mp4/}"
@@ -69,17 +70,22 @@ fi
 cd ..
 export VIDEO_ID="$(php ../bin/save_metadata.php "$filename" "$output_dir")" || exit $?
 
-# Insert the chyrons into the database.
-php ../bin/save_chyrons.php "$VIDEO_ID" "$output_dir" || exit $?
+# Only deal with chyrons and captions for floor video.
+if [ "$type" = "floor" ]; then
 
-# Resolve the chyrons to individual legislators and bills.
-php ../bin/resolve_chyrons.php "$VIDEO_ID" || exit $?
+	# Insert the chyrons into the database.
+	php ../bin/save_chyrons.php "$VIDEO_ID" "$output_dir" || exit $?
 
-# Retrieve the captions.
-CAPTIONS_FILE="$(php ../bin/get_captions.php "$chamber" "$date_hyphens")" || exit $?
+	# Resolve the chyrons to individual legislators and bills.
+	php ../bin/resolve_chyrons.php "$VIDEO_ID" || exit $?
 
-# Process the captions.
-php ../bin/process_captions.php "$CAPTIONS_FILE" "$VIDEO_ID" || exit $?
+	# Retrieve the captions.
+	CAPTIONS_FILE="$(php ../bin/get_captions.php "$chamber" "$date_hyphens")" || exit $?
+
+	# Process the captions.
+	php ../bin/process_captions.php "$CAPTIONS_FILE" "$VIDEO_ID" || exit $?
+
+fi
 
 #/home/ubuntu/youtube-upload-master/bin/youtube-upload '
 #	. '--tags="virginia, legislature, general assembly" '
