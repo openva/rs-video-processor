@@ -209,5 +209,5 @@ $metadata['type'] = $video->type;
 $metadata['committee'] = $video->committee;
 file_put_contents('../video/metadata.json', json_encode($metadata));
 
-$log->put('Found and stored new ' . ucfirst($video->chamber) . ' ' . $video->type . ' video, for '
+$log->put('Stored new ' . ucfirst($video->chamber) . ' ' . $video->type . ' video, for '
 	. $video->date . '.', 4);
