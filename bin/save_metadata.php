@@ -2,8 +2,15 @@
 
 require_once(__DIR__ . '/../includes/settings.inc.php');
 require_once(__DIR__ . '/../includes/functions.inc.php');
+include_once(__DIR__ . '/../includes/vendor/autoload.php');
 
 $video_dir = (__DIR__ . '/../video/');
+
+/*
+ * Connect to the database.
+ */
+$db = new Database;
+$db->connect_old();
 
 /*
  * The filename must be specified at the command line.
