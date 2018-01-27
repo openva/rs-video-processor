@@ -62,7 +62,7 @@ if ($metadata->type == 'committee')
 		$committees = array();
 		while ($committee = mysql_fetch_array($result))
 		{
-			$committees[] = $committee;
+			$committees[$committee{'id'}] = $committee['name'];
 		}
 
 		$shortest = -1;
