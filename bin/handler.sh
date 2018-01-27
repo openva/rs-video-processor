@@ -6,7 +6,7 @@ function finish {
 	# Delete everything from the /video/ directory -- we're done with it.
 	cd "$VIDEO_DIR" || exit
 	cd ..
-	rm -Rf ../video/
+	rm -Rf video/
 	
 	if [[ -v "SHUTDOWN" ]]; then
 		echo "[WOULD SHUT DOWN SERVER NOW]"
