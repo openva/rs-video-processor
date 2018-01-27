@@ -47,7 +47,7 @@ preg_match_all($pcre, $list_html, $matches);
 
 if (count($matches) == 0)
 {
-	exit('No video clips found on the Granicus server.');
+	exit(1);
 }
 
 /*
@@ -70,7 +70,7 @@ for ($i=0; $i < count($matches['timestamp']); $i++)
  */
 if ($date != $clip_date)
 {
-	exit('No captions found.');
+	exit(1);
 }
 
 $captions = file_get_contents('http://virginia-house.granicus.com/videos/' . $clip_id
