@@ -48,46 +48,10 @@ $metadata = json_decode(file_get_contents($video_dir . 'metadata.json'));
 if ($metadata->type == 'committee')
 {
 
-	/*
-	 * First, get a list of all committees' names and IDs.
-	 */
-	$sql = 'SELECT id, name
-			FROM committees
-			WHERE parent_id IS NULL
-			AND chamber = "' . $metadata->chamber . '"';
-	$result = mysql_query($sql);
-	if (mysql_num_rows($result) > 0)
-	{
-
-		$committees = array();
-		while ($committee = mysql_fetch_array($result))
-		{
-			$committees[$committee{'id'}] = $committee['name'];
-		}
-
-		$shortest = -1;
-		foreach ($committees as $id => $name)
-		{
-
-			$distance = levenshtein($metadata->committee, $name);
-			if ($distance === 0)
-			{
-				$closest = $id;
-				$shortest = 0;
-				break;
-			}
-
-			elseif ($distance <= $shortest || $shortest < 0)
-			{
-				$closest = $id;
-				$shortest = $distance;
-			}
-
-		}
-
-		$metadata->committee_id = $closest;
-
-	}
+	$committee = new Committee;
+	$committee->chamber = $metadata->chamber;
+	$committee->name = $metadata->committee;
+	$metadata->committee_id = $committee->get_id;
 
 }
 
