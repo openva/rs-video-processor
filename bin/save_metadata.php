@@ -43,19 +43,6 @@ if (file_exists($video_dir . $filename) === FALSE)
 $metadata = json_decode(file_get_contents($video_dir . 'metadata.json'));
 
 /*
- * Identify the committee ID for this video.
- */
-if ($metadata->type == 'committee')
-{
-
-	$committee = new Committee;
-	$committee->chamber = $metadata->chamber;
-	$committee->name = $metadata->committee;
-	$metadata->committee_id = $committee->get_id;
-
-}
-
-/*
  * Instantiate the video class
  */
 $video = new Video;
