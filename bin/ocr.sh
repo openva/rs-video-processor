@@ -74,7 +74,7 @@ if [[ -v NAME_CROP ]]; then
 else
 
 	for f in *[0-9].jpg; do convert "$f" -crop "$NAME_AND_BILL_CROP" +repage -negate -fx '.8*r+.8*g+0*b' -compress none -depth 8 "$f".chyron.jpg; done
-fi	
+fi
 
 echo "OCRing names and bill numbers"
 

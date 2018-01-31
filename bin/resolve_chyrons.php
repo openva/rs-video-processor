@@ -50,9 +50,9 @@ $sql = 'SELECT video_index.file_id, files.date, files.chamber
 $result = mysql_query($sql);
 if (mysql_num_rows($result) > 0)
 {
-	
+
 	$video = mysql_fetch_array($result);
-	
+
 	# Get a list of all bills that were addressed on that date (in bills_status).
 	$sql = 'SELECT DISTINCT bills_status.bill_id AS id, bills.number
 			FROM bills_status
@@ -73,19 +73,19 @@ if (mysql_num_rows($result) > 0)
 					FROM sessions
 					WHERE date_started <= ' . $video['date'] . '
 					AND (date_ended >= ' . $video['date'] . '
-						OR 
+						OR
 						date_ended IS NULL)
 				)';
 		$result = mysql_query($sql);
 
 	}
-	
+
 	# Build up an array of bills, using the ID as the key and the number as the content.
 	while ($bill = mysql_fetch_array($result))
 	{
 		$bills[$bill{'id'}] = $bill['number'];
 	}
-	
+
 	# Get a list of all bills that are in the legislature, period.
 	$sql = 'SELECT DISTINCT id, number
 			FROM bills
@@ -99,14 +99,14 @@ if (mysql_num_rows($result) > 0)
 	$result = mysql_query($sql);
 	if (mysql_num_rows($result) > 0)
 	{
-	
+
 		# Build up an array of bills, using the ID as the key and the number as the content.
 		while ($bill = mysql_fetch_array($result))
 		{
 			$all_bills[$bill{'id'}] = $bill['number'];
 		}
 	}
-	
+
 	# Step through each bill chyron.
 	$sql = 'SELECT id, raw_text
 			FROM video_index
@@ -117,15 +117,15 @@ if (mysql_num_rows($result) > 0)
 	$result = mysql_query($sql);
 	while ($chyron = mysql_fetch_array($result))
 	{
-		
+
 		# Strip out any spaces in the bill number -- just compare the bills straight up. Although
 		# bill numbers in the chyrons have spaces between the prefix ("HB") and the number ("1"),
 		# the OCR software doesn't always catch that. Better to just ignore the spaces entirely.
 		$chyron['raw_text'] = str_replace(' ', '', $chyron['raw_text']);
-		
+
 		# Also, we're dealing with this in lower case.
 		$chyron['raw_text'] = strtolower($chyron['raw_text']);
-		
+
 		# Make any obvious corrections that tend to occur with OCR software.
 		if (
 			(substr($chyron['raw_text'], 0, 2) == 's8')
@@ -171,8 +171,8 @@ if (mysql_num_rows($result) > 0)
 		{
 			$chyron['raw_text'] = substr($chyron['raw_text'], 2);
 		}
-			
-		
+
+
 		# If there is a direct match with a bill dealt with on that day, insert it.
 		$bill_id = array_search(strtolower($chyron['raw_text']), $bills);
 		if ( ($bill_id !== FALSE) && !empty($bill_id) )
@@ -180,7 +180,7 @@ if (mysql_num_rows($result) > 0)
 			echo $chyron['raw_text'] . ' matched to ' . $bills[$bill_id] . ' (' . $bill_id . ")\n";
 			insert_match($bill_id, $chyron['id']);
 		}
-		
+
 		# If we couldn't match it with a bill dealt with on that day, see if we can match it with
 		# any bill introduced that year. This helps to allow bills to be recognized in spite of
 		# legislative recordkeeping errors.
@@ -229,9 +229,9 @@ if (mysql_num_rows($result) > 0)
 			}
 		}
 	}
-	
+
 	echo 'Finished matching bill chyrons';
-	
+
 	# Store the new bill number chyrons for this video.
 	if (isset($video['file_id']))
 	{
@@ -239,12 +239,12 @@ if (mysql_num_rows($result) > 0)
 		$vid = new Video;
 		$vid->id = $video['file_id'];
 		$vid->store_clips();
-		
+
 		echo '(Re)indexed ' . $vid->clip_count . ' clips, cued by updating bill number chyrons, and
 			stored those clips.';
-		
+
 	}
-	
+
 }
 
 
@@ -264,13 +264,13 @@ if (mysql_num_rows($result) > 0)
 {
 	# Initalize the arrays.
 	$legislators = array();
-	
+
 	# Iterate through the MySQL results and store them in an array.
 	while ($legislator = mysql_fetch_array($result))
 	{
-		
+
 		$legislator = array_map('stripslashes', $legislator);
-		
+
 		# Depending on the chamber, assign the legislator's prefix.
 		if ($legislator['chamber'] == 'house')
 		{
@@ -280,12 +280,12 @@ if (mysql_num_rows($result) > 0)
 		{
 			$legislator['prefix'] = 'Sen.';
 		}
-		
+
 		# Assemble the array of legislator data into the same format as the chyron text, so that
 		# we can do a direct comparison later.
 		$legislator['complete'] = $legislator['prefix'] . ' ' . pivot($legislator['name']) . "\r"
 			. $legislator['place'] . ' (' . $legislator['party'] . '-' . $legislator['district'] . ')';
-			
+
 		# Append this legislator to the array storing all of them.
 		$legislators[] = $legislator;
 	}
@@ -303,13 +303,13 @@ $sql = 'SELECT representatives.id, representatives.chamber, representatives.name
 $result = mysql_query($sql);
 if (mysql_num_rows($result) > 0)
 {
-	
+
 	# Iterate through the MySQL results and store them in an array.
 	while ($legislator = mysql_fetch_array($result))
 	{
-		
+
 		$legislator = array_map('stripslashes', $legislator);
-		
+
 		# Depending on the chamber, assign the legislator's prefix.
 		if ($legislator['chamber'] == 'house')
 		{
@@ -319,11 +319,11 @@ if (mysql_num_rows($result) > 0)
 		{
 			$legislator['prefix'] = 'Senator';
 		}
-		
+
 		# Extract the last name of the legislator.
 		$tmp = explode(',', $legislator['name']);
 		$legislator['last_name'] = $tmp[0];
-		
+
 		# Assemble the array of legislator data into the same format as the chyron text, so that
 		# we can do a direct comparison later.
 		$legislator['complete'] = $legislator['prefix'] . ' ' . $legislator['last_name'] . "\r"
@@ -338,7 +338,7 @@ if (mysql_num_rows($result) > 0)
 $sql = 'SELECT raw_text, linked_id, COUNT(*) AS number
 		FROM video_index
 		WHERE type = "legislator"
-		AND linked_id IS NOT NULL 
+		AND linked_id IS NOT NULL
 		GROUP BY raw_text
 		ORDER BY number DESC
 		LIMIT 500';
@@ -360,7 +360,7 @@ if (mysql_num_rows($result) > 0)
 # Select the raw text for the past 2,000 successfully IDd legislators and append that to our array.
 $sql = 'SELECT DISTINCT raw_text, linked_id
 		FROM video_index
-		WHERE TYPE = "legislator" AND linked_id IS NOT NULL 
+		WHERE TYPE = "legislator" AND linked_id IS NOT NULL
 		ORDER BY date_created DESC
 		LIMIT 2000';
 $result = mysql_query($sql);
@@ -401,7 +401,7 @@ while ($chyron = mysql_fetch_array($result))
 {
 
 	$chyron['raw_text'] = stripslashes($chyron['raw_text']);
-	
+
 	# Break up the chyron text into the first and second lines, the first dealing with who the
 	# legislator is (e.g. "Del. John Q. Smith"), the second dealing (mostly) with where the
 	# legislator represents (e.g. "Springfield (I-1)").
@@ -409,7 +409,7 @@ while ($chyron = mysql_fetch_array($result))
 	$chyron['name'] = $tmp[0];
 	$chyron['place'] = $tmp[1];
 	unset($tmp);
-	
+
 	# First, attempt a straight match of the text.
 	foreach ($legislators as $legislator)
 	{
@@ -424,7 +424,7 @@ while ($chyron = mysql_fetch_array($result))
 
 		}
 	}
-	
+
 	# Second, attempt to use our lookup table of prior conversions, assuming that we have one.
 	if (isset($priors))
 	{
@@ -440,7 +440,7 @@ while ($chyron = mysql_fetch_array($result))
 		}
 
 	}
-	
+
 	# Third, get a listing of all direct matches within 20%.
 	if (isset($legislators))
 	{
@@ -458,25 +458,25 @@ while ($chyron = mysql_fetch_array($result))
 			}
 
 		}
-		
+
 		# If we've made any matches.
 		if (count($matches) > 0)
 		{
-			
+
 			# Sort by the strength of the match.
 			asort($matches);
-			
+
 			reset($matches);
 			$index = key($matches);
 			$match = current($matches);
 			$match = $legislators[$index]['id'];
-			
+
 			insert_match($match, $chyron['id']);
 			next;
 
 		}
 	}
-	
+
 	# Fourth, get a listing of all prior matches within 15%.
 	if (isset($priors))
 	{
@@ -484,7 +484,7 @@ while ($chyron = mysql_fetch_array($result))
 		# We've stored the raw text of the prior as the array key, but minus the newline, since we
 		# can't use newlines in an array key. So we need to compare with that in mind.
 		$tmp = str_replace("\n", ' ', $chyron['raw_text']);
-		
+
 		$matches = array();
 		foreach ($priors as $text => $id)
 		{
@@ -498,24 +498,24 @@ while ($chyron = mysql_fetch_array($result))
 				$matches[$id] = levenshtein($text, $tmp);
 			}
 		}
-		
+
 		# If we've made any matches.
 		if (count($matches) > 0)
 		{
-			
+
 			# Sort by the strength of the match.
 			asort($matches);
-			
+
 			reset($matches);
 			$legislator_id = key($matches);
-			
+
 			insert_match($legislator_id, $chyron['id']);
 			continue;
 
 		}
 
 	}
-	
+
 }
 
 echo 'Finished matching legislator chyrons' . "\n";
@@ -546,5 +546,5 @@ if (isset($video_id))
 	$video->id = $video_id;
 	$video->store_clips();
 	echo '<p>Indexed video clips for file ' . $file['id'] . "\n";
-	
+
 }

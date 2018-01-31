@@ -7,7 +7,7 @@ function finish {
 	cd "$VIDEO_DIR" || exit
 	cd ..
 	rm -Rf video/
-	
+
 	if [[ -v "SHUTDOWN" ]]; then
 		echo "[WOULD SHUT DOWN SERVER NOW]"
 		#sudo shutdown -h now

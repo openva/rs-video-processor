@@ -72,7 +72,7 @@ if (empty($file['capture_directory']) && !empty($file['date']))
 
 	$file['capture_directory'] = '/video/' . $file['chamber'] . '/floor/'
 		. str_replace('-', '', $file['date']) . '/';
-		
+
 	/*
 	 * If the directory turns out not to exist, though, abandon ship.
 	 */
@@ -113,13 +113,13 @@ $dir = scandir($video['dir']);
 # Iterate through every file in the directory.
 foreach ($dir as $file)
 {
-	
+
 	# Save the image number for use later. Note that this is not the literal frame number from the
 	# video, but rather just the capture number. That is, there might be 300 frames of video in
 	# 10 seconds of video, but if we capture just 2 screenshots in those 10 seconds, the first frame
 	# number will be 1 and the second will be 2.
 	$image_number = substr($file, 0, 8);
-	
+
 	if (substr($file, -4) != '.txt')
 	{
 		continue;
@@ -135,16 +135,16 @@ foreach ($dir as $file)
 	# Otherwise if the filename indicates that this is a legislator's name
 	elseif (strstr($file, 'name'))
 	{
-	
+
 		$legislator = trim(file_get_contents($video['dir'] . $file));
-	
+
 		# Fix a common OCR mistake.
 		$legislator = str_replace('—', '-', $legislator);
-		
+
 		$type = 'legislator';
-	
+
 	}
-	
+
 	# Check to see if these are really blank or implausibly short and, if so, don't actually
 	# store them.
 	if ( ($type == 'bill') && ( empty($bill) || (strlen($bill) < 3) ) )
@@ -159,7 +159,7 @@ foreach ($dir as $file)
 	# If this string consists of a low percentage of low-ASCII characters, we can skip it.
 	if ( (isset($bill) && strlen($bill) > 0 ) )
 	{
-	
+
 		$invalid = 0;
 		foreach (str_split($bill) as $character)
 		{
@@ -178,11 +178,11 @@ foreach ($dir as $file)
 		{
 			unset($bill);
 		}
-	
+
 	}
 	elseif (isset($legislator))
 	{
-	
+
 		$invalid = 0;
 		foreach (str_split($legislator) as $character)
 		{
@@ -202,59 +202,59 @@ foreach ($dir as $file)
 		{
 			unset($legislator);
 		}
-	
+
 	}
 
 	# If we've successfully gotten a bill number or a legislator name.
 	if (isset($bill) || isset($legislator))
 	{
-		
+
 		# Determine how many seconds into this video this image appears, converting it (with
 		# a custom function) into HH:MM:SS format, stepping back five seconds as a buffer.
 		$time = format_time( (($video['capture_rate'] / $video['fps']) * $image_number) -5 );
-		
+
 		# Assemble the beginnings of a SQL string.
 		$sql = 'INSERT INTO video_index
 				SET file_id=' . $video['id'] . ', time="' . $time . '",
 				screenshot="' . $image_number . '", date_created=now(), ';
-	
+
 		if (isset($bill))
 		{
-	
+
 			# Finish assembling the SQL string.
 			$sql .= 'type="bill", raw_text="' . addslashes($bill) . '"';
-		
+
 			echo $bill . "\n";
-		
+
 			# Unset this variable so that we won't use it the next time around.
 			unset($bill);
-		
+
 		}
-	
+
 		# Else if we've successfully gotten a legislator's name.
 		elseif (isset($legislator))
 		{
-	
+
 			# Finish assembling the SQL string.
 			$sql .= 'type="legislator", raw_text="' . addslashes($legislator) . '"';
-		
+
 			echo $legislator . "\n";
-		
+
 			# Unset this variable so that we won't use it the next time around.
 			unset($legislator);
-		
+
 		}
-	
+
 		$insert_stmt = $db->prepare($sql);
 		$insert_stmt->execute();
-	
+
 		unset($sql);
 
 	}
-	
+
 	# Delete this file, now that we've handled it.
 	unlink($video['dir'] . '/' . $file);
-	
+
 	# We've used this a few times here, so let's unset it, just in case.
 	unset($tmp);
 

@@ -143,7 +143,7 @@ $fp = fopen($video->filename, 'w+');
 $ch = curl_init($video->url);
 curl_setopt($ch, CURLOPT_FILE, $fp);
 curl_setopt($ch, CURLOPT_FOLLOWLOCATION, TRUE);
-curl_exec($ch); 
+curl_exec($ch);
 curl_close($ch);
 fclose($fp);
 
