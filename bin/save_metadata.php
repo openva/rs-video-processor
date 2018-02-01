@@ -1,8 +1,8 @@
 <?php
 
-require_once(__DIR__ . '/../includes/settings.inc.php');
-require_once(__DIR__ . '/../includes/functions.inc.php');
-include_once(__DIR__ . '/../includes/vendor/autoload.php');
+require_once __DIR__ . '/../includes/settings.inc.php';
+require_once __DIR__ . '/../includes/functions.inc.php';
+include_once __DIR__ . '/../includes/vendor/autoload.php';
 
 $video_dir = (__DIR__ . '/../video/');
 
@@ -20,12 +20,12 @@ $capture_dir = $_SERVER['argv'][2];
 
 if (empty($filename))
 {
-	die('You must specify the filename');
+    die('You must specify the filename');
 }
 
 if (empty($capture_dir))
 {
-	die('You must specify the output directory');
+    die('You must specify the output directory');
 }
 
 /*
@@ -33,8 +33,8 @@ if (empty($capture_dir))
  */
 if (file_exists($video_dir . $filename) === FALSE)
 {
-	echo $video_dir . $filename . ' does not exist';
-	exit(1);
+    echo $video_dir . $filename . ' does not exist';
+    exit(1);
 }
 
 /*
@@ -59,8 +59,8 @@ $video->path = $filename;
 $video->capture_directory = $capture_dir;
 if ($video->extract_file_data() === FALSE)
 {
-	echo 'Could not get metadata about ' . $filename . ' from mplayer';
-	exit(1);
+    echo 'Could not get metadata about ' . $filename . ' from mplayer';
+    exit(1);
 }
 
 $file['fps'] = $video->fps;
@@ -80,7 +80,7 @@ $file['title'] = ucfirst($file['chamber']) . ' Video';
 $file['capture_directory'] = '/video/' . $metadata->chamber . '/floor/' . $metadata->date .'/';
 if (!empty($metadata->committee_id))
 {
-	$file['committee_id'] = $metadata->committee_id;
+    $file['committee_id'] = $metadata->committee_id;
 }
 
 /*
@@ -89,6 +89,6 @@ if (!empty($metadata->committee_id))
 $video->video = $file;
 if ($video->submit() !== FALSE)
 {
-	echo $video->id;
-	return;
+    echo $video->id;
+    return;
 }

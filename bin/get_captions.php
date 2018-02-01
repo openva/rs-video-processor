@@ -1,7 +1,7 @@
 <?php
 
-require_once(__DIR__ . '/../includes/settings.inc.php');
-require_once(__DIR__ . '/../includes/functions.inc.php');
+require_once __DIR__ . '/../includes/settings.inc.php';
+require_once __DIR__ . '/../includes/functions.inc.php';
 
 $video_dir = (__DIR__ . '/../video/');
 
@@ -10,9 +10,9 @@ $video_dir = (__DIR__ . '/../video/');
  */
 $chamber = trim($_SERVER['argv'][1]);
 $date = trim($_SERVER['argv'][2]);
-if ( empty($chamber) || empty($date) )
+if (empty($chamber) || empty($date))
 {
-	exit('Chamber and date required.');
+    exit('Chamber and date required.');
 }
 
 /*
@@ -29,9 +29,9 @@ $metadata = json_decode(file_get_contents($video_dir . 'metadata.json'));
  * Define the URLs for each of the two chambers.
  */
 $chambers = array(
-				'house' => 'http://virginia-house.granicus.com/ViewPublisher.php?view_id=3',
-				'senate' => 'http://virginia-senate.granicus.com/ViewPublisher.php?view_id=3'
-				);
+                'house' => 'http://virginia-house.granicus.com/ViewPublisher.php?view_id=3',
+                'senate' => 'http://virginia-senate.granicus.com/ViewPublisher.php?view_id=3'
+                );
 
 /*
  * Use the URL for the requested chamber.
@@ -47,7 +47,7 @@ preg_match_all($pcre, $list_html, $matches);
 
 if (count($matches) == 0)
 {
-	exit(1);
+    exit(1);
 }
 
 /*
@@ -56,12 +56,12 @@ if (count($matches) == 0)
 for ($i=0; $i < count($matches['timestamp']); $i++)
 {
 
-	$clip_date = date('Y-m-d', $matches['timestamp'][$i]);
-	$clip_id = $matches['clip_id'][$i];
-	if ($date == $clip_date)
-	{
-		break;
-	}
+    $clip_date = date('Y-m-d', $matches['timestamp'][$i]);
+    $clip_id = $matches['clip_id'][$i];
+    if ($date == $clip_date)
+    {
+        break;
+    }
 
 }
 
@@ -70,15 +70,15 @@ for ($i=0; $i < count($matches['timestamp']); $i++)
  */
 if ($date != $clip_date)
 {
-	exit(1);
+    exit(1);
 }
 
 $captions = file_get_contents('http://virginia-house.granicus.com/videos/' . $clip_id
-	. '/captions.vtt');
+    . '/captions.vtt');
 if ($captions !== FALSE)
 {
-	$filename = str_replace('-', '', $date) . '.vtt';
-	file_put_contents($video_dir . $filename, $captions);
+    $filename = str_replace('-', '', $date) . '.vtt';
+    file_put_contents($video_dir . $filename, $captions);
 }
 
 echo $filename;

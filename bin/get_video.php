@@ -9,9 +9,9 @@
 # INCLUDES
 # Include any files or libraries that are necessary for this specific
 # page to function.
-include_once(__DIR__ . '/../includes/settings.inc.php');
-include_once(__DIR__ . '/../includes/functions.inc.php');
-include_once(__DIR__ . '/../includes/vendor/autoload.php');
+include_once __DIR__ . '/../includes/settings.inc.php';
+include_once __DIR__ . '/../includes/functions.inc.php';
+include_once __DIR__ . '/../includes/vendor/autoload.php';
 
 $log = new Log;
 
@@ -21,23 +21,23 @@ $log = new Log;
 function requeue($message)
 {
 
-	global $sqs_client;
-	global $log;
-	global $message;
-	global $date;
-	global $url;
+    global $sqs_client;
+    global $log;
+    global $message;
+    global $date;
+    global $url;
 
-	/*
-	 * Log this to SQS.
-	 */
-	$sqs_client->sendMessage([
-		'MessageGroupId'			=> '1',
-		'MessageDeduplicationId'	=> mt_rand(),
-	    'QueueUrl'    				=> 'https://sqs.us-east-1.amazonaws.com/947603853016/rs-video-harvester.fifo',
-	    'MessageBody' 				=> json_encode($message)
-	]);
+    /*
+     * Log this to SQS.
+     */
+    $sqs_client->sendMessage([
+        'MessageGroupId'			=> '1',
+        'MessageDeduplicationId'	=> mt_rand(),
+        'QueueUrl'    				=> 'https://sqs.us-east-1.amazonaws.com/947603853016/rs-video-harvester.fifo',
+        'MessageBody' 				=> json_encode($message)
+    ]);
 
-	$log->put('Requeued video for ' . $date . '.', 5);
+    $log->put('Requeued video for ' . $date . '.', 5);
 
 }
 
@@ -47,15 +47,15 @@ function requeue($message)
 function delete($message)
 {
 
-	global $sqs_client;
+    global $sqs_client;
 
-	/*
-	 * Now that we have the message, delete it from SQS.
-	 */
-	$sqs_client->DeleteMessage([
-		'QueueUrl' => 'https://sqs.us-east-1.amazonaws.com/947603853016/rs-video-harvester.fifo',
-		'ReceiptHandle' => $message['ReceiptHandle']
-	]);
+    /*
+     * Now that we have the message, delete it from SQS.
+     */
+    $sqs_client->DeleteMessage([
+        'QueueUrl' => 'https://sqs.us-east-1.amazonaws.com/947603853016/rs-video-harvester.fifo',
+        'ReceiptHandle' => $message['ReceiptHandle']
+    ]);
 
 }
 
@@ -63,19 +63,21 @@ function delete($message)
  * Instantiate methods for AWS.
  */
 use Aws\S3\S3Client;
+
 $s3_client = new S3Client([
     'profile'	=> 'default',
-  	'key'		=> AWS_ACCESS_KEY,
-  	'secret'	=> AWS_SECRET_KEY,
+    'key'		=> AWS_ACCESS_KEY,
+    'secret'	=> AWS_SECRET_KEY,
     'region'	=> 'us-east-1',
     'version'	=> '2006-03-01'
 ]);
 
 use Aws\Sqs\SqsClient;
+
 $sqs_client = new SqsClient([
     'profile'	=> 'default',
-  	'key'		=> AWS_ACCESS_KEY,
-  	'secret'	=> AWS_SECRET_KEY,
+    'key'		=> AWS_ACCESS_KEY,
+    'secret'	=> AWS_SECRET_KEY,
     'region'	=> 'us-east-1',
     'version'	=> '2012-11-05'
 ]);
@@ -86,24 +88,24 @@ $sqs_client = new SqsClient([
 try
 {
 
-	$result = $sqs_client->ReceiveMessage([
-		'QueueUrl' => 'https://sqs.us-east-1.amazonaws.com/947603853016/rs-video-harvester.fifo'
-	]);
-	if (count($result->get('Messages')) > 0)
-	{
-		$message = current($result->get('Messages'));
-	}
-	else
-	{
-		$log->put('No pending videos found in SQS.', 1);
-		exit(2);
-	}
+    $result = $sqs_client->ReceiveMessage([
+        'QueueUrl' => 'https://sqs.us-east-1.amazonaws.com/947603853016/rs-video-harvester.fifo'
+    ]);
+    if (count($result->get('Messages')) > 0)
+    {
+        $message = current($result->get('Messages'));
+    }
+    else
+    {
+        $log->put('No pending videos found in SQS.', 1);
+        exit(2);
+    }
 
 }
 catch (AwsException $e)
 {
-	$log->put('No pending videos found in SQS.', 1);
-	exit(1);
+    $log->put('No pending videos found in SQS.', 1);
+    exit(1);
 }
 
 /*
@@ -113,18 +115,18 @@ $video = json_decode($message['Body']);
 
 if (!isset($video))
 {
-	$log->put('No pending videos found in SQS.', 1);
-	exit(1);
+    $log->put('No pending videos found in SQS.', 1);
+    exit(1);
 }
 
 /*
  * Decline to process old videos, which the RSS feed coughs up sometimes.
  */
-if ( substr($video->date, 0, 4) != SESSION_YEAR)
+if (substr($video->date, 0, 4) != SESSION_YEAR)
 {
-	$log->put('Not processing video from ' . $video->date . ', because it’s too old.', 5);
-	delete($message);
-	exit(1);
+    $log->put('Not processing video from ' . $video->date . ', because it’s too old.', 5);
+    delete($message);
+    exit(1);
 }
 
 /*
@@ -153,10 +155,10 @@ fclose($fp);
 if (!file_exists('../video/' . $video->filename))
 {
 
-	$log->put('Could not upload, save ' . $video->filename . ' locally.', 7);
-	unset($video->filename);
-	requeue($video);
-	die();
+    $log->put('Could not upload, save ' . $video->filename . ' locally.', 7);
+    unset($video->filename);
+    requeue($video);
+    die();
 
 }
 
@@ -165,32 +167,32 @@ if (!file_exists('../video/' . $video->filename))
  */
 if ($video->type == 'floor')
 {
-	$s3_key = $video->chamber . '/' . 'floor/' . $video->date . '.mp4';
+    $s3_key = $video->chamber . '/' . 'floor/' . $video->date . '.mp4';
 }
 elseif ($video->type == 'committee')
 {
-	$s3_key = $video->chamber . '/' . 'committee/' . urlencode(strtolower($video->committee)) . '/' . $video->date . '.mp4';
+    $s3_key = $video->chamber . '/' . 'committee/' . urlencode(strtolower($video->committee)) . '/' . $video->date . '.mp4';
 }
 $s3_url = 'https://s3.amazonaws.com/video.richmondsunlight.com/' . $s3_key;
 
 try
 {
-	$result = $s3_client->putObject([
-	    'Bucket'     => 'video.richmondsunlight.com',
-	    'Key'        => $s3_key,
-	    'SourceFile' => '../video/' . $video->filename
-	]);
+    $result = $s3_client->putObject([
+        'Bucket'     => 'video.richmondsunlight.com',
+        'Key'        => $s3_key,
+        'SourceFile' => '../video/' . $video->filename
+    ]);
 
-	$s3_client->waitUntil('ObjectExists', [
-	    'Bucket' => 'video.richmondsunlight.com',
-	    'Key'    => $s3_key
-	]);
+    $s3_client->waitUntil('ObjectExists', [
+        'Bucket' => 'video.richmondsunlight.com',
+        'Key'    => $s3_key
+    ]);
 }
 catch (S3Exception $e)
 {
-	$log->put('Could not upload video ' . $video->filename . ' to S3. Error reported: '
-		. $e->getMessage(), 6);
-	die();
+    $log->put('Could not upload video ' . $video->filename . ' to S3. Error reported: '
+        . $e->getMessage(), 6);
+    die();
 }
 
 /*
@@ -202,7 +204,7 @@ $metadata = [];
 $metadata['filename'] = $video->filename;
 $metadata['date'] = (string)$video->date;
 $metadata['date_hyphens'] = substr($video->date, 0, 4) . '-' . substr($video->date, 4, 2) . '-'
-	. substr($video->date, 6, 2);
+    . substr($video->date, 6, 2);
 $metadata['s3_url'] = $s3_url;
 $metadata['chamber'] = $video->chamber;
 $metadata['type'] = $video->type;
@@ -210,4 +212,4 @@ $metadata['committee'] = $video->committee;
 file_put_contents('../video/metadata.json', json_encode($metadata));
 
 $log->put('Stored new ' . ucfirst($video->chamber) . ' ' . $video->type . ' video, for '
-	. $video->date . '.', 4);
+    . $video->date . '.', 4);

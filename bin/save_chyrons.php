@@ -1,7 +1,7 @@
 <?php
 
-require_once(__DIR__ . '/../includes/settings.inc.php');
-require_once(__DIR__ . '/../includes/functions.inc.php');
+require_once __DIR__ . '/../includes/settings.inc.php';
+require_once __DIR__ . '/../includes/functions.inc.php';
 
 $video_dir = (__DIR__ . '/../video');
 
@@ -12,7 +12,7 @@ $database->connect();
 # Convert a count of seconds to HH:MM:SS format.
 function format_time($secs)
 {
-	return gmdate('H:i:s', $secs);
+    return gmdate('H:i:s', $secs);
 }
 
 /*
@@ -21,7 +21,7 @@ function format_time($secs)
 $video_id = $_SERVER['argv'][1];
 if (!isset($video_id) || empty($video_id))
 {
-	die('No video ID specified.');
+    die('No video ID specified.');
 }
 
 /*
@@ -29,7 +29,7 @@ if (!isset($video_id) || empty($video_id))
  */
 if (isset($_SERVER['argv'][2]))
 {
-	$capture_directory = $_SERVER['argv'][2];
+    $capture_directory = $_SERVER['argv'][2];
 }
 
 $sql = 'SELECT file_id
@@ -39,7 +39,7 @@ $stmt = $db->prepare($sql);
 $stmt->execute();
 if ($stmt->fetch() === TRUE)
 {
-	die('This video has already been parsed!');
+    die('This video has already been parsed!');
 }
 
 $sql = 'SELECT chamber, path, capture_directory, length, capture_rate, capture_directory, date,
@@ -51,7 +51,7 @@ $stmt->execute();
 $file = $stmt->fetch();
 if ($file == FALSE)
 {
-	die('Invalid video ID specified');
+    die('Invalid video ID specified');
 }
 $file = array_map('stripslashes', $file);
 
@@ -60,7 +60,7 @@ $file = array_map('stripslashes', $file);
  */
 if (!empty($capture_directory))
 {
-	$file['capture_directory'] = $capture_directory;
+    $file['capture_directory'] = $capture_directory;
 }
 
 /*
@@ -70,18 +70,18 @@ if (!empty($capture_directory))
 if (empty($file['capture_directory']) && !empty($file['date']))
 {
 
-	$file['capture_directory'] = '/video/' . $file['chamber'] . '/floor/'
-		. str_replace('-', '', $file['date']) . '/';
+    $file['capture_directory'] = '/video/' . $file['chamber'] . '/floor/'
+        . str_replace('-', '', $file['date']) . '/';
 
-	/*
-	 * If the directory turns out not to exist, though, abandon ship.
-	 */
-	if (!file_exists($video_dir . $file['capture_directory']))
-	{
-		echo 'No such directory as ' . $file['capture_directory'];
-		echo 'You must go to the command line and run ~/process-video ' . $file['capture_directory'] . '.mp4 [chamber]';
-		unset($file['capture_directory']);
-	}
+    /*
+     * If the directory turns out not to exist, though, abandon ship.
+     */
+    if (!file_exists($video_dir . $file['capture_directory']))
+    {
+        echo 'No such directory as ' . $file['capture_directory'];
+        echo 'You must go to the command line and run ~/process-video ' . $file['capture_directory'] . '.mp4 [chamber]';
+        unset($file['capture_directory']);
+    }
 
 }
 
@@ -95,16 +95,16 @@ $video['capture_rate'] = $file['capture_rate'];	// We captured every X frames. "
 $video['dir'] = $file['capture_directory'] . '/';
 if (!isset($capture_directory))
 {
-	$video['dir'] = $video_dir . $file['capture_directory'];
+    $video['dir'] = $video_dir . $file['capture_directory'];
 }
 
 # Iterate through the video array and make sure nothing is blank. If so, bail.
 foreach ($video as $name => $option)
 {
-	if (empty($option))
-	{
-		die('Cannot parse video without specifying ' . $name . ' in the files table.');
-	}
+    if (empty($option))
+    {
+        die('Cannot parse video without specifying ' . $name . ' in the files table.');
+    }
 }
 
 # Store the directory contents as an array.
@@ -114,148 +114,148 @@ $dir = scandir($video['dir']);
 foreach ($dir as $file)
 {
 
-	# Save the image number for use later. Note that this is not the literal frame number from the
-	# video, but rather just the capture number. That is, there might be 300 frames of video in
-	# 10 seconds of video, but if we capture just 2 screenshots in those 10 seconds, the first frame
-	# number will be 1 and the second will be 2.
-	$image_number = substr($file, 0, 8);
+    # Save the image number for use later. Note that this is not the literal frame number from the
+    # video, but rather just the capture number. That is, there might be 300 frames of video in
+    # 10 seconds of video, but if we capture just 2 screenshots in those 10 seconds, the first frame
+    # number will be 1 and the second will be 2.
+    $image_number = substr($file, 0, 8);
 
-	if (substr($file, -4) != '.txt')
-	{
-		continue;
-	}
+    if (substr($file, -4) != '.txt')
+    {
+        continue;
+    }
 
-	# If the filename indicates that this is a bill number
-	if (strstr($file, 'bill'))
-	{
-		$bill = trim(file_get_contents($video['dir'] . $file));
-		$type = 'bill';
-	}
+    # If the filename indicates that this is a bill number
+    if (strstr($file, 'bill'))
+    {
+        $bill = trim(file_get_contents($video['dir'] . $file));
+        $type = 'bill';
+    }
 
-	# Otherwise if the filename indicates that this is a legislator's name
-	elseif (strstr($file, 'name'))
-	{
+    # Otherwise if the filename indicates that this is a legislator's name
+    elseif (strstr($file, 'name'))
+    {
 
-		$legislator = trim(file_get_contents($video['dir'] . $file));
+        $legislator = trim(file_get_contents($video['dir'] . $file));
 
-		# Fix a common OCR mistake.
-		$legislator = str_replace('—', '-', $legislator);
+        # Fix a common OCR mistake.
+        $legislator = str_replace('—', '-', $legislator);
 
-		$type = 'legislator';
+        $type = 'legislator';
 
-	}
+    }
 
-	# Check to see if these are really blank or implausibly short and, if so, don't actually
-	# store them.
-	if ( ($type == 'bill') && ( empty($bill) || (strlen($bill) < 3) ) )
-	{
-		continue;
-	}
-	elseif ( ($type == 'legislator') && (empty($legislator) || (strlen($legislator) < 10) ) )
-	{
-		continue;
-	}
+    # Check to see if these are really blank or implausibly short and, if so, don't actually
+    # store them.
+    if (($type == 'bill') && (empty($bill) || (strlen($bill) < 3)))
+    {
+        continue;
+    }
+    if (($type == 'legislator') && (empty($legislator) || (strlen($legislator) < 10)))
+    {
+        continue;
+    }
 
-	# If this string consists of a low percentage of low-ASCII characters, we can skip it.
-	if ( (isset($bill) && strlen($bill) > 0 ) )
-	{
+    # If this string consists of a low percentage of low-ASCII characters, we can skip it.
+    if ((isset($bill) && strlen($bill) > 0))
+    {
 
-		$invalid = 0;
-		foreach (str_split($bill) as $character)
-		{
-			if (ord($character) > 127)
-			{
-				$invalid++;
-			}
-		}
-		if ( ($invalid / strlen($bill)) > .33)
-		{
-			unset($bill);
-		}
+        $invalid = 0;
+        foreach (str_split($bill) as $character)
+        {
+            if (ord($character) > 127)
+            {
+                $invalid++;
+            }
+        }
+        if (($invalid / strlen($bill)) > .33)
+        {
+            unset($bill);
+        }
 
-		# If the bill has no numbers, then it's not a bill.
-		if (!eregi('[0-9]', $bill))
-		{
-			unset($bill);
-		}
+        # If the bill has no numbers, then it's not a bill.
+        if (!eregi('[0-9]', $bill))
+        {
+            unset($bill);
+        }
 
-	}
-	elseif (isset($legislator))
-	{
+    }
+    elseif (isset($legislator))
+    {
 
-		$invalid = 0;
-		foreach (str_split($legislator) as $character)
-		{
-			if (ord($character) > 127)
-			{
-				$invalid++;
-			}
-		}
-		if ( ($invalid / strlen($legislator)) > .33)
-		{
-			unset($legislator);
-		}
+        $invalid = 0;
+        foreach (str_split($legislator) as $character)
+        {
+            if (ord($character) > 127)
+            {
+                $invalid++;
+            }
+        }
+        if (($invalid / strlen($legislator)) > .33)
+        {
+            unset($legislator);
+        }
 
-		# If the legislator chyron lacks three consecutive letters, it's probably not a
-		# legislator (or, if it is, we'll never figure it out).
-		if (!eregi('([a-z]{3})', $legislator))
-		{
-			unset($legislator);
-		}
+        # If the legislator chyron lacks three consecutive letters, it's probably not a
+        # legislator (or, if it is, we'll never figure it out).
+        if (!eregi('([a-z]{3})', $legislator))
+        {
+            unset($legislator);
+        }
 
-	}
+    }
 
-	# If we've successfully gotten a bill number or a legislator name.
-	if (isset($bill) || isset($legislator))
-	{
+    # If we've successfully gotten a bill number or a legislator name.
+    if (isset($bill) || isset($legislator))
+    {
 
-		# Determine how many seconds into this video this image appears, converting it (with
-		# a custom function) into HH:MM:SS format, stepping back five seconds as a buffer.
-		$time = format_time( (($video['capture_rate'] / $video['fps']) * $image_number) -5 );
+        # Determine how many seconds into this video this image appears, converting it (with
+        # a custom function) into HH:MM:SS format, stepping back five seconds as a buffer.
+        $time = format_time((($video['capture_rate'] / $video['fps']) * $image_number) -5);
 
-		# Assemble the beginnings of a SQL string.
-		$sql = 'INSERT INTO video_index
+        # Assemble the beginnings of a SQL string.
+        $sql = 'INSERT INTO video_index
 				SET file_id=' . $video['id'] . ', time="' . $time . '",
 				screenshot="' . $image_number . '", date_created=now(), ';
 
-		if (isset($bill))
-		{
+        if (isset($bill))
+        {
 
-			# Finish assembling the SQL string.
-			$sql .= 'type="bill", raw_text="' . addslashes($bill) . '"';
+            # Finish assembling the SQL string.
+            $sql .= 'type="bill", raw_text="' . addslashes($bill) . '"';
 
-			echo $bill . "\n";
+            echo $bill . "\n";
 
-			# Unset this variable so that we won't use it the next time around.
-			unset($bill);
+            # Unset this variable so that we won't use it the next time around.
+            unset($bill);
 
-		}
+        }
 
-		# Else if we've successfully gotten a legislator's name.
-		elseif (isset($legislator))
-		{
+        # Else if we've successfully gotten a legislator's name.
+        elseif (isset($legislator))
+        {
 
-			# Finish assembling the SQL string.
-			$sql .= 'type="legislator", raw_text="' . addslashes($legislator) . '"';
+            # Finish assembling the SQL string.
+            $sql .= 'type="legislator", raw_text="' . addslashes($legislator) . '"';
 
-			echo $legislator . "\n";
+            echo $legislator . "\n";
 
-			# Unset this variable so that we won't use it the next time around.
-			unset($legislator);
+            # Unset this variable so that we won't use it the next time around.
+            unset($legislator);
 
-		}
+        }
 
-		$insert_stmt = $db->prepare($sql);
-		$insert_stmt->execute();
+        $insert_stmt = $db->prepare($sql);
+        $insert_stmt->execute();
 
-		unset($sql);
+        unset($sql);
 
-	}
+    }
 
-	# Delete this file, now that we've handled it.
-	unlink($video['dir'] . '/' . $file);
+    # Delete this file, now that we've handled it.
+    unlink($video['dir'] . '/' . $file);
 
-	# We've used this a few times here, so let's unset it, just in case.
-	unset($tmp);
+    # We've used this a few times here, so let's unset it, just in case.
+    unset($tmp);
 
 }

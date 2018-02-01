@@ -7,8 +7,8 @@ error_reporting(1);
 # INCLUDES
 # Include any files or libraries that are necessary for this specific
 # page to function.
-include_once('../includes/settings.inc.php');
-include_once('../includes/functions.inc.php');
+include_once '../includes/settings.inc.php';
+include_once '../includes/functions.inc.php';
 
 # DECLARATIVE FUNCTIONS
 # Run those functions that are necessary prior to loading this specific
@@ -20,15 +20,15 @@ $video = new Video;
 
 if (isset($_GET['id']))
 {
-	# Get a list of every file that is not currently indexed in the video_clips table.
-	$sql = 'SELECT DISTINCT file_id AS id
+    # Get a list of every file that is not currently indexed in the video_clips table.
+    $sql = 'SELECT DISTINCT file_id AS id
 			FROM video_index
 			WHERE file_id=' . $_GET['id'];
 }
 else
 {
-	# Get a list of every file that is not currently indexed in the video_clips table.
-	$sql = 'SELECT DISTINCT video_index.file_id AS id
+    # Get a list of every file that is not currently indexed in the video_clips table.
+    $sql = 'SELECT DISTINCT video_index.file_id AS id
 			FROM video_index
 			LEFT JOIN video_clips
 				ON video_index.file_id = video_clips.file_id
@@ -37,9 +37,7 @@ else
 $result = mysql_query($sql);
 while ($file = mysql_fetch_array($result))
 {
-	$video->id = $file['id'];
-	$video->store_clips();
-	echo '<p>Indexed ' . $file['id'] . '.</p>';
+    $video->id = $file['id'];
+    $video->store_clips();
+    echo '<p>Indexed ' . $file['id'] . '.</p>';
 }
-
-?>

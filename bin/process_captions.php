@@ -3,9 +3,9 @@
 # INCLUDES
 # Include any files or libraries that are necessary for this specific
 # page to function.
-include_once(__DIR__ . '/../includes/settings.inc.php');
-include_once(__DIR__ . '/../includes/functions.inc.php');
-include_once(__DIR__ . '/../includes/vendor/autoload.php');
+include_once __DIR__ . '/../includes/settings.inc.php';
+include_once __DIR__ . '/../includes/functions.inc.php';
+include_once __DIR__ . '/../includes/vendor/autoload.php';
 
 $video_dir = (__DIR__ . '/../video/');
 
@@ -16,7 +16,7 @@ $log = new Log;
  */
 if (!isset($_SERVER['argv'][1]))
 {
-	die('VTT filename must be provided.');
+    die('VTT filename must be provided.');
 }
 $filename = $_SERVER['argv'][1];
 
@@ -25,7 +25,7 @@ $filename = $_SERVER['argv'][1];
  */
 if (!isset($_SERVER['argv'][2]))
 {
-	die('Video ID must be provided.');
+    die('Video ID must be provided.');
 }
 $video_id = $_SERVER['argv'][2];
 
@@ -34,8 +34,8 @@ $video_id = $_SERVER['argv'][2];
  */
 if (file_exists($video_dir . $filename) === FALSE)
 {
-	$log->put('Could not import caption file, because ' . $video_dir . $filename . ' does not exist', 4);
-	exit(1);
+    $log->put('Could not import caption file, because ' . $video_dir . $filename . ' does not exist', 4);
+    exit(1);
 }
 
 $db = new Database;
@@ -59,8 +59,8 @@ $captions->normalize_line_endings();
 
 if (strlen($captions->webvtt) < 200)
 {
-	$log->put('Captions file is implausibly short.', 4);
-	return FALSE;
+    $log->put('Captions file is implausibly short.', 4);
+    return FALSE;
 }
 
 /*
@@ -69,8 +69,8 @@ if (strlen($captions->webvtt) < 200)
 $captions->file_id = $video_id;
 if ($captions->store_webvtt() === FALSE)
 {
-	$log->put('WebVTT file could not be inserted into the database for video ID '. $video_id
-		. '.', 4);
+    $log->put('WebVTT file could not be inserted into the database for video ID '. $video_id
+        . '.', 4);
 }
 
 /*
@@ -78,8 +78,8 @@ if ($captions->store_webvtt() === FALSE)
  */
 if ($captions->parse_webvtt() === FALSE)
 {
-	$log->put('Could not atomize WebVTT for video ID ' . $video_id . '.', 4);
-	return FALSE;
+    $log->put('Could not atomize WebVTT for video ID ' . $video_id . '.', 4);
+    return FALSE;
 }
 
 /*
@@ -87,9 +87,9 @@ if ($captions->parse_webvtt() === FALSE)
  */
 if ($captions->captions_to_database() === FALSE)
 {
-	$log->put('Could not atomize captions and store them in the database for video ID ' . $video_id
-		. '.', 4);
-	return FALSE;
+    $log->put('Could not atomize captions and store them in the database for video ID ' . $video_id
+        . '.', 4);
+    return FALSE;
 }
 
 /*
@@ -98,9 +98,9 @@ if ($captions->captions_to_database() === FALSE)
  */
 if ($captions->identify_speakers() === FALSE)
 {
-	$log->put('Could not identify speakers for captions stored in the database for video ID '
-		. $video_id . '.', 4);
-	return FALSE;
+    $log->put('Could not identify speakers for captions stored in the database for video ID '
+        . $video_id . '.', 4);
+    return FALSE;
 }
 
 /*
@@ -109,7 +109,7 @@ if ($captions->identify_speakers() === FALSE)
  */
 if ($captions->generate_transcript() === FALSE)
 {
-	$log->put('Could not identify speakers for captions stored in the database for video ID '
-		. $video_id . '.', 4);
-	return FALSE;
+    $log->put('Could not identify speakers for captions stored in the database for video ID '
+        . $video_id . '.', 4);
+    return FALSE;
 }
