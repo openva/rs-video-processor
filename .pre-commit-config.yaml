@@ -9,9 +9,3 @@
     -   id: detect-aws-credentials
     -   id: end-of-file-fixer
     -   id: trailing-whitespace
--   repo: https://github.com/digitalpulp/pre-commit-php.git
-    sha: 1.3.0
-    hooks:
-    -   id: php-cs-fixer
-        files: \.(php)$
-        args: ["--rules=@PSR1,@PSR2,-braces,-lowercase_constants,align_multiline_comment,blank_line_after_opening_tag,combine_consecutive_issets,combine_consecutive_unsets,include,linebreak_after_opening_tag,multiline_comment_opening_closing,no_superfluous_elseif,no_useless_return,ternary_operator_spaces"]
