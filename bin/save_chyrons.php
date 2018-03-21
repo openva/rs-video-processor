@@ -174,7 +174,7 @@ foreach ($dir as $file)
         }
 
         # If the bill has no numbers, then it's not a bill.
-        if (!eregi('[0-9]', $bill))
+        if (!preg_match('/[0-9]/Di', $bill))
         {
             unset($bill);
         }
@@ -198,7 +198,7 @@ foreach ($dir as $file)
 
         # If the legislator chyron lacks three consecutive letters, it's probably not a
         # legislator (or, if it is, we'll never figure it out).
-        if (!eregi('([a-z]{3})', $legislator))
+        if (!preg_match('/([a-z]{3})/Di', $legislator))
         {
             unset($legislator);
         }
