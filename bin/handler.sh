@@ -13,7 +13,7 @@ function finish {
 		#sudo shutdown -h now
 	else
 		cd bin/
-		./handler.sh
+		./handler.sh || exit
 	fi
 
 }
