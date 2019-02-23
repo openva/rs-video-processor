@@ -90,5 +90,8 @@ $video->video = $file;
 if ($video->submit() !== FALSE)
 {
     echo $video->id;
-    return;
+}
+else
+{
+    exit(1);
 }
