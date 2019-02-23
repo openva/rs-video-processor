@@ -70,6 +70,14 @@ fi
 cd ..
 export VIDEO_ID="$(php ../bin/save_metadata.php "$filename" "$output_dir")" || exit $?
 
+# Make sure that we got a valid video ID.
+if [[ "$VIDEO_ID" =~ ^[0-9]+$ ]]; then
+        echo "The video was stored in the database with video ID $VIDEO_ID"
+else
+        echo "Error: Unexpected response instead of a video ID: $VIDEO_ID "
+        exit
+fi
+
 # Only deal with chyrons and captions for floor video.
 if [ "$type" = "floor" ]; then
 
