@@ -17,6 +17,8 @@ addons:
       - mplayer
       - tesseract-ocr
       - imagemagick
+  sonarcloud:
+    organization: "openva"
 before_install:
 # Get includes from the website's repo
 - git clone -b deploy https://github.com/openva/richmondsunlight.com.git
@@ -29,6 +31,7 @@ install:
 script:
 - find bin/*.php includes/*.php -print0 |xargs -0 -n1 -P8 php -l
   && ./deploy/config_variables.sh
+  && sonar-scanner
   && ./deploy/aws_credentials.sh
   && zip -qr latest *
   && mkdir -p upload
