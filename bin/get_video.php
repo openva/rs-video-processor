@@ -16,6 +16,11 @@ include_once __DIR__ . '/../includes/vendor/autoload.php';
 $log = new Log;
 
 /*
+ * Define the URL for SQS.
+ */
+define('SQS_URL', 'https://sqs.us-east-1.amazonaws.com/947603853016/rs-video-harvester.fifo');
+
+/*
  * Submit this video back to the queue. We run this if this process fails in any way.
  */
 function requeue($message)
@@ -33,7 +38,7 @@ function requeue($message)
     $sqs_client->sendMessage([
         'MessageGroupId'			=> '1',
         'MessageDeduplicationId'	=> mt_rand(),
-        'QueueUrl'    				=> 'https://sqs.us-east-1.amazonaws.com/947603853016/rs-video-harvester.fifo',
+        'QueueUrl'    				=> SQS_URL,
         'MessageBody' 				=> json_encode($message)
     ]);
 
@@ -53,7 +58,7 @@ function delete($message)
      * Now that we have the message, delete it from SQS.
      */
     $sqs_client->DeleteMessage([
-        'QueueUrl' => 'https://sqs.us-east-1.amazonaws.com/947603853016/rs-video-harvester.fifo',
+        'QueueUrl' => SQS_URL,
         'ReceiptHandle' => $message['ReceiptHandle']
     ]);
 
@@ -89,7 +94,7 @@ try
 {
 
     $result = $sqs_client->ReceiveMessage([
-        'QueueUrl' => 'https://sqs.us-east-1.amazonaws.com/947603853016/rs-video-harvester.fifo'
+        'QueueUrl' => SQS_URL,
     ]);
     if (count($result->get('Messages')) > 0)
     {
