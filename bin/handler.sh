@@ -8,11 +8,10 @@ function finish {
 	cd ..
 	rm -Rf video/
 
-	if [[ -v "SHUTDOWN" ]]; then
-		echo "[WOULD SHUT DOWN SERVER NOW]"
-		#sudo shutdown -h now
+	if [[ -v "SHUTDOWN" ]] && [[ "$ANY_VIDEO_FOUND" == true ]]; then
+		sudo shutdown -h now
 	else
-		cd bin/
+		cd bin/ || exit
 		./handler.sh || exit
 	fi
 
@@ -20,6 +19,9 @@ function finish {
 
 # Run the finish() function every time this script exits for any reason.
 trap finish EXIT
+
+# Establish a flag that indicates whether any video has been found
+ANY_VIDEO_FOUND=false
 
 # Change to the directory containing this script.
 cd "$(dirname "$0")" || exit 1
@@ -34,6 +36,7 @@ cd "$VIDEO_DIR" || exit 1
 php ../bin/get_video.php
 GOT_VIDEO=$?
 if [ $GOT_VIDEO -eq 1 ]; then
+	ANY_VIDEO_FOUND=true
 	exit 1
 elif [ $GOT_VIDEO -eq 2 ]; then
 	export SHUTDOWN=1
@@ -42,12 +45,12 @@ fi
 
 # Turn the JSON into key/value pairs, and make them into environment variables.
 eval "$(jq -r '. | to_entries | .[] | .key + "=\"" + .value + "\""' < metadata.json)"
-set $filename
-set $date
-set $date_hyphens
-set $s3_url
-set $chamber
-set $type
+set "$filename"
+set "$date"
+set "$date_hyphens"
+set "$s3_url"
+set "$chamber"
+set "$type"
 
 # Define the name of the directory that will store the extracted chyrons.
 export output_dir="${filename/.mp4/}"
@@ -94,12 +97,3 @@ if [ "$type" = "floor" ]; then
 	php ../bin/process_captions.php "$CAPTIONS_FILE" "$VIDEO_ID" || exit $?
 
 fi
-
-#/home/ubuntu/youtube-upload-master/bin/youtube-upload '
-#	. '--tags="virginia, legislature, general assembly" '
-#	. '--default-language="en" '
-#	. '--default-audio-language="en" '
-#	. '--title="Virginia ' . ucfirst($video['chamber']) . ', ' . date('F j, Y', strtotime($video['date'])) . '" '
-#	. '--recording-date="' . $DATE . 'T00:00:00.0Z" '
-#	. $DATE
-##
