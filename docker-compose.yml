@@ -1,0 +1,11 @@
+version: '3.2'
+services:
+  processor:
+    build:
+      context: deploy/
+      dockerfile: Dockerfile
+    volumes:
+      - type: bind
+        source: .
+        target: /root/video-processor/
+    container_name: rs_video_processor
