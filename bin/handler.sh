@@ -51,12 +51,16 @@ set "$date_hyphens"
 set "$s3_url"
 set "$chamber"
 set "$type"
+set "$committee"
 
 # Define the name of the directory that will store the extracted chyrons.
 export output_dir="${filename/.mp4/}"
 
 # OCR the video. This also generates screeshots and thumbnails.
-../bin/ocr.sh "$filename" "$chamber" || exit $?
+#####
+##### BE MORE INTELLIGENT IN HOW $committee IS USED HERE
+#####
+../bin/ocr.sh "$filename" "$chamber" "$committee" || exit $?
 
 # Move screenshots to S3.
 cd "$VIDEO_DIR" || exit $?
