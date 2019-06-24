@@ -67,37 +67,55 @@ then
 fi
 
 # All dimensions are width x height, horizontal offset + vertical offset (WxH+H+V).
-if [ "$CHAMBER" = "house" && "$COMMITTEE" = false ]; then
+if [ "$CHAMBER" = "house" ] && [ "$COMMITTEE" = false ]; then
 	NAME_CROP="347x57+127+377"
 	BILL_CROP="465x42+129+27"
-elif [ "$CHAMBER" = "senate" && "$COMMITTEE" = false ]; then
+elif [ "$CHAMBER" = "senate" ] && [ "$COMMITTEE" = false ]; then
 	NAME_CROP="345x60+176+340"
 	BILL_CROP="172x27+0+40"
-elif [ "$CHAMBER" = "house" && "$COMMITTEE" = true ]; then
+elif [ "$CHAMBER" = "house" ] && [ "$COMMITTEE" = true ]; then
 	NAME_CROP="471x54+15+293"
 	BILL_CROP="292x19+15+268"
 	NAME_CROP_LOWER="623x18+15+342"
-elif [ "$CHAMBER" = "senate" && "$COMMITTEE" = true ]; then
-	NAME_CROP="338x14+146+307"
-	BILL_CROP="94x19+477+37"
+	BILL_CROP_LOWER="623x21+15+314"
+elif [ "$CHAMBER" = "senate" ] && [ "$COMMITTEE" = true ]; then
+	NAME_CROP="345x60+176+340"
+	BILL_CROP="172x27+0+40"
 fi
+
+# If we have name crop dimensions, do that.
 if [[ -v NAME_CROP ]]; then
 	for f in *[0-9].jpg; do convert "$f" -crop "$NAME_CROP" +repage -negate -fx '.8*r+.8*g+0*b' -compress none -depth 8 "$f".name.jpg; done
-	for f in *[0-9].jpg; do convert "$f" -crop "$BILL_CROP" +repage -negate -fx '.8*r+.8*g+0*b' -compress none -depth 8 "$f".bill.jpg; done
-else
-
-	for f in *[0-9].jpg; do convert "$f" -crop "$NAME_AND_BILL_CROP" +repage -negate -fx '.8*r+.8*g+0*b' -compress none -depth 8 "$f".chyron.jpg; done
 fi
 
+# If we have bill crop dimensions, do that.
+if [[ -v BILL_CROP ]]; then
+	for f in *[0-9].jpg; do convert "$f" -crop "$BILL_CROP" +repage -negate -fx '.8*r+.8*g+0*b' -compress none -depth 8 "$f".bill.jpg; done
+fi
+
+# If we have lower name crop dimensions, do that.
+if [[ -v NAME_CROP_LOWER ]]; then
+	for f in *[0-9].jpg; do convert "$f" -crop "$NAME_CROP" +repage -negate -fx '.8*r+.8*g+0*b' -compress none -depth 8 "$f".name-lower.jpg; done
+fi
+
+# If we have lower bill crop dimensions, do that.
+if [[ -v BILL_CROP_LOWER ]]; then
+	for f in *[0-9].jpg; do convert "$f" -crop "$BILL_CROP" +repage -negate -fx '.8*r+.8*g+0*b' -compress none -depth 8 "$f".bill-lower.jpg; done
+fi
+
+# Do the OCRing
 echo "OCRing names and bill numbers"
 
-# We do this in two steps to avoid exceeding the limits of ls.
 find . -type f -name '*.name.jpg' -exec tesseract {} {} \;
 find . -type f -name '*.bill.jpg' -exec tesseract {} {} \;
+find . -type f -name '*.name-lower.jpg' -exec tesseract {} {} \;
+find . -type f -name '*.bill-lower.jpg' -exec tesseract {} {} \;
 
 # Delete all of the images that we just OCRed.
 find . -type f -name '*.name.jpg' -exec rm {} \;
 find . -type f -name '*.bill.jpg' -exec rm {} \;
+find . -type f -name '*.name-lower.jpg' -exec rm {} \;
+find . -type f -name '*.bill-lower.jpg' -exec rm {} \;
 
 # Duplicate all JPEGs with a -150 suffix.
 for F in $(find ./*.jpg -maxdepth 1 |awk -F. '{print $2}')
