@@ -57,9 +57,6 @@ set "$committee"
 export output_dir="${filename/.mp4/}"
 
 # OCR the video. This also generates screeshots and thumbnails.
-#####
-##### BE MORE INTELLIGENT IN HOW $committee IS USED HERE
-#####
 ../bin/ocr.sh "$filename" "$chamber" "$committee" || exit $?
 
 # Move screenshots to S3.
