@@ -95,12 +95,12 @@ fi
 
 # If we have lower name crop dimensions, do that.
 if [[ -v NAME_CROP_LOWER ]]; then
-	for f in *[0-9].jpg; do convert "$f" -crop "$NAME_CROP" +repage -negate -fx '.8*r+.8*g+0*b' -compress none -depth 8 "$f".name-lower.jpg; done
+	for f in *[0-9].jpg; do convert "$f" -crop "$NAME_CROP_LOWER" +repage -negate -fx '.8*r+.8*g+0*b' -compress none -depth 8 "$f".name-lower.jpg; done
 fi
 
 # If we have lower bill crop dimensions, do that.
 if [[ -v BILL_CROP_LOWER ]]; then
-	for f in *[0-9].jpg; do convert "$f" -crop "$BILL_CROP" +repage -negate -fx '.8*r+.8*g+0*b' -compress none -depth 8 "$f".bill-lower.jpg; done
+	for f in *[0-9].jpg; do convert "$f" -crop "$BILL_CROP_LOWER" +repage -negate -fx '.8*r+.8*g+0*b' -compress none -depth 8 "$f".bill-lower.jpg; done
 fi
 
 # Do the OCRing
