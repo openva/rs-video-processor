@@ -82,6 +82,13 @@ if (!empty($metadata->committee_id))
 {
     $file['committee_id'] = $metadata->committee_id;
 }
+elseif (!empty($metadata->committee))
+{
+    $committee = new Committee;
+    $committee->chamber = $metadata->chamber;
+    $committee->name = $metadata->committee;
+    $file['committee_id'] = $committee->get_id();
+}
 
 /*
  * Store this record in the database.
