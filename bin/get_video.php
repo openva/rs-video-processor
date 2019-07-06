@@ -144,7 +144,9 @@ delete($message);
  */
 set_time_limit(0);
 
-# Retrieve the file and store it locally.
+/*
+ * Retrieve the file and store it locally.
+ */
 $video->filename = $video->chamber . '-' . $video->type . '-' . $video->date . '.mp4';
 $fp = fopen($video->filename, 'w+');
 $ch = curl_init($video->url);
@@ -159,12 +161,30 @@ fclose($fp);
  */
 if (!file_exists('../video/' . $video->filename))
 {
-
     $log->put('Could not upload, save ' . $video->filename . ' locally.', 7);
     unset($video->filename);
     requeue($video);
     die();
+}
 
+/*
+ * Connect to the database.
+ */
+$database = new Database;
+$db = $database->connect_mysqli();
+
+/*
+ * Get committee info.
+ */
+if ($video->type == 'committee')
+{
+    $committee = new Committee;
+    $committee->chamber = $video->chamber;
+    $committee->name = $video->committee;
+    $committee->id = $committee->get_id();
+    $committee->info();
+    $video->committee_id = $committee->id;
+    $video->committee_shortname = $committee->shortname;
 }
 
 /*
@@ -176,7 +196,7 @@ if ($video->type == 'floor')
 }
 elseif ($video->type == 'committee')
 {
-    $s3_key = $video->chamber . '/' . 'committee/' . urlencode(strtolower($video->committee)) . '/' . $video->date . '.mp4';
+    $s3_key = $video->chamber . '/' . 'committee/' . urlencode(strtolower($video->committee_shortname)) . '/' . $video->date . '.mp4';
 }
 $s3_url = 'https://s3.amazonaws.com/video.richmondsunlight.com/' . $s3_key;
 
@@ -213,8 +233,35 @@ $metadata['date_hyphens'] = substr($video->date, 0, 4) . '-' . substr($video->da
 $metadata['s3_url'] = $s3_url;
 $metadata['chamber'] = $video->chamber;
 $metadata['type'] = $video->type;
-$metadata['committee'] = $video->committee;
+if ($video->type == 'committee')
+{
+    $metadata['committee'] = $video->committee;
+}
 file_put_contents('../video/metadata.json', json_encode($metadata));
+
+$video_handler = new Video;
+
+/*
+ * Get metadata about the video.
+ */
+$video_handler->path = $video->filename;
+$video_handler->video = (array) $video;
+$video_handler->extract_file_data();
+
+/*
+ * Assign any missing data.
+ */
+$video->path = $metadata['s3_url'];
+$video->date = $metadata['date_hyphens'];
+
+/*
+ * Save this video to the database.
+ */
+foreach ((array) $video as $key => $value)
+{
+    $video_handler->video[$key] = $value;
+}
+$video_handler->submit();
 
 $log->put('Stored new ' . ucfirst($video->chamber) . ' ' . $video->type . ' video, for '
     . $video->date . '.', 4);
