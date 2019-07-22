@@ -7,7 +7,7 @@ $video_dir = (__DIR__ . '/../video');
 
 # Connect to the database.
 $database = new Database;
-$database->connect();
+$db = $database->connect();
 
 # Convert a count of seconds to HH:MM:SS format.
 function format_time($secs)
