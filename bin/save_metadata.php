@@ -9,8 +9,8 @@ $video_dir = (__DIR__ . '/../video/');
 /*
  * Connect to the database.
  */
-$db = new Database;
-$db->connect_old();
+$database = new Database;
+$db = $database->connect_mysqli();
 
 /*
  * The filename must be specified at the command line.
