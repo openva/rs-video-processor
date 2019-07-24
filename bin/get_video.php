@@ -183,6 +183,12 @@ if ($video->type == 'committee')
     $committee->name = $video->committee;
     $committee->id = $committee->get_id();
     $committee->info();
+    if (!isset($committee->shortname) || !isset($committee->id) )
+    {
+        $log->put('Could not identify the committee shortname or ID for the committee named '
+            . '"' . $video->committee . '" — abandoning ' . $video->filename . '.', 6);
+        die();
+    }
     $video->committee_id = $committee->id;
     $video->committee_shortname = $committee->shortname;
 }
