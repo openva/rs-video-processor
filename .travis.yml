@@ -23,7 +23,7 @@ before_install:
 # Get includes from the website's repo
 - git clone -b deploy https://github.com/openva/richmondsunlight.com.git
 - cd richmondsunlight.com && composer install && cd ..
-- mkdir includes/
+- mkdir -p includes
 - cp richmondsunlight.com/htdocs/includes/*.php includes/
 - rm -Rf richmondsunlight.com
 install:
