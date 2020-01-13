@@ -8,8 +8,12 @@ function finish {
 	cd ..
 	rm -Rf video/
 
-	if [[ -v "SHUTDOWN" ]] && [[ "$ANY_VIDEO_FOUND" == true ]]; then
-		sudo shutdown -h now
+	if [[ -v "SHUTDOWN" ]]; then
+		sleep 180
+		USER_COUNT=$(who | sort --key=2,1 --unique | wc --lines)
+		if [[ $USER_COUNT -lt 1 ]]; then
+			sudo shutdown -h now
+		fi
 	else
 		cd bin/ || exit
 		./handler.sh || exit
@@ -19,9 +23,6 @@ function finish {
 
 # Run the finish() function every time this script exits for any reason.
 trap finish EXIT
-
-# Establish a flag that indicates whether any video has been found
-ANY_VIDEO_FOUND=false
 
 # Change to the directory containing this script.
 cd "$(dirname "$0")" || exit 1
