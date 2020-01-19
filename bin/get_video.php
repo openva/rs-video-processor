@@ -177,7 +177,7 @@ if (filesize('../video/' . $video->filename) < 1048576)
         . 'retrieval and analysis.', 7);
     unset($video->filename);
     requeue($video);
-    die();
+    exit(0);
 }
 
 /*
