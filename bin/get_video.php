@@ -168,6 +168,19 @@ if (!file_exists('../video/' . $video->filename))
 }
 
 /*
+ * If the file is less than 1 MB, we've gotten an HTML error page instead of video.
+ */
+if (filesize('../video/' . $video->filename) < 1048576)
+{
+    $log->put('The ' . $video->chamber . ' ' . $video->type . ' video for ' . $video->date
+        . ', at ' . $video->url . ' is returning HTML instead of video. Requeuing for later '
+        . 'retrieval and analysis.', 7);
+    unset($video->filename);
+    requeue($video);
+    die();
+}
+
+/*
  * Connect to the database.
  */
 $database = new Database;
