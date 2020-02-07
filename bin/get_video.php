@@ -29,7 +29,7 @@ function requeue($message)
     global $sqs_client;
     global $log;
     global $message;
-    global $date;
+    global $video;
     global $url;
 
     /*
@@ -42,7 +42,8 @@ function requeue($message)
         'MessageBody' 				=> json_encode($message)
     ]);
 
-    $log->put('Requeued video for ' . $date . '.', 5);
+    $log->put('Requeued ' . $video->chamber . ' ' . $video->type . ' video for ' . $video->date
+        . '.', 5);
 
 }
 
