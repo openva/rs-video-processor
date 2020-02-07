@@ -37,7 +37,6 @@ cd "$VIDEO_DIR" || exit 1
 php ../bin/get_video.php
 GOT_VIDEO=$?
 if [ $GOT_VIDEO -eq 1 ]; then
-	ANY_VIDEO_FOUND=true
 	exit 1
 elif [ $GOT_VIDEO -eq 2 ]; then
 	export SHUTDOWN=1
