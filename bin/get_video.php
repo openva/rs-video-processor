@@ -165,7 +165,7 @@ if ($result == FALSE || !file_exists('../video/' . $video->filename))
     $log->put('Could not upload, save ' . $video->filename . ' locally.', 7);
     unset($video->filename);
     requeue($video);
-    die();
+    exit(1);
 }
 
 /*
@@ -178,7 +178,7 @@ if (filesize('../video/' . $video->filename) < 1048576)
         . 'retrieval and analysis.', 7);
     unset($video->filename);
     requeue($video);
-    die();
+    exit(1);
 }
 
 /*
