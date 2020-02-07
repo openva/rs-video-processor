@@ -153,14 +153,14 @@ $fp = fopen($video->filename, 'w+');
 $ch = curl_init($video->url);
 curl_setopt($ch, CURLOPT_FILE, $fp);
 curl_setopt($ch, CURLOPT_FOLLOWLOCATION, TRUE);
-curl_exec($ch);
+$result = curl_exec($ch);
 curl_close($ch);
 fclose($fp);
 
 /*
  * If the file transfer failed.
  */
-if (!file_exists('../video/' . $video->filename))
+if ($result == FALSE || !file_exists('../video/' . $video->filename))
 {
     $log->put('Could not upload, save ' . $video->filename . ' locally.', 7);
     unset($video->filename);
