@@ -2,7 +2,7 @@
 
 # If the system hasn't been up for 15 minutes, don't go any farther
 UPTIME=$(cut -d " " -f 1 /proc/uptime |awk '{print int($1+0.5)}')
-if [ "$UPTIME" -le 54000 ]; then
+if [ "$UPTIME" -le 900 ]; then
     exit
 fi
 
