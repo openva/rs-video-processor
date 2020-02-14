@@ -29,7 +29,7 @@ function requeue($message)
     global $sqs_client;
     global $log;
     global $message;
-    global $date;
+    global $video;
     global $url;
 
     /*
@@ -42,7 +42,8 @@ function requeue($message)
         'MessageBody' 				=> json_encode($message)
     ]);
 
-    $log->put('Requeued video for ' . $date . '.', 5);
+    $log->put('Requeued ' . $video->chamber . ' ' . $video->type . ' video for ' . $video->date
+        . '.', 5);
 
 }
 
@@ -152,19 +153,19 @@ $fp = fopen($video->filename, 'w+');
 $ch = curl_init($video->url);
 curl_setopt($ch, CURLOPT_FILE, $fp);
 curl_setopt($ch, CURLOPT_FOLLOWLOCATION, TRUE);
-curl_exec($ch);
+$result = curl_exec($ch);
 curl_close($ch);
 fclose($fp);
 
 /*
  * If the file transfer failed.
  */
-if (!file_exists('../video/' . $video->filename))
+if ($result == FALSE || !file_exists('../video/' . $video->filename))
 {
     $log->put('Could not upload, save ' . $video->filename . ' locally.', 7);
     unset($video->filename);
     requeue($video);
-    die();
+    exit(1);
 }
 
 /*
@@ -177,7 +178,7 @@ if (filesize('../video/' . $video->filename) < 1048576)
         . 'retrieval and analysis.', 7);
     unset($video->filename);
     requeue($video);
-    exit(0);
+    exit(1);
 }
 
 /*
