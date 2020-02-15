@@ -128,7 +128,7 @@ if (!isset($video))
 /*
  * Decline to process old videos, which the RSS feed coughs up sometimes.
  */
-if (substr($video->date, 0, 4) != SESSION_YEAR)
+if ( (bool) strtotime($video->date) && (substr($video->date, 0, 4) != SESSION_YEAR) )
 {
     $log->put('Not processing video from ' . $video->date . ', because it’s too old.', 5);
     delete($message);
