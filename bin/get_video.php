@@ -154,6 +154,7 @@ $ch = curl_init($video->url);
 curl_setopt($ch, CURLOPT_FILE, $fp);
 curl_setopt($ch, CURLOPT_FOLLOWLOCATION, TRUE);
 $result = curl_exec($ch);
+$curl_error = curl_error($ch);
 curl_close($ch);
 fclose($fp);
 
@@ -162,7 +163,8 @@ fclose($fp);
  */
 if ($result == FALSE || !file_exists('../video/' . $video->filename))
 {
-    $log->put('Could not upload, save ' . $video->filename . ' locally.', 7);
+    $log->put('Abandoning ' . $video->filename . ' because it could not be retrieved. cURL error: '
+        . $curl_error, 7);
     unset($video->filename);
     requeue($video);
     exit(1);
