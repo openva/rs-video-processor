@@ -135,6 +135,8 @@ if ( (bool) strtotime($video->date) && (substr($video->date, 0, 4) != SESSION_YE
     exit(1);
 }
 
+$log->put('Found video: ' . print_r($video), 5);
+
 /*
  * Delete this message from SQS.
  */
@@ -163,8 +165,8 @@ fclose($fp);
  */
 if ($result == FALSE || !file_exists('../video/' . $video->filename))
 {
-    $log->put('Abandoning ' . $video->filename . ' because it could not be retrieved. cURL error: '
-        . $curl_error, 7);
+    $log->put('Abandoning ' . $video->filename . ' because it could not be retrieved from ' .
+        $video->url . ' . cURL error: ' . $curl_error, 7);
     unset($video->filename);
     requeue($video);
     exit(1);
