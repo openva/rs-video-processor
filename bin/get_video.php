@@ -125,7 +125,7 @@ if (!isset($video))
     exit(1);
 }
 
-$log->put('Found video: ' . print_r($video), 5);
+$log->put('Found video: ' . print_r($video, TRUE), 5);
 
 /*
  * Decline to process old videos, which the RSS feed coughs up sometimes.
