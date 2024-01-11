@@ -1,2 +1,3 @@
 includes/
 *.cache
+.DS_Store
