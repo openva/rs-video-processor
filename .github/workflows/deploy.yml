@@ -1,0 +1,64 @@
+name: Deploy Process
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  schedule:
+    - cron: 0 4 * * * # Redeploy at 4 AM every day
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: Firenza/secrets-to-env@v1.2.0
+        with:
+          secrets: ${{ toJSON(secrets) }}
+      - name: Specify PHP version
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '5.6'
+      - name: Make branch name available as Bash variable
+        run: echo "GITHUB_BRANCH=${GITHUB_REF#refs/heads/}" >> $GITHUB_ENV
+      - run: >-
+          sudo apt-get update && 
+          sudo apt-get install -y awscli php5.6-cli php5.6-curl php5.6-memcached php5.6-mysql yarn zip mplayer tesseract imagemagick
+      - uses: actions/checkout@v3
+      - run: sudo apt-get update -qq
+      - run: git clone -b deploy https://github.com/openva/richmondsunlight.com.git
+      - run: cd richmondsunlight.com && composer install && cd ..
+      - run: mkdir htdocs/includes/
+      - run: cp richmondsunlight.com/htdocs/includes/*.php htdocs/includes/
+      - run: rm -Rf richmondsunlight.com
+      - run: find cron/*.php -print0 |xargs -0 -n1 -P8 php5.6 -l
+      - run: >-
+          ./deploy/config_variables.sh
+          && zip -qr latest.zip rs-video-processor . --exclude *.git* *.scannerwork*
+          && mkdir -p upload
+          && mv latest.zip upload/latest.zip
+      - name: Save secret-populated code for a subsequent deploy step
+        uses: actions/upload-artifact@v4
+        with:
+          name: codebase
+          path: .
+
+  deploy:
+    runs-on: ubuntu-20.04
+    needs: build # Don't deploy unless the build succeeds
+    steps:
+      - name: Get the secret-populated code
+        uses: actions/download-artifact@v4
+        with:
+          name: codebase
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+          aws-region: us-east-1
+      - name: Deploy via CodeDeploy
+        run: |
+          aws deploy push --application-name RS-Video-Processor \
+            --s3-location s3://deploy.richmondsunlight.com/rs-video-processor-master.zip \
+            --ignore-hidden-files
