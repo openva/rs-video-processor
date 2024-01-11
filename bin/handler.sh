@@ -104,7 +104,7 @@ fi
 
 # Create the record for this video in the database.
 cd ..
-export VIDEO_ID="$(php save_metadata.php "$filename" "$output_dir")" || exit $?
+export VIDEO_ID="$(php bin/save_metadata.php "$filename" "$output_dir")" || exit $?
 
 # Make sure that we got a valid video ID.
 if [[ "$VIDEO_ID" =~ ^[0-9]+$ ]]; then
