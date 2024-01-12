@@ -33,6 +33,12 @@ function requeue($message)
     global $url;
 
     /*
+     * We're getting some extra slashes added to URLs, rendering them invalid. Strip slashes before
+     * requeuing the video.
+     */
+    $message->url = stripslashes($message->url);
+
+    /*
      * Log this to SQS.
      */
     $sqs_client->sendMessage([
