@@ -29,6 +29,7 @@ jobs:
       - run: sudo apt-get update -qq
       - run: git clone -b deploy https://github.com/openva/richmondsunlight.com.git
       - run: cd richmondsunlight.com && composer install && cd ..
+      - run: ls
       - run: mkdir includes/
       - run: cp richmondsunlight.com/htdocs/includes/*.php includes/
       - run: rm -Rf richmondsunlight.com
