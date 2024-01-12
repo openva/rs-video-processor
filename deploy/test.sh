@@ -2,7 +2,7 @@
 
 # Get the test video.
 echo "Downloading test House video from S3"
-if ! curl -s -o test-house-video.mp4 https://s3.amazonaws.com/deploy.richmondsunlight.com/test-house-video.mp4; then
+if ! aws s3 cp s3://deploy.richmondsunlight.com/test-house-video.mp4 test-house-video.mp4; then
     echo "cURL video download failed"
     exit 1
 fi
