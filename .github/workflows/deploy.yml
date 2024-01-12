@@ -57,8 +57,6 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
           aws-region: us-east-1
-      - name: Deploy via CodeDeploy
+      - name: Copy file to S3
         run: |
-          aws deploy push --application-name RS-Video-Processor \
-            --s3-location s3://deploy.richmondsunlight.com/rs-video-processor-master.zip \
-            --ignore-hidden-files
+          aws s3 cp upload/latest.zip s3://deploy.richmondsunlight.com/rs-video-processor-master.zip
