@@ -22,7 +22,7 @@ variables=(
 for i in "${variables[@]}"
 do
 	if [ -z "${!i}" ]; then
-		echo "Travis CI has no value set for $i -- aborting"
+		echo "GitHub Actions has no value set for $i -- aborting"
 		exit 1
 	fi
 done
