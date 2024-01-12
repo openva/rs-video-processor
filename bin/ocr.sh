@@ -1,5 +1,58 @@
 #!/bin/bash
 
+########
+# HOUSE NAME
+# +----------------------------------+
+# |237x367                    725x367|
+# |                                  |
+# |237x425                    725x425|
+# +----------------------------------+
+#
+# HOUSE BILL
+# +----------------------------------+
+# |630x49                      850x49|
+# |                                  |
+# |630x90                      850x90|
+# +----------------------------------+
+#
+# HOUSE BILL TALLY NUMBER
+# +----------------------------------+
+# |57x35                       381x35|
+# |                                  |
+# |57x132                     381x132|
+# +----------------------------------+
+#
+# HOUSE BILL TALLY SPONSOR
+# +----------------------------------+
+# |592x35                     1076x35|
+# |                                  |
+# |592x132                   1076x132|
+# +----------------------------------+
+#
+# SENATE NAME
+# +----------------------------------+
+# |91x296                     476x296|
+# |                                  |
+# |91x323                     476x323|
+# +----------------------------------+
+#
+# SENATE BILL
+# +----------------------------------+
+# |477x41                      570x41|
+# |                                  |
+# |477x59                      570x59|
+# +----------------------------------+
+#
+# SENATE BILL TALLY NUMBER & SPONSOR
+# +----------------------------------+
+# |0x27                        465x27|
+# |                                  |
+# |0x58                        465x58|
+# +----------------------------------+
+#
+########
+
+
 # If the filename is missing, explain that it's required.
 if [ -z "$1" ]; then
 	echo "usage: $0 [YYYYMMDD.mp4] [chamber] [committee]"
@@ -67,11 +120,11 @@ fi
 
 # All dimensions are width x height, horizontal offset + vertical offset (WxH+H+V).
 if [ "$CHAMBER" = "house" ] && [ "$COMMITTEE" = false ]; then
-	NAME_CROP="347x57+127+377"
-	BILL_CROP="465x42+129+27"
+	NAME_CROP="592x35+58+488"
+	BILL_CROP="630x49+41+220"
 elif [ "$CHAMBER" = "senate" ] && [ "$COMMITTEE" = false ]; then
-	NAME_CROP="345x60+176+340"
-	BILL_CROP="172x27+0+40"
+	NAME_CROP="91x296+27+385"
+	BILL_CROP="477x41+18+93"
 elif [ "$CHAMBER" = "house" ] && [ "$COMMITTEE" = true ]; then
 	NAME_CROP="471x54+15+293"
 	BILL_CROP="292x19+15+268"
