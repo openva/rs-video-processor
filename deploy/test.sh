@@ -10,23 +10,23 @@ bin/ocr.sh test-house-video.mp4 house
 
 # Verify that the chyrons match what we expect them to be.
 cd test-house-video/ || exit
-if [[ $(grep -c Price ./*.txt) -lt 20 ]]; then
+if [[ $(grep Price ./*.txt |wc -l) -lt 20 ]]; then
     error=true
     echo "Did not find 'Price' 20+ times"
 fi
-if [[ $(grep -c "Newport News" ./*.txt) -lt 8 ]]; then
+if [[ $(grep "Newport News" ./*.txt |wc -l) -lt 8 ]]; then
     error=true
     echo "Did not find 'Newport News' 8+ times"
 fi
-if [[ $(grep -c "Todd Gilbert" ./*.txt) -lt 9 ]]; then
+if [[ $(grep "Todd Gilbert" ./*.txt |wc -l) -lt 9 ]]; then
     error=true
     echo "Did not find 'Todd Gilbert' 9+ times"
 fi
-if [[ $(grep -c Shenandoah ./*.txt) -lt 9 ]]; then
+if [[ $(grep Shenandoah ./*.txt |wc -l) -lt 9 ]]; then
     error=true
     echo "Did not find 'Shenandoah' 9+ times"
 fi
-if [[ $(grep -c Edmunds ./*.txt) -lt 1 ]]; then
+if [[ $(grep Edmunds ./*.txt |wc -l) -lt 1 ]]; then
     error=true
     echo "Did not find 'Edmunds' 1+ times"
 fi
