@@ -2,11 +2,17 @@
 
 # Get the test video.
 echo "Downloading test House video from S3"
-curl -s -o test-house-video.mp4 https://s3.amazonaws.com/deploy.richmondsunlight.com/test-house-video.mp4
+if ! curl -s -o test-house-video.mp4 https://s3.amazonaws.com/deploy.richmondsunlight.com/test-house-video.mp4; then
+    echo "cURL video download failed"
+    exit 1
+fi
 
 # OCR the video.
 export output_dir=test-house-video
-bin/ocr.sh test-house-video.mp4 house
+if ! bin/ocr.sh test-house-video.mp4 house; then
+    echo "ocr.sh process failed"
+    exit 1
+fi
 
 # Verify that the chyrons match what we expect them to be.
 error=false
