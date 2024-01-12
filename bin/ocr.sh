@@ -4,14 +4,14 @@
 if [ -z "$1" ]; then
 	echo "usage: $0 [YYYYMMDD.mp4] [chamber] [committee]"
 	echo "If this is video of a (sub)commitee meeting, simply specify 'true' as the third flag."
-	exit
+	exit 1
 fi
 
 # If the chamber is missing, explain that it's required.
 if [ -z "$2" ]; then
 	echo "usage: $0 [YYYYMMDD.mp4] [chamber] [committee]"
 	echo "If this is video of a (sub)commitee meeting, simply specify 'true' as the third flag."
-	exit
+	exit 1
 fi
 
 # Reassign command-line variables to named variables.
@@ -29,12 +29,12 @@ fi
 
 if [ ! -f "$SRC" ]; then
 	echo "Error: $SRC does not exist"
-	exit 1;
+	exit 1
 fi
 
 if [ -z "$output_dir" ]; then
 	echo "Error: output_dir is not set as an environment variable"
-	exit 1;
+	exit 1
 fi
 
 if [ "$CHAMBER" = "house" ]; then
@@ -62,7 +62,6 @@ cd "$output_dir" || exit
 # screenshots will be 640x360.
 if ! mogrify -resize 640x480 ./*
 then
-	echo "Couldn't resize all images"
 	exit "$?"
 fi
 
