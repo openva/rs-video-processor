@@ -109,20 +109,13 @@ echo "Extracting names and bill numbers from each frame"
 
 cd "$output_dir" || exit
 
-# Standardize screenshot dimensions
-# Note that this doesn't mean that the screenshots will be 640x480. It means that the widest that
-# they'll be is 640, and the tallest is 480. If the ratio isn't 4:3, by instead 16:9, then the
-# screenshots will be 640x360.
-if ! mogrify -resize 640x480 ./*
-then
-	exit "$?"
-fi
-
 # All dimensions are width x height, horizontal offset + vertical offset (WxH+H+V).
 if [ "$CHAMBER" = "house" ] && [ "$COMMITTEE" = false ]; then
+	RESIZE="854x480"
 	NAME_CROP="592x35+58+488"
 	BILL_CROP="630x49+41+220"
 elif [ "$CHAMBER" = "senate" ] && [ "$COMMITTEE" = false ]; then
+	RESIZE="640x360"
 	NAME_CROP="91x296+27+385"
 	BILL_CROP="477x41+18+93"
 elif [ "$CHAMBER" = "house" ] && [ "$COMMITTEE" = true ]; then
@@ -133,6 +126,15 @@ elif [ "$CHAMBER" = "house" ] && [ "$COMMITTEE" = true ]; then
 elif [ "$CHAMBER" = "senate" ] && [ "$COMMITTEE" = true ]; then
 	NAME_CROP="345x60+176+340"
 	BILL_CROP="172x27+0+40"
+fi
+
+# Standardize screenshot dimensions
+# Note that this doesn't mean that the screenshots will be e.g. 640x480. It means that the widest
+# that they'll be is 640, and the tallest is 480. If the ratio isn't 4:3, by instead 16:9, then the
+# screenshots will be 640x360.
+if ! mogrify -resize "$RESIZE" ./*
+then
+	exit "$?"
 fi
 
 # If we have name crop dimensions, do that.
