@@ -12,7 +12,7 @@ LOAD_AVERAGE="$(uptime | sed 's/.*load average: //' |cut -d " " -f 1 |grep -oE "
 # Multiply it by 100 and round it
 LOAD_AVERAGE=$(echo "$LOAD_AVERAGE * 100" | bc | awk '{print int($1+0.5)}')
 
-# If the load average is less than 0.05, shut down
-if [ "$LOAD_AVERAGE" -le 5 ]; then
+# If the load average is less than 0.02, shut down
+if [ "$LOAD_AVERAGE" -le 2 ]; then
     shutdown -h now
 fi
