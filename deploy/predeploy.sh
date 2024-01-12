@@ -13,7 +13,7 @@ if [ "$(grep -c swap /etc/fstab)" -eq "0" ]; then
 fi
 
 # Remove all PHP packages (they may well be PHP 7)
-sudo apt-get -y purge `dpkg -l | grep php| awk '{print $2}' |tr "\n" " "`
+sudo apt-get -y purge $(dpkg -l | grep php| awk '{print $2}' |tr "\n" " ")
 
 # Use repo for PHP 5.6.
 sudo add-apt-repository -y ppa:ondrej/php
