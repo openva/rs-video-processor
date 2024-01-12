@@ -37,6 +37,6 @@ rm -Rf test-house-video/
 rm test-house-video.mp4
 
 # If there were any errors, fail
-if [[ $error = true ]]; then
+if [[ "$error" = true ]]; then
     exit 1
 fi
