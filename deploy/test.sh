@@ -9,6 +9,7 @@ export output_dir=test-house-video
 bin/ocr.sh test-house-video.mp4 house
 
 # Verify that the chyrons match what we expect them to be.
+error=false
 cd test-house-video/ || exit
 if [[ $(grep Price ./*.txt |wc -l) -lt 20 ]]; then
     error=true
