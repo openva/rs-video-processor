@@ -79,7 +79,6 @@ $file['chamber'] = $metadata->chamber;
 $file['date'] = $metadata->date_hyphens;
 $file['type'] = 'video';
 $file['title'] = ucfirst($file['chamber']) . ' Video';
-$file['capture_directory'] = '/video/' . $metadata->chamber . '/floor/' . $metadata->date .'/';
 if (!empty($metadata->committee_id))
 {
     $file['committee_id'] = $metadata->committee_id;
@@ -90,7 +89,19 @@ elseif (!empty($metadata->committee))
     $committee->chamber = $metadata->chamber;
     $committee->name = $metadata->committee;
     $file['committee_id'] = $committee->get_id();
+    $tmp = $committee->info();
+    $committee_shortname = $tmp->shortname;
 }
+
+if ( isset($committee_shortname) && !empty($committee_shortname) )
+{
+    $file['capture_directory'] = '/video/' . $metadata->chamber . '/' . $committee_shortname .'/' . $metadata->date .'/';
+}
+else
+{
+    $file['capture_directory'] = '/video/' . $metadata->chamber . '/floor/' . $metadata->date .'/';
+}
+
 
 /*
  * Store this record in the database.
