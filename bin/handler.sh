@@ -43,6 +43,9 @@ if [ $GOT_VIDEO -eq 1 ]; then
 elif [ $GOT_VIDEO -eq 2 ]; then
 	export SHUTDOWN=1
 	exit 1
+elif [ $GOT_VIDEO -gt 2 ]; then
+	echo "get_video.php returned an unexpected status; abandoning"
+	exit 1
 fi
 
 # Turn the JSON into key/value pairs, and make them into environment variables.
