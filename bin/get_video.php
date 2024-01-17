@@ -166,8 +166,8 @@ set_time_limit(0);
 /*
  * Retrieve the file and store it locally.
  */
-$video->filename = '../video/' . $video->chamber . '-' . $video->type . '-' . $video->date . '.mp4';
-$fp = fopen($video->filename, 'w+');
+$video->filename = $video->chamber . '-' . $video->type . '-' . $video->date . '.mp4';
+$fp = fopen('../video/' . $video->filename, 'w+');
 $ch = curl_init($video->url);
 curl_setopt($ch, CURLOPT_FILE, $fp);
 curl_setopt($ch, CURLOPT_FOLLOWLOCATION, TRUE);
