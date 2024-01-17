@@ -6,6 +6,12 @@ if [ "$UPTIME" -le 900 ]; then
     exit
 fi
 
+# Don't shut down if somebody is logged in
+USER_COUNT=$(who |wc -l)
+if [ "$USER_COUNT" -gt 0 ]; then
+    exit
+fi
+
 # Get the load average over the past 15 minutes
 LOAD_AVERAGE="$(uptime | sed 's/.*load average: //' |cut -d " " -f 1 |grep -oE "([0-9]+\.[0-9]+)")"
 
