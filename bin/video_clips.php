@@ -16,17 +16,14 @@ include_once '../includes/functions.inc.php';
 @connect_to_db();
 
 # Create a new instance of the Video class.
-$video = new Video;
+$video = new Video();
 
-if (isset($_GET['id']))
-{
+if (isset($_GET['id'])) {
     # Get a list of every file that is not currently indexed in the video_clips table.
     $sql = 'SELECT DISTINCT file_id AS id
 			FROM video_index
 			WHERE file_id=' . $_GET['id'];
-}
-else
-{
+} else {
     # Get a list of every file that is not currently indexed in the video_clips table.
     $sql = 'SELECT DISTINCT video_index.file_id AS id
 			FROM video_index
@@ -35,8 +32,7 @@ else
 			WHERE video_clips.file_id IS NULL';
 }
 $result = mysql_query($sql);
-while ($file = mysql_fetch_array($result))
-{
+while ($file = mysql_fetch_array($result)) {
     $video->id = $file['id'];
     $video->store_clips();
     echo '<p>Indexed ' . $file['id'] . '.</p>';

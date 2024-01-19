@@ -10,15 +10,14 @@ $video_dir = (__DIR__ . '/../video/');
  */
 $chamber = trim($_SERVER['argv'][1]);
 $date = trim($_SERVER['argv'][2]);
-if (empty($chamber) || empty($date))
-{
+if (empty($chamber) || empty($date)) {
     exit('Chamber and date required.');
 }
 
 /*
  * Instantiate our logging class.
  */
-$log = new Log;
+$log = new Log();
 
 /*
  * Get the metadata about this file.
@@ -45,38 +44,31 @@ $list_html = get_content($url);
 $pcre = '/(?<timestamp>[0-9]{10})(?:.+?)&clip_id=(?<clip_id>[0-9]{3,5})/s';
 preg_match_all($pcre, $list_html, $matches);
 
-if (count($matches) == 0)
-{
+if (count($matches) == 0) {
     exit(1);
 }
 
 /*
  * Iterate through every video until we find the one in question.
  */
-for ($i=0; $i < count($matches['timestamp']); $i++)
-{
-
+for ($i = 0; $i < count($matches['timestamp']); $i++) {
     $clip_date = date('Y-m-d', $matches['timestamp'][$i]);
     $clip_id = $matches['clip_id'][$i];
-    if ($date == $clip_date)
-    {
+    if ($date == $clip_date) {
         break;
     }
-
 }
 
 /*
  * The date from the clip needs to match the one in the metadata.
  */
-if ($date != $clip_date)
-{
+if ($date != $clip_date) {
     exit(1);
 }
 
 $captions = file_get_contents('http://virginia-house.granicus.com/videos/' . $clip_id
     . '/captions.vtt');
-if ($captions !== FALSE)
-{
+if ($captions !== false) {
     $filename = str_replace('-', '', $date) . '.vtt';
     file_put_contents($video_dir . $filename, $captions);
 }

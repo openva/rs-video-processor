@@ -6,31 +6,28 @@ require_once __DIR__ . '/../includes/functions.inc.php';
 $video_dir = (__DIR__ . '/../video');
 
 # Connect to the database.
-$database = new Database;
+$database = new Database();
 $database->connect_old();
 
 # Insert a matched chyron and ID.
 function insert_match($linked_id, $chyron_id)
 {
-    if (empty($chyron_id) || empty($linked_id))
-    {
+    if (empty($chyron_id) || empty($linked_id)) {
         return false;
     }
     $sql = 'UPDATE video_index
 			SET linked_id=' . $linked_id . '
 			WHERE id=' . $chyron_id;
     $result = mysql_query($sql);
-    if (!$result)
-    {
-        return FALSE;
+    if (!$result) {
+        return false;
     }
 }
 
 # Get the video ID from the command line.
 $video_id = trim($_SERVER['argv'][1]);
-if (empty($video_id))
-{
-    return FALSE;
+if (empty($video_id)) {
+    return false;
 }
 
 
@@ -48,9 +45,7 @@ $sql = 'SELECT video_index.file_id, files.date, files.chamber
 		GROUP BY file_id';
 
 $result = mysql_query($sql);
-if (mysql_num_rows($result) > 0)
-{
-
+if (mysql_num_rows($result) > 0) {
     $video = mysql_fetch_array($result);
 
     # Get a list of all bills that were addressed on that date (in bills_status).
@@ -60,9 +55,7 @@ if (mysql_num_rows($result) > 0)
 				ON bills_status.bill_id = bills.id
 			WHERE bills_status.date = "' . $video['date'] . '"';
     $result = mysql_query($sql);
-    if (mysql_num_rows($result) == 0)
-    {
-
+    if (mysql_num_rows($result) == 0) {
         # If we can't get the bills heard on this date (generally because we're
         # parsing the video on the same day that it was recorded), then use all
         # bill numbers from this session, instead.
@@ -77,12 +70,10 @@ if (mysql_num_rows($result) > 0)
 						date_ended IS NULL)
 				)';
         $result = mysql_query($sql);
-
     }
 
     # Build up an array of bills, using the ID as the key and the number as the content.
-    while ($bill = mysql_fetch_array($result))
-    {
+    while ($bill = mysql_fetch_array($result)) {
         $bills[$bill{'id'}] = $bill['number'];
     }
 
@@ -97,12 +88,9 @@ if (mysql_num_rows($result) > 0)
 				ORDER BY date_started DESC
 				LIMIT 1)';
     $result = mysql_query($sql);
-    if (mysql_num_rows($result) > 0)
-    {
-
+    if (mysql_num_rows($result) > 0) {
         # Build up an array of bills, using the ID as the key and the number as the content.
-        while ($bill = mysql_fetch_array($result))
-        {
+        while ($bill = mysql_fetch_array($result)) {
             $all_bills[$bill{'id'}] = $bill['number'];
         }
     }
@@ -115,9 +103,7 @@ if (mysql_num_rows($result) > 0)
 			ORDER BY time ASC';
 
     $result = mysql_query($sql);
-    while ($chyron = mysql_fetch_array($result))
-    {
-
+    while ($chyron = mysql_fetch_array($result)) {
         # Strip out any spaces in the bill number -- just compare the bills straight up. Although
         # bill numbers in the chyrons have spaces between the prefix ("HB") and the number ("1"),
         # the OCR software doesn't always catch that. Better to just ignore the spaces entirely.
@@ -135,19 +121,15 @@ if (mysql_num_rows($result) > 0)
             (substr($chyron['raw_text'], 0, 2) == 'ss')
             ||
             (substr($chyron['raw_text'], 0, 2) == '$8')
-        )
-        {
+        ) {
             $chyron['raw_text'] = 'SB' . substr($chyron['raw_text'], 2);
-        }
-        elseif (
+        } elseif (
             (substr($chyron['raw_text'], 0, 3) == 'sir')
             ||
             (substr($chyron['raw_text'], 0, 3) == 'sjr')
-        )
-        {
+        ) {
             $chyron['raw_text'] = 'SJ' . substr($chyron['raw_text'], 3);
-        }
-        elseif (
+        } elseif (
             (substr($chyron['raw_text'], 0, 3) == 'hjr')
             ||
             (substr($chyron['raw_text'], 0, 3) == 'pur')
@@ -155,11 +137,9 @@ if (mysql_num_rows($result) > 0)
             (substr($chyron['raw_text'], 0, 3) == 'fur')
             ||
             (substr($chyron['raw_text'], 0, 3) == 'i-ur')
-        )
-        {
+        ) {
             $chyron['raw_text'] = 'hj' . substr($chyron['raw_text'], 3);
-        }
-        elseif (
+        } elseif (
             (substr($chyron['raw_text'], 0, 2) == 'I ')
             ||
             (substr($chyron['raw_text'], 0, 2) == '| ')
@@ -167,16 +147,14 @@ if (mysql_num_rows($result) > 0)
             (substr($chyron['raw_text'], 0, 2) == '! ')
             ||
             (substr($chyron['raw_text'], 0, 2) == '; ')
-        )
-        {
+        ) {
             $chyron['raw_text'] = substr($chyron['raw_text'], 2);
         }
 
 
         # If there is a direct match with a bill dealt with on that day, insert it.
         $bill_id = array_search(strtolower($chyron['raw_text']), $bills);
-        if (($bill_id !== FALSE) && !empty($bill_id))
-        {
+        if (($bill_id !== false) && !empty($bill_id)) {
             echo $chyron['raw_text'] . ' matched to ' . $bills[$bill_id] . ' (' . $bill_id . ")\n";
             insert_match($bill_id, $chyron['id']);
         }
@@ -184,11 +162,9 @@ if (mysql_num_rows($result) > 0)
         # If we couldn't match it with a bill dealt with on that day, see if we can match it with
         # any bill introduced that year. This helps to allow bills to be recognized in spite of
         # legislative recordkeeping errors.
-        else
-        {
+        else {
             $bill_id = array_search(strtolower($chyron['raw_text']), $all_bills);
-            if (($bill_id !== FALSE) && !empty($bill_id))
-            {
+            if (($bill_id !== false) && !empty($bill_id)) {
                 echo $chyron['raw_text'] . ' matched to ' . $bills[$bill_id] . ' (' . $bill_id . ")\n";
                 insert_match($bill_id, $chyron['id']);
             }
@@ -204,10 +180,8 @@ if (mysql_num_rows($result) > 0)
 			AND TYPE = "bill"
 			AND linked_id IS NULL';
     $result = mysql_query($sql);
-    if (mysql_num_rows($result) > 0)
-    {
-        while ($unresolved = mysql_fetch_array($result))
-        {
+    if (mysql_num_rows($result) > 0) {
+        while ($unresolved = mysql_fetch_array($result)) {
             # Retrieve a list of linked IDs present for fifteen seconds on either side of this
             # unknown chyron.
             $sql = 'SELECT DISTINCT linked_id
@@ -222,8 +196,7 @@ if (mysql_num_rows($result) > 0)
             $result2 = mysql_query($sql);
             # If we've got just one row—which is to say that there's only one bill discussed in this
             # thirty-second window—then we'll take it.
-            if (mysql_num_rows($result2) === 1)
-            {
+            if (mysql_num_rows($result2) === 1) {
                 $resolved = mysql_fetch_array($result2);
                 insert_match($resolved['linked_id'], $unresolved['id']);
             }
@@ -233,18 +206,15 @@ if (mysql_num_rows($result) > 0)
     echo 'Finished matching bill chyrons';
 
     # Store the new bill number chyrons for this video.
-    if (isset($video['file_id']))
-    {
+    if (isset($video['file_id'])) {
         # Create a new instance of the Video class.
-        $vid = new Video;
+        $vid = new Video();
         $vid->id = $video['file_id'];
         $vid->store_clips();
 
         echo '(Re)indexed ' . $vid->clip_count . ' clips, cued by updating bill number chyrons, and
 			stored those clips.';
-
     }
-
 }
 
 
@@ -260,24 +230,18 @@ $sql = 'SELECT representatives.id, representatives.chamber, representatives.name
 			ON representatives.district_id = districts.id';
 // LIMIT THIS TO THOSE LEGISLATORS WHO ARE IN OFFICE ON THE DATE OF THIS VIDEO
 $result = mysql_query($sql);
-if (mysql_num_rows($result) > 0)
-{
+if (mysql_num_rows($result) > 0) {
     # Initalize the arrays.
     $legislators = array();
 
     # Iterate through the MySQL results and store them in an array.
-    while ($legislator = mysql_fetch_array($result))
-    {
-
+    while ($legislator = mysql_fetch_array($result)) {
         $legislator = array_map('stripslashes', $legislator);
 
         # Depending on the chamber, assign the legislator's prefix.
-        if ($legislator['chamber'] == 'house')
-        {
+        if ($legislator['chamber'] == 'house') {
             $legislator['prefix'] = 'Del.';
-        }
-        else
-        {
+        } else {
             $legislator['prefix'] = 'Sen.';
         }
 
@@ -301,22 +265,15 @@ $sql = 'SELECT representatives.id, representatives.chamber, representatives.name
 			ON representatives.district_id = districts.id';
 // LIMIT THIS TO THOSE LEGISLATORS WHO ARE IN OFFICE ON THE DATE OF THIS VIDEO
 $result = mysql_query($sql);
-if (mysql_num_rows($result) > 0)
-{
-
+if (mysql_num_rows($result) > 0) {
     # Iterate through the MySQL results and store them in an array.
-    while ($legislator = mysql_fetch_array($result))
-    {
-
+    while ($legislator = mysql_fetch_array($result)) {
         $legislator = array_map('stripslashes', $legislator);
 
         # Depending on the chamber, assign the legislator's prefix.
-        if ($legislator['chamber'] == 'house')
-        {
+        if ($legislator['chamber'] == 'house') {
             $legislator['prefix'] = 'Delegate';
-        }
-        else
-        {
+        } else {
             $legislator['prefix'] = 'Senator';
         }
 
@@ -328,9 +285,7 @@ if (mysql_num_rows($result) > 0)
         # we can do a direct comparison later.
         $legislator['complete'] = $legislator['prefix'] . ' ' . $legislator['last_name'] . "\r"
             . ' (' . $legislator['party'] . ') ' . $legislator['place'];
-
     }
-
 }
 
 
@@ -343,18 +298,14 @@ $sql = 'SELECT raw_text, linked_id, COUNT(*) AS number
 		ORDER BY number DESC
 		LIMIT 500';
 $result = mysql_query($sql);
-if (mysql_num_rows($result) > 0)
-{
-
+if (mysql_num_rows($result) > 0) {
     $priors = array();
-    while ($tmp = mysql_fetch_array($result))
-    {
+    while ($tmp = mysql_fetch_array($result)) {
         $tmp['raw_text'] = stripslashes($tmp['raw_text']);
         # We can't use a newline in an array key.
         $tmp['raw_text'] = str_replace("\n", ' ', $tmp['raw_text']);
         $priors[$tmp{'raw_text'}] = $tmp['linked_id'];
     }
-
 }
 
 # Select the raw text for the past 2,000 successfully IDd legislators and append that to our array.
@@ -364,19 +315,13 @@ $sql = 'SELECT DISTINCT raw_text, linked_id
 		ORDER BY date_created DESC
 		LIMIT 2000';
 $result = mysql_query($sql);
-if (mysql_num_rows($result) > 0)
-{
-
-    while ($tmp = mysql_fetch_array($result))
-    {
-
+if (mysql_num_rows($result) > 0) {
+    while ($tmp = mysql_fetch_array($result)) {
         $tmp['raw_text'] = stripslashes($tmp['raw_text']);
         # We can't use a newline in an array key.
         $tmp['raw_text'] = str_replace("\n", ' ', $tmp['raw_text']);
         $priors[$tmp{'raw_text'}] = $tmp['linked_id'];
-
     }
-
 }
 
 # Select the last 5,000 unresolved legislator chyrons that don't contain known noisewords.
@@ -393,13 +338,10 @@ $sql = 'SELECT id, raw_text
 $result = mysql_query($sql);
 # If there are no chyrons in need of resolution, then we can stop right now. (This is vanishingly
 # unlikely.)
-if (mysql_num_rows($result) == 0)
-{
+if (mysql_num_rows($result) == 0) {
     exit;
 }
-while ($chyron = mysql_fetch_array($result))
-{
-
+while ($chyron = mysql_fetch_array($result)) {
     $chyron['raw_text'] = stripslashes($chyron['raw_text']);
 
     # Break up the chyron text into the first and second lines, the first dealing with who the
@@ -411,58 +353,42 @@ while ($chyron = mysql_fetch_array($result))
     unset($tmp);
 
     # First, attempt a straight match of the text.
-    foreach ($legislators as $legislator)
-    {
+    foreach ($legislators as $legislator) {
         # If we can find a legislator text string that's identical to the chyron, then we can stop
         # right here.
-        if ($legislator['complete'] == $chyron['raw_text'])
-        {
-
+        if ($legislator['complete'] == $chyron['raw_text']) {
             echo '<li>Made a straight match. ' . $legislator['complete'] . ' = ' . $chyron['raw_text'] . "\n";
             insert_match($legislator['id'], $chyron['id']);
             next;
-
         }
     }
 
     # Second, attempt to use our lookup table of prior conversions, assuming that we have one.
-    if (isset($priors))
-    {
-
+    if (isset($priors)) {
         # We've stored the raw text of the prior as the array key, but minus the newline, since we
         # can't use newlines in an array key. So we need to compare with that in mind.
         $tmp = str_replace("\n", ' ', $chyron['raw_text']);
-        if (array_key_exists($tmp, $priors) === true)
-        {
-            echo 'Match found among priors. (' . $tmp . ' = '. $chyron['raw_text'] . "\n";
+        if (array_key_exists($tmp, $priors) === true) {
+            echo 'Match found among priors. (' . $tmp . ' = ' . $chyron['raw_text'] . "\n";
             insert_match($priors[$tmp], $chyron['id']);
             next;
         }
-
     }
 
     # Third, get a listing of all direct matches within 20%.
-    if (isset($legislators))
-    {
-
+    if (isset($legislators)) {
         $matches = array();
-        foreach ($legislators as $index => $legislator)
-        {
-
+        foreach ($legislators as $index => $legislator) {
             # If the Levenshtein distance is within 20% of the string length.
-            if (levenshtein($legislator['complete'], $chyron['raw_text']) <= (strlen($chyron['raw_text']) * .2))
-            {
+            if (levenshtein($legislator['complete'], $chyron['raw_text']) <= (strlen($chyron['raw_text']) * .2)) {
                 echo 'Match found within 80% confidence. (' . $tmp . ' = ' . $chyron['raw_text'] . "\n";
                 # Store this match.
                 $matches[$index] = levenshtein($legislator['complete'], $chyron);
             }
-
         }
 
         # If we've made any matches.
-        if (count($matches) > 0)
-        {
-
+        if (count($matches) > 0) {
             # Sort by the strength of the match.
             asort($matches);
 
@@ -473,26 +399,21 @@ while ($chyron = mysql_fetch_array($result))
 
             insert_match($match, $chyron['id']);
             next;
-
         }
     }
 
     # Fourth, get a listing of all prior matches within 15%.
-    if (isset($priors))
-    {
-
+    if (isset($priors)) {
         # We've stored the raw text of the prior as the array key, but minus the newline, since we
         # can't use newlines in an array key. So we need to compare with that in mind.
         $tmp = str_replace("\n", ' ', $chyron['raw_text']);
 
         $matches = array();
-        foreach ($priors as $text => $id)
-        {
+        foreach ($priors as $text => $id) {
             # If the Levenshtein distance is within 15% of the string length. You might be tempted
             # to be more liberal in what you'll accept. Don't. "Senator Saslaw (D) Fairfax County"
             # is 81.8% identical to "Senator Howell (D) Fairfax County."
-            if (levenshtein($text, $tmp) <= (strlen($tmp) * .15))
-            {
+            if (levenshtein($text, $tmp) <= (strlen($tmp) * .15)) {
                 echo 'Match found within 85% confidence. (' . $tmp . ' == ' . $text . "\n";
                 # Store this match.
                 $matches[$id] = levenshtein($text, $tmp);
@@ -500,9 +421,7 @@ while ($chyron = mysql_fetch_array($result))
         }
 
         # If we've made any matches.
-        if (count($matches) > 0)
-        {
-
+        if (count($matches) > 0) {
             # Sort by the strength of the match.
             asort($matches);
 
@@ -511,18 +430,15 @@ while ($chyron = mysql_fetch_array($result))
 
             insert_match($legislator_id, $chyron['id']);
             continue;
-
         }
-
     }
-
 }
 
 echo 'Finished matching legislator chyrons' . "\n";
 
 
 # Create a new instance of the Video class.
-$video = new Video;
+$video = new Video();
 
 # Get a list of every file that is not currently indexed in the video_clips table.
 $sql = 'SELECT DISTINCT video_index.file_id AS id
@@ -531,20 +447,14 @@ $sql = 'SELECT DISTINCT video_index.file_id AS id
 			ON video_index.file_id = video_clips.file_id
 		WHERE video_clips.file_id IS NULL';
 $result = mysql_query($sql);
-while ($file = mysql_fetch_array($result))
-{
-
+while ($file = mysql_fetch_array($result)) {
     $video->id = $file['id'];
     $video->store_clips();
     echo 'Indexed video clips for file ' . $file['id'] . "\n";
-
 }
 
-if (isset($video_id))
-{
-
+if (isset($video_id)) {
     $video->id = $video_id;
     $video->store_clips();
     echo '<p>Indexed video clips for file ' . $file['id'] . "\n";
-
 }

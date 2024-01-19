@@ -11,7 +11,7 @@ define('CLI_ROOT', '/home/ubuntu/video-processor');
 /*
  * Connect to the database.
  */
-$database = new Database;
+$database = new Database();
 $db = $database->connect_mysqli();
 
 /*
@@ -20,21 +20,18 @@ $db = $database->connect_mysqli();
 $filename = $_SERVER['argv'][1];
 $capture_dir = $_SERVER['argv'][2];
 
-if (empty($filename))
-{
+if (empty($filename)) {
     die('You must specify the filename');
 }
 
-if (empty($capture_dir))
-{
+if (empty($capture_dir)) {
     die('You must specify the output directory');
 }
 
 /*
  * Make sure the file exists.
  */
-if (file_exists(CLI_ROOT . $video_dir . $filename) === FALSE)
-{
+if (file_exists(CLI_ROOT . $video_dir . $filename) === false) {
     echo CLI_ROOT . $video_dir . $filename . ' does not exist';
     exit(1);
 }
@@ -47,7 +44,7 @@ $metadata = json_decode(file_get_contents(CLI_ROOT . $video_dir . 'metadata.json
 /*
  * Instantiate the video class
  */
-$video = new Video;
+$video = new Video();
 
 /*
  * Assemble data about this video file, which we'll use to create the database record for it.
@@ -59,8 +56,7 @@ $file = array();
  */
 $video->path = $filename;
 $video->capture_directory = $capture_dir;
-if ($video->extract_file_data() === FALSE)
-{
+if ($video->extract_file_data() === false) {
     echo 'Could not get metadata about ' . $filename . ' from mplayer';
     exit(1);
 }
@@ -79,13 +75,10 @@ $file['chamber'] = $metadata->chamber;
 $file['date'] = $metadata->date_hyphens;
 $file['type'] = 'video';
 $file['title'] = ucfirst($file['chamber']) . ' Video';
-if (!empty($metadata->committee_id))
-{
+if (!empty($metadata->committee_id)) {
     $file['committee_id'] = $metadata->committee_id;
-}
-elseif (!empty($metadata->committee))
-{
-    $committee = new Committee;
+} elseif (!empty($metadata->committee)) {
+    $committee = new Committee();
     $committee->chamber = $metadata->chamber;
     $committee->name = $metadata->committee;
     $file['committee_id'] = $committee->get_id();
@@ -93,13 +86,10 @@ elseif (!empty($metadata->committee))
     $committee_shortname = $tmp->shortname;
 }
 
-if ( isset($committee_shortname) && !empty($committee_shortname) )
-{
-    $file['capture_directory'] = '/video/' . $metadata->chamber . '/' . $committee_shortname .'/' . $metadata->date .'/';
-}
-else
-{
-    $file['capture_directory'] = '/video/' . $metadata->chamber . '/floor/' . $metadata->date .'/';
+if (isset($committee_shortname) && !empty($committee_shortname)) {
+    $file['capture_directory'] = '/video/' . $metadata->chamber . '/' . $committee_shortname . '/' . $metadata->date . '/';
+} else {
+    $file['capture_directory'] = '/video/' . $metadata->chamber . '/floor/' . $metadata->date . '/';
 }
 
 
@@ -107,11 +97,8 @@ else
  * Store this record in the database.
  */
 $video->video = $file;
-if ($video->submit() !== FALSE)
-{
+if ($video->submit() !== false) {
     echo $video->id;
-}
-else
-{
+} else {
     exit(1);
 }
