@@ -154,13 +154,10 @@ set_time_limit(0);
  * Retrieve the file and store it locally. It may be a video or it may be just be a playlist in the
  * M3U format.
  */
-if (substr($video->url, -4) == '.mp4')
-{
+if (substr($video->url, -4) == '.mp4') {
     $video->format = 'mp4';
     $video->filename = $video->chamber . '-' . $video->type . '-' . $video->date . '.mp4';
-}
-elseif (substr($video->url, -5) == '.m3u8')
-{
+} elseif (substr($video->url, -5) == '.m3u8') {
     $video->format = 'm3u';
     $video->filename = $video->chamber . '-' . $video->type . '-' . $video->date . '.mp4';
 }
@@ -210,20 +207,19 @@ if ($video->format = 'm3u') {
     $url_prefix = str_replace('playlist.m3u8', '', $video->url);
     // Turn the segment paths into URLs
     preg_replace('/^media_/', $url_prefix . 'media_', $m3u);
-    if (file_put_contents('../video/' . $video->filename, $m3u) === false)
-    {
+    if (file_put_contents('../video/' . $video->filename, $m3u) === false) {
         $log->put('Error: Failed in rewriting contents of ' . $video->filename . ', with the '
-            .'full path of each chunk, because the file could not be saved.', 4);
+            . 'full path of each chunk, because the file could not be saved.', 4);
         exit(1);
     }
 
     $cmd = 'ffmpeg -protocol_whitelist file,http,https,tcp,tls,crypto -i "../video/'
-        . $video->filename .' -c copy -bsf:a aac_adtstoasc "' . $new_filename . '"';
+        . $video->filename . ' -c copy -bsf:a aac_adtstoasc "' . $new_filename . '"';
     exec($cmd, $output, $return_var);
 
     if ($return_var != 0) {
         $log->put('Error: Failed in M3U -> MP4 conversion of ' . $video->filename . ', with the '
-            .'following error: ' . implode(' ' , $output), 4);
+            . 'following error: ' . implode(' ', $output), 4);
         exit(1);
     }
 
