@@ -67,7 +67,7 @@ set "$step_get_captions"
 set "$step_save_captions"
 set "$step_internet_archive"
 
-if [ "$step_all" = true ]; then
+if [ "$step_all" = true ] || [ "$step_all" = "1" ]; then
 	step_download=true
 	step_screenshots=true
 	step_crop_chyrons=true
