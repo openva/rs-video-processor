@@ -151,9 +151,20 @@ delete($message);
 set_time_limit(0);
 
 /*
- * Retrieve the file and store it locally.
+ * Retrieve the file and store it locally. It may be a video or it may be just be a playlist in the
+ * M3U format.
  */
-$video->filename = $video->chamber . '-' . $video->type . '-' . $video->date . '.mp4';
+if (substr($video->url, -4) == '.mp4')
+{
+    $video->format = 'mp4';
+    $video->filename = $video->chamber . '-' . $video->type . '-' . $video->date . '.mp4';
+}
+elseif (substr($video->url, -5) == '.m3u8')
+{
+    $video->format = 'm3u';
+    $video->filename = $video->chamber . '-' . $video->type . '-' . $video->date . '.mp4';
+}
+
 $fp = fopen('../video/' . $video->filename, 'w+');
 $ch = curl_init($video->url);
 curl_setopt($ch, CURLOPT_FILE, $fp);
@@ -177,13 +188,49 @@ if ($result == false || !file_exists('../video/' . $video->filename)) {
 /*
  * If the file is less than 1 MB, we've gotten an HTML error page instead of video.
  */
-if (filesize('../video/' . $video->filename) < 1048576) {
+if ($video->format == 'mp4' && filesize('../video/' . $video->filename) < 1048576) {
     $log->put('The ' . $video->chamber . ' ' . $video->type . ' video for ' . $video->date
         . ', at ' . $video->url . ' is returning HTML instead of video. Requeuing for later '
         . 'retrieval and analysis.', 7);
     unset($video->filename);
     requeue($video);
     exit(1);
+}
+
+/*
+ * If it's a playlist, combine all of its components into an MP4.
+ */
+if ($video->format = 'm3u') {
+    $log->put($video->filename . ' is a playlist, not a video. Converting to MP4.', 3);
+
+    $new_filename = str_replace('.m3u8', '.mp4', $video->filename);
+
+    // Modify the M3U file to prepend every segment with the full URL
+    $m3u = file_get_contents('../video/' . $video->filename);
+    $url_prefix = str_replace('playlist.m3u8', '', $video->url);
+    // Turn the segment paths into URLs
+    preg_replace('/^media_/', $url_prefix . 'media_', $m3u);
+    if (file_put_contents('../video/' . $video->filename, $m3u) === false)
+    {
+        $log->put('Error: Failed in rewriting contents of ' . $video->filename . ', with the '
+            .'full path of each chunk, because the file could not be saved.', 4);
+        exit(1);
+    }
+
+    $cmd = 'ffmpeg -protocol_whitelist file,http,https,tcp,tls,crypto -i "../video/'
+        . $video->filename .' -c copy -bsf:a aac_adtstoasc "' . $new_filename . '"';
+    exec($cmd, $output, $return_var);
+
+    if ($return_var != 0) {
+        $log->put('Error: Failed in M3U -> MP4 conversion of ' . $video->filename . ', with the '
+            .'following error: ' . implode(' ' , $output), 4);
+        exit(1);
+    }
+
+    /*
+     * Now make the MP4 the filename, rather than the playlist.
+     */
+    $video->filename = $new_filename;
 }
 
 /*
