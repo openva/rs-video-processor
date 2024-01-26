@@ -170,13 +170,3 @@ find . -type f -name '*.name.jpg' -exec rm {} \;
 find . -type f -name '*.bill.jpg' -exec rm {} \;
 find . -type f -name '*.name-lower.jpg' -exec rm {} \;
 find . -type f -name '*.bill-lower.jpg' -exec rm {} \;
-
-# Duplicate all JPEGs with a -150 suffix.
-for F in $(find ./*.jpg -maxdepth 1 |awk -F. '{print $2}')
-do
-	cp ."$F".jpg ."${F}"-150.jpg
-done
-
-# Create thumbnails of all *150.jpg screenshots.
-echo Creating thumbnails of screenshots
-mogrify -resize 150x112 ./*-150.jpg

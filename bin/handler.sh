@@ -90,9 +90,14 @@ fi
 # Define the name of the directory that will store the extracted chyrons.
 export output_dir="${filename/.mp4/}"
 
-# OCR the video. This also generates screeshots and thumbnails.
+# OCR the video.
+if [ "$step_ocr_chyrons" = true ]; then
+	../bin/ocr.sh "$filename" "$chamber" "$committee"
+fi
+
+# Generate screenshots and thumbnails.
 if [ "$step_screenshots" = true ]; then
-	../bin/ocr.sh "$filename" "$chamber" "$committee" || exit $?
+	../bin/screenshots.sh "$filename" "$chamber" "$committee"
 
 	# Move screenshots to S3.
 	cd "$VIDEO_DIR" || exit $?
