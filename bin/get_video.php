@@ -197,25 +197,48 @@ if ($video->format == 'mp4' && filesize('../video/' . $video->filename) < 104857
 /*
  * If it's a playlist, combine all of its components into an MP4.
  */
-if ($video->format = 'm3u') {
+if ($video->format == 'm3u') {
     $log->put($video->filename . ' is a playlist, not a video. Converting to MP4.', 3);
 
-    $new_filename = str_replace('.m3u8', '.mp4', $video->filename);
+    $mp4_filename = str_replace('.m3u8', '', $video->filename);
 
-    // Modify the M3U file to prepend every segment with the full URL
-    $m3u = file_get_contents('../video/' . $video->filename);
-    $url_prefix = str_replace('playlist.m3u8', '', $video->url);
-    // Turn the segment paths into URLs
-    preg_replace('/^media_/', $url_prefix . 'media_', $m3u);
-    if (file_put_contents('../video/' . $video->filename, $m3u) === false) {
-        $log->put('Error: Failed in rewriting contents of ' . $video->filename . ', with the '
-            . 'full path of each chunk, because the file could not be saved.', 4);
-        exit(1);
+    /*
+     * Iterate through every fragment and save it.
+     */
+    for ($i=0; $i<9999; $i++) {
+        $segment_filename = 'media_' . str_pad($i, 4, '0') . '.ts';
+        $url = $mp4_filename . '/' . $segment_filename;
+        $fp = fopen('../video/' . $segment_filename, 'w+');
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_FILE, $fp);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        $response = curl_exec($ch);
+        curl_close($ch);
+        fclose($fp);
+        if ($response === false) {
+            $num_files = $i-2;
+            break;
+        }
     }
 
-    $cmd = 'ffmpeg -protocol_whitelist file,http,https,tcp,tls,crypto -i "../video/'
-        . $video->filename . ' -c copy -bsf:a aac_adtstoasc "' . $new_filename . '"';
+    /*
+     * Put together a list of all of the fragments to feed to ffmpeg.
+     */
+    $manifest = [];
+    for ($i=0; $i<=$num_files; $i++) {
+        $manifest[] = "file 'media_" . str_pad($i, 4, '0') . ".ts'";
+    }
+    $manifest = implode("\n", $manifest);
+    file_put_contents('../video/manifest.txt', $manifest);
+
+    /*
+     * Combine all of the fragments into a single video.
+     */
+    $cmd = 'ffmpeg -f concat -i ../video/manifest.txt -codec copy -bsf:a aac_adtstoasc ' . $mp4_filename;
     exec($cmd, $output, $return_var);
+
+    unlink('../video/manifest.txt');
 
     if ($return_var != 0) {
         $log->put('Error: Failed in M3U -> MP4 conversion of ' . $video->filename . ', with the '
@@ -226,7 +249,7 @@ if ($video->format = 'm3u') {
     /*
      * Now make the MP4 the filename, rather than the playlist.
      */
-    $video->filename = $new_filename;
+    $video->filename = $mp4_filename;
 }
 
 /*
