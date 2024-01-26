@@ -6,7 +6,7 @@ cd /home/ubuntu/video-processor/
 CRONTAB="$(grep video-processor /etc/crontab)"
 if [ -z "$CRONTAB" ]
 then
-    cat deploy/crontab.txt |sudo tee -a /etc/crontab
+    crontab deploy/crontab.txt
 fi
 
 cd ~
