@@ -205,7 +205,7 @@ if ($video->format == 'm3u') {
     /*
      * Iterate through every fragment and save it.
      */
-    for ($i=0; $i<9999; $i++) {
+    for ($i = 0; $i < 9999; $i++) {
         $segment_filename = 'media_' . str_pad($i, 4, '0') . '.ts';
         $url = $mp4_filename . '/' . $segment_filename;
         $fp = fopen('../video/' . $segment_filename, 'w+');
@@ -217,7 +217,7 @@ if ($video->format == 'm3u') {
         curl_close($ch);
         fclose($fp);
         if ($response === false) {
-            $num_files = $i-2;
+            $num_files = $i - 2;
             break;
         }
     }
@@ -226,7 +226,7 @@ if ($video->format == 'm3u') {
      * Put together a list of all of the fragments to feed to ffmpeg.
      */
     $manifest = [];
-    for ($i=0; $i<=$num_files; $i++) {
+    for ($i = 0; $i <= $num_files; $i++) {
         $manifest[] = "file 'media_" . str_pad($i, 4, '0') . ".ts'";
     }
     $manifest = implode("\n", $manifest);
