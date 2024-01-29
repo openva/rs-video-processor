@@ -345,4 +345,4 @@ foreach ((array) $video as $key => $value) {
 $video_handler->submit();
 
 $log->put('Stored new ' . ucfirst($video->chamber) . ' ' . $video->type . ' video, for '
-    . date('%M %d, %Y', strtotime($video->date)) . ': ' . $video->path, 4);
+    . date('M d, Y', strtotime($video->date)) . ': ' . $video->path, 4);
