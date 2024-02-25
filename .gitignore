@@ -2,3 +2,4 @@ includes/
 *.cache
 .DS_Store
 video/
+bin/__pycache__/
