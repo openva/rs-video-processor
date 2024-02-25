@@ -54,6 +54,13 @@ def ocr(image_path, chyrons):
             pil_image = Image.fromarray(cropped_image)
             return pytesseract.image_to_string(pil_image, lang='eng', config='--psm 6').strip()
         
+        # The bottom chyron needs to be pulled in a bit, to avoid including the state seal
+        if chyron[1] > 100:
+            chyron_list = list(chyron)
+            chyron_list[1] = chyron_list[1] + 15
+            chyron_list[3] = chyron_list[3] - 15
+            chyron = tuple(chyron_list)
+
         # Crop images based on the coordinates
         cropped = crop_image(gray_image, chyron)
         
