@@ -1,46 +1,73 @@
-import cv2
-import pytesseract
-from PIL import Image
-import json
+from rs_video import *
+import sqlite3
+import glob
+import re
 
-def crop_and_ocr(image_path, top_coords, bottom_coords):
-    # Read the image using OpenCV
-    image = cv2.imread(image_path)
-    
-    # Convert to grayscale
-    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    
-    # Crop function
-    def crop_image(image, coords):
-        x, y, w, h = coords
-        return image[y:y+h, x:x+w]
-    
-    # OCR function
-    def ocr_cropped_image(cropped_image):
-        pil_image = Image.fromarray(cropped_image)
-        return pytesseract.image_to_string(pil_image, lang='eng', config='--psm 6').strip()
-    
-    # Crop images based on the coordinates
-    top_cropped = crop_image(gray_image, top_coords)
-    bottom_cropped = crop_image(gray_image, bottom_coords)
-    
-    # Perform OCR
-    top_text = ocr_cropped_image(top_cropped)
-    bottom_text = ocr_cropped_image(bottom_cropped)
-    
-    # Combine the text into a JSON object
-    ocr_results = {
-        "top_box_text": top_text,
-        "bottom_box_text": bottom_text
-    }
-    
-    return json.dumps(ocr_results, indent=4)
+directory_path = './'
+output_path = 'screenshot_chyrons.jpg'
+db_file = 'chyrons.db'
+video_filename = "video.mp4"
 
-# The coordinates for the boxes would be passed along with the image path when calling the function
-image_path = 'screenshot.jpg'  # Replace with your image file path
-top_box_coords = (715, 54, 962 - 715, 91 - 54)
-bottom_box_coords = (275, 415, 820 - 275, 475 - 415)
+# Save one screenshot for each second of video
+extract_frames(directory_path + video_filename, directory_path)
 
-# Call the function and print the results
-results_json = crop_and_ocr(image_path, top_box_coords, bottom_box_coords)
-print(results_json)
+# Create a temporary database
+conn = sqlite3.connect(db_file)
+cursor = conn.cursor()
+cursor.execute('''CREATE TABLE IF NOT EXISTS chyrons (
+                    "id" INTEGER PRIMARY KEY,
+                    "timestamp" INTEGER,
+                    "type" TEXT CHECK( type IN ('name', 'bill') ),
+                    "text" TEXT
+                )''')
+
+for image_path in glob.glob(f'{directory_path}/*.jpg'):
+
+    print(f"Processing {image_path}")
+
+    # Determine where the blue chyrons are
+    bounding_boxes = find_chyrons(image_path, output_path)
+    print(f"Detected {len(bounding_boxes)} chyrons: {bounding_boxes}")
+
+    if len(bounding_boxes) == 0:
+        continue
+
+    # Iterate through the bounding boxes
+    chyrons = []
+    for bounding_box in bounding_boxes:
+
+        # Call the function and get the average color in RGB format
+        average_color_rgb = get_average_color(image_path, bounding_box)
+        if get_average_color(image_path, bounding_box)[2] > 100:
+            chyrons.append(bounding_box)
+            print(f"Chyron {bounding_box} validated with an average color of {average_color_rgb}")
+        else:
+            continue
+
+    # OCR chyrons
+    chyron_text = ocr(image_path, chyrons)
+
+    # Get the chryons' timestamp in seconds (it's the filename's number)
+    match = re.search(r'\d+', image_path)
+    if not match:
+            continue
+    timestamp = match.group(0)
+
+    # Determine if each chyron is a top or a bottom chyron
+    for chyron in chyron_text:
+        if chyron['coordinates'][1] < 100:
+            chyron['type'] = 'bill'
+        else:
+            chyron['type'] = 'name'
+
+        sql_values = {}
+        sql_values['text'] = chyron['text']
+        sql_values['type'] = chyron['type']
+        sql_values['timestamp'] = timestamp
+
+        insert_query = '''INSERT INTO chyrons (text, type, timestamp)
+                            VALUES (:text, :type, :timestamp)'''
+        cursor.execute(insert_query, sql_values)
+
+conn.commit()
+conn.close()
