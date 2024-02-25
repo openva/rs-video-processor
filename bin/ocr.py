@@ -11,14 +11,23 @@ video_filename = "video.mp4"
 # Save one screenshot for each second of video
 extract_frames(directory_path + video_filename, directory_path)
 
-# Create a temporary database
+# Create a chyron database
 conn = sqlite3.connect(db_file)
 cursor = conn.cursor()
 cursor.execute('''CREATE TABLE IF NOT EXISTS chyrons (
                     "id" INTEGER PRIMARY KEY,
+                    "video_id" INTEGER,
                     "timestamp" INTEGER,
                     "type" TEXT CHECK( type IN ('name', 'bill') ),
                     "text" TEXT
+                )''')
+
+# Create a database to store video records
+cursor.execute('''CREATE TABLE IF NOT EXISTS videos (
+                    "id" INTEGER PRIMARY KEY,
+                    "date" DATE,
+                    "chamber" TEXT CHECK( chamber IN ('house', 'senate') ),
+                    "committee" TEXT
                 )''')
 
 for image_path in glob.glob(f'{directory_path}/*.jpg'):
