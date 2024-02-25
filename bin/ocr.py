@@ -62,7 +62,7 @@ for image_path in glob.glob(f'{directory_path}/*.jpg'):
             continue
     timestamp = match.group(0)
 
-    # Determine if each chyron is a top or a bottom chyron
+    # Determine if each chyron is a bill or a name chyron
     for chyron in chyron_text:
         if chyron['coordinates'][1] < 100:
             chyron['type'] = 'bill'
