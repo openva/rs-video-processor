@@ -1,5 +1,6 @@
 """For OCRing video."""
 
+import sys
 import sqlite3
 import glob
 import re
@@ -9,6 +10,12 @@ output_path = 'screenshot_chyrons.jpg'
 directory_path = '.'
 DB_FILE = 'chyrons.db'
 video_filename = 'video.mp4'
+
+if len(sys.argv) > 1:
+    VIDEO_ID = sys.argv[1]
+else:
+    print('Error: Video ID must be provided (example: ocr.py 132)')
+    sys.exit(1)
 
 # Save one screenshot for each second of video
 extract_frames(directory_path + '/' + video_filename, directory_path)
@@ -66,9 +73,10 @@ for image_path in glob.glob(f'{directory_path}/*.jpg'):
         sql_values['text'] = chyron['text']
         sql_values['type'] = chyron['type']
         sql_values['timestamp'] = timestamp
+        sql_values['video_id'] = VIDEO_ID
 
-        insert_query = '''INSERT INTO chyrons (text, type, timestamp)
-                            VALUES (:text, :type, :timestamp)'''
+        insert_query = '''REPLACE INTO chyrons (video_id, text, type, timestamp)
+                            VALUES (:video_id, :text, :type, :timestamp)'''
         cursor.execute(insert_query, sql_values)
 
 conn.commit()
