@@ -7,14 +7,14 @@ from rs_video import *
 
 directory_path = './'
 output_path = 'screenshot_chyrons.jpg'
-db_file = 'chyrons.db'
+DB_FILE = 'chyrons.db'
 video_filename = 'video.mp4'
 
 # Save one screenshot for each second of video
 extract_frames(directory_path + video_filename, directory_path)
 
 # Create a chyron database
-conn = sqlite3.connect(db_file)
+conn = sqlite3.connect(DB_FILE)
 cursor = conn.cursor()
 cursor.execute('''CREATE TABLE IF NOT EXISTS chyrons (
                     "id" INTEGER PRIMARY KEY,
