@@ -69,8 +69,8 @@ def ocr(image_path, chyrons):
         
         # Perform OCR
         text = ocr_cropped_image(cropped)
-    
-        # Combine the text into a JSON object
+   
+        # Combine the outputs
         chyron_results = {'coordinates': chyron, 'text': text}
         
         ocr_results.append(chyron_results)
