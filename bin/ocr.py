@@ -29,7 +29,7 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS chyrons (
                     "id" INTEGER PRIMARY KEY,
                     "video_id" INTEGER,
                     "timestamp" INTEGER,
-                    "type" TEXT CHECK( type IN ('name', 'bill') ),
+                    "type" TEXT CHECK( type IN ('legislator', 'bill') ),
                     "text" TEXT
                 )''')
 
@@ -66,7 +66,7 @@ for image_path in glob.glob(f'{directory_path}/*.jpg'):
         if chyron['coordinates'][1] < 100:
             chyron['type'] = 'bill'
         else:
-            chyron['type'] = 'name'
+            chyron['type'] = 'legislator'
 
         sql_values = {}
         sql_values['text'] = chyron['text']
