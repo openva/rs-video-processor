@@ -155,12 +155,12 @@ def find_chyrons(image_path, output_path):
 
     return chyrons
 
-def get_average_color(image_path, bbox):
+def get_average_color(image_path, bounding_box):
     # Load the image
     image = cv2.imread(image_path)
     
     # Extract the bounding box coordinates
-    x, y, w, h = bbox
+    x, y, w, h = bounding_box
     
     # Crop the region of interest based on the bounding box
     roi = image[y:y+h, x:x+w]
