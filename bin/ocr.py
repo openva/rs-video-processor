@@ -13,6 +13,9 @@ video_filename = 'video.mp4'
 # Save one screenshot for each second of video
 extract_frames(directory_path + video_filename, directory_path)
 
+# Determine the boundaries to use
+bounding_boxes = sample_chyrons(directory_path)
+
 # Create a chyron database
 conn = sqlite3.connect(DB_FILE)
 cursor = conn.cursor()
