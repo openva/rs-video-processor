@@ -6,7 +6,6 @@ import pytesseract
 from PIL import Image
 from collections import Counter
 import numpy as np
-import json
 
 def extract_frames(video_path, output_folder):
     # Open the video file
