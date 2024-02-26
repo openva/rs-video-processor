@@ -151,10 +151,10 @@ def find_chyrons(image_path, output_path):
         if w >= 200 and h >= 18:
             chyrons.append((x, y, w, h))
             # Draw a green rectangle around the detected object
-            cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            #cv2.rectangle(image, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
     # Save the result
-    cv2.imwrite(output_path, image)
+    #cv2.imwrite(output_path, image)
 
     return chyrons
 

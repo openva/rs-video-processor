@@ -6,7 +6,6 @@ import glob
 import re
 from rs_video import *
 
-output_path = 'screenshot_chyrons.jpg'
 directory_path = '.'
 DB_FILE = 'chyrons.db'
 video_filename = 'video.mp4'
