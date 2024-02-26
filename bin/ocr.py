@@ -34,32 +34,20 @@ for image_path in glob.glob(f'{directory_path}/*.jpg'):
 
     print(f"Processing {image_path}")
 
-    # Determine where the blue chyrons are
-    bounding_boxes = find_chyrons(image_path, output_path)
-    print(f"Detected {len(bounding_boxes)} chyrons: {bounding_boxes}")
+    matched_bounding_boxes = []
 
-    if len(bounding_boxes) == 0:
-        continue
-
-    # Iterate through the bounding boxes
-    chyrons = []
     for bounding_box in bounding_boxes:
-
-        # Call the function and get the average color in RGB format
-        average_color_rgb = get_average_color(image_path, bounding_box)
+        average_color = get_average_color(image_path, bounding_box)
         if get_average_color(image_path, bounding_box)[2] > 100:
-            chyrons.append(bounding_box)
-            print(f"Chyron {bounding_box} validated with an average color of {average_color_rgb}")
-        else:
-            continue
+            matched_bounding_boxes.append(bounding_box)
 
     # OCR chyrons
-    chyron_text = ocr(image_path, chyrons)
+    chyron_text = ocr(image_path, matched_bounding_boxes)
 
     # Get the chryons' timestamp in seconds (it's the filename's number)
     match = re.search(r'\d+', image_path)
     if not match:
-            continue
+        continue
     timestamp = match.group(0)
 
     # Determine if each chyron is a bill or a name chyron

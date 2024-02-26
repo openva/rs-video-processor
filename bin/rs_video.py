@@ -74,6 +74,55 @@ def ocr(image_path, chyrons):
     
     return ocr_results
 
+def sample_chyrons(directory_path):
+    # Select a bunch of random screenshots
+    screenshots = glob.glob(os.path.join(directory_path, '*.jpg'))
+    random_screenshots = random.sample(screenshots, 200)
+
+    boundaries = []
+
+    for random_screenshot in random_screenshots:
+        image_path = directory_path + random_screenshot
+        output_path = image_path + '-outlined.jpg'
+        chyrons = find_chyrons(image_path, output_path)
+        for chyron in chyrons:
+            boundaries.append(chyron)
+
+    # Define a function to compare two boundaries
+    def are_similar(boundary1, boundary2, threshold=10):
+        return all(abs(a - b) <= threshold for a, b in zip(boundary1, boundary2))
+
+    # Find nearly-identical boundaries
+    similar_groups = []
+    visited = set()
+
+    for i, boundary in enumerate(boundaries):
+        if i in visited:
+            continue
+        # Create a new group for each unvisited boundary
+        current_group = [boundary]
+        for j, other_boundary in enumerate(boundaries[i+1:], start=i+1):
+            if are_similar(boundary, other_boundary):
+                current_group.append(other_boundary)
+                visited.add(j)
+        similar_groups.append(current_group)
+
+    # Save the two most-found similar boundaries
+    sorted_similar_groups = sorted(similar_groups, key=lambda group: len(group), reverse=True)
+    sorted_similar_groups = sorted_similar_groups[:2]
+
+    def mean_boundary(group):
+        # Transpose the list of tuples to easily calculate mean for each boundary dimension
+        transposed = list(zip(*group))
+        # Calculate mean for each dimension
+        mean = tuple(round(sum(dim) / len(dim)) for dim in transposed)
+        return mean
+
+    # Calculate the mean boundary for each group
+    mean_boundaries = [mean_boundary(group) for group in sorted_similar_groups]
+
+    return mean_boundaries
+    
 def find_chyrons(image_path, output_path):
     # Load the image
     image = cv2.imread(image_path)
