@@ -1,7 +1,9 @@
-from rs_video import *
+"""For OCRing video."""
+
 import sqlite3
 import glob
 import re
+from rs_video import *
 
 directory_path = './'
 output_path = 'screenshot_chyrons.jpg'
