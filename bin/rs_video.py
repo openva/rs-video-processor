@@ -1,6 +1,10 @@
+import os
+import glob
+import random
 import cv2
 import pytesseract
 from PIL import Image
+from collections import Counter
 import numpy as np
 import json
 
