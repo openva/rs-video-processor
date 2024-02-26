@@ -85,7 +85,7 @@ def sample_chyrons(directory_path):
     boundaries = []
 
     for random_screenshot in random_screenshots:
-        image_path = directory_path + random_screenshot
+        image_path = directory_path + '/' + random_screenshot
         output_path = image_path + '-outlined.jpg'
         chyrons = find_chyrons(image_path, output_path)
         for chyron in chyrons:

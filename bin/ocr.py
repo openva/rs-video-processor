@@ -5,13 +5,13 @@ import glob
 import re
 from rs_video import *
 
-directory_path = './'
 output_path = 'screenshot_chyrons.jpg'
+directory_path = '.'
 DB_FILE = 'chyrons.db'
 video_filename = 'video.mp4'
 
 # Save one screenshot for each second of video
-extract_frames(directory_path + video_filename, directory_path)
+extract_frames(directory_path + '/' + video_filename, directory_path)
 
 # Determine the boundaries to use
 bounding_boxes = sample_chyrons(directory_path)
