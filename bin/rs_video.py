@@ -12,7 +12,7 @@ def extract_frames(video_path, output_folder):
     cap = cv2.VideoCapture(video_path)
     
     if not cap.isOpened():
-        print("Error: Could not open video.")
+        print('Error: Could not open video.')
         return
 
     fps = int(cap.get(cv2.CAP_PROP_FPS))  # Get frames per second of the video
