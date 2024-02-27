@@ -2,7 +2,7 @@
 
 /**
  * Load chyrons
- * 
+ *
  * This is intended to be run after ocr.py. That script extracts the chyrons and saves them to
  * SQLite, this script transfers the chyrons from SQLite into MariaDB.
  */
@@ -23,8 +23,7 @@ if (!isset($video_id) || empty($video_id)) {
 // Optionally get the capture directory from the command line.
 if (isset($_SERVER['argv'][2])) {
     $capture_directory = $_SERVER['argv'][2];
-}
-else {
+} else {
     $capture_directory = (__DIR__ . '/../video/');
 }
 
@@ -34,7 +33,7 @@ $log = new Log();
 // Database configurations
 $sqliteDsn = 'sqlite:/chyrons.db';
 
-// Make sure that this hasn't already been added
+// Make sure that this hasn't already been added to MariaDB
 $sql = 'SELECT file_id
 		FROM video_index
 		WHERE file_id=' . $video_id;
@@ -69,7 +68,7 @@ try {
 
     while ($chyron = $fetchStmt->fetch(PDO::FETCH_ASSOC)) {
         $chyron['time'] = date('H:i:s', $row['timestamp']);
-        
+
         // Insert into MySQL
         $insertStmt->execute([
             $chyron['video_id'],
@@ -79,6 +78,12 @@ try {
             $chyron['type'],
         ]);
     }
+
+    // Remove the chyrons from SQLite
+    $sql = 'DELETE
+            FROM chyrons
+            WHERE video_id=' . $video_id;
+    $sqlite->query($sql);
 
     echo "Chyrons successfully loaded into MariaDB\n";
 } catch (PDOException $e) {
