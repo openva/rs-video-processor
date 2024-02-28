@@ -92,7 +92,7 @@ export output_dir="${filename/.mp4/}"
 
 # OCR the video.
 if [ "$step_ocr_chyrons" = true ]; then
-	../bin/ocr.sh "$filename" "$chamber" "$committee"
+	../bin/ocr.py "$VIDEO_ID"
 fi
 
 # Generate screenshots and thumbnails.
@@ -128,7 +128,7 @@ fi
 if [ "$type" = "floor" ] && [ "$step_ocr_chyrons" = true ]; then
 
 	# Insert the chyrons into the database.
-	php ../bin/save_chyrons.php "$VIDEO_ID" "$output_dir" || exit $?
+	php ../bin/load_chyrons.php "$VIDEO_ID" "$output_dir" || exit $?
 
 	# Resolve the chyrons to individual legislators and bills.
 	php ../bin/resolve_chyrons.php "$VIDEO_ID" || exit $?
