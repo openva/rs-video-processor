@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 """For OCRing video."""
 
 import sys
