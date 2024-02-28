@@ -102,7 +102,12 @@ if [ "$step_screenshots" = true ]; then
 	# Move screenshots to S3.
 	cd "$VIDEO_DIR" || exit $?
 	cd "$output_dir" || exit $?
-	if aws s3 sync . s3://video.richmondsunlight.com/"$chamber"/floor/"$date" --exclude "*" --include "*.jpg"
+	if [ "$type" = "floor" ]; then
+		s3_path=s3://video.richmondsunlight.com/"$chamber"/floor/"$date"
+	elif [ "$type" = "committee" ]; then
+		s3_path=s3://video.richmondsunlight.com/"$chamber"/"$committee"/"$date"
+	fi
+	if aws s3 sync . "$s3_path" --exclude "*" --include "*.jpg"
 	then
 		echo Deleting all local screenshots
 		rm ./*.jpg
