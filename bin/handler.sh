@@ -72,6 +72,9 @@ if [ "$step_all" = true ] || [ "$step_all" = "1" ]; then
 	step_internet_archive=true
 fi
 
+# Define the name of the directory that will store the extracted chyrons.
+export output_dir="${filename/.mp4/}"
+
 # Save the video to the database
 cd ..
 export VIDEO_ID="$(php bin/save_metadata.php "$filename" "$output_dir")" || exit $?
@@ -83,9 +86,6 @@ else
         echo "Error: Unexpected response instead of a video ID: $VIDEO_ID "
         exit
 fi
-
-# Define the name of the directory that will store the extracted chyrons.
-export output_dir="${filename/.mp4/}"
 
 # OCR the video.
 if [ "$step_ocr_chyrons" = true ]; then
