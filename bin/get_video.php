@@ -328,7 +328,7 @@ $video_handler = new Video();
 /*
  * Get metadata about the video.
  */
-$video_handler->path = '../video/' . $video->filename;
+$video_handler->path = 'video/' . $video->filename;
 $video_handler->video = (array) $video;
 if ($video_handler->extract_file_data() == false) {
     $log->put('Error: Failed to extract file data about ' . $video_handler->path, 5);
