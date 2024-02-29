@@ -31,15 +31,15 @@ if (empty($capture_dir)) {
 /*
  * Make sure the file exists.
  */
-if (file_exists(CLI_ROOT . $video_dir . $filename) === false) {
-    echo CLI_ROOT . $video_dir . $filename . ' does not exist';
+if (file_exists($video_dir . $filename) === false) {
+    echo $video_dir . $filename . ' does not exist';
     exit(1);
 }
 
 /*
  * Get the metadata about this file.
  */
-$metadata = json_decode(file_get_contents(CLI_ROOT . $video_dir . 'metadata.json'));
+$metadata = json_decode(file_get_contents($video_dir . 'metadata.json'));
 
 /*
  * Instantiate the video class
