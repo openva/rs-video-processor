@@ -343,16 +343,16 @@ $video->date = $metadata['date_hyphens'];
 /*
  * Save this video to the database.
  */
-foreach ((array) $video as $key => $value) {
+/*foreach ((array) $video as $key => $value) {
     $video_handler->video[$key] = $value;
 }
 if ($video_handler->submit() == false) {
     $log->put('The ' . ucfirst($video->chamber) . ' ' . $video->type . ' video for '
         . date('M d, Y', strtotime($video->date)) . ' could not be saved to the database.', 5);
-}
+}*/
 
 $log->put('Stored new ' . ucfirst($video->chamber) . ' ' . $video->type . ' video, for '
     . date('M d, Y', strtotime($video->date)) . ': ' . $video->path, 4);
 
 // Return the video ID to be captured by the Bash script
-echo $video_handler->id;
+//echo $video_handler->id;

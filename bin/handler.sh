@@ -34,8 +34,8 @@ export VIDEO_DIR="../video/"
 # Make a videos directory, if it doesn't already exist.
 mkdir -p "$VIDEO_DIR"
 
-# Retrieve the video, saving it to a file and to S3. The PHP script sends to stderr a 1 in case of
-# failure and 2 if there are no further videos in the queue. Separately, it uses stdout
+# Retrieve the video, saving it to a file and S3 (but not MySQL). The PHP script sends to stderr a
+# 1 in case of failure and 2 if there are no further videos in the queue.
 cd "$VIDEO_DIR" || exit 1
 VIDEO_ID=$(php ../bin/get_video.php)
 GOT_VIDEO=$?
@@ -72,6 +72,18 @@ if [ "$step_all" = true ] || [ "$step_all" = "1" ]; then
 	step_internet_archive=true
 fi
 
+# Save the video to the database
+cd ..
+export VIDEO_ID="$(php bin/save_metadata.php "$filename" "$output_dir")" || exit $?
+
+# Make sure that we got a valid video ID.
+if [[ "$VIDEO_ID" =~ ^[0-9]+$ ]]; then
+        echo "The video was stored in the database with video ID $VIDEO_ID"
+else
+        echo "Error: Unexpected response instead of a video ID: $VIDEO_ID "
+        exit
+fi
+
 # Define the name of the directory that will store the extracted chyrons.
 export output_dir="${filename/.mp4/}"
 
@@ -100,18 +112,6 @@ if [ "$step_screenshots" = true ]; then
 		echo "AWS S3 sync didn't finish successfully, so screenshots were not thumbnailed or deleted"
 	fi
 
-fi
-
-# Create the record for this video in the database.
-cd ..
-export VIDEO_ID="$(php bin/save_metadata.php "$filename" "$output_dir")" || exit $?
-
-# Make sure that we got a valid video ID.
-if [[ "$VIDEO_ID" =~ ^[0-9]+$ ]]; then
-        echo "The video was stored in the database with video ID $VIDEO_ID"
-else
-        echo "Error: Unexpected response instead of a video ID: $VIDEO_ID "
-        exit
 fi
 
 # Only deal with chyrons and captions for floor video.
