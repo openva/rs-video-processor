@@ -15,9 +15,7 @@ include_once __DIR__ . '/../includes/vendor/autoload.php';
 
 $log = new Log();
 
-/*
- * Define the URL for SQS.
- */
+// Define the URL for SQS.
 define('SQS_URL', 'https://sqs.us-east-1.amazonaws.com/947603853016/rs-video-harvester.fifo');
 
 // Our webroot, but for the CLI interface
