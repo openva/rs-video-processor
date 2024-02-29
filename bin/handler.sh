@@ -52,6 +52,15 @@ fi
 # Turn the JSON environment variables.
 eval "$(jq -r '. | to_entries | .[] | .key + "=\"" + .value + "\""' < metadata.json)"
 
+# If no steps are defined, complete all steps.
+if [ "$step_download" = false ] && [ "$step_screenshots" = false ] && [ "$step_crop_chyrons" = false ] \
+	 && [ "$step_ocr_chyrons" = false ] && [ "$step_create_clips" = false ] \
+	 && [ "$step_get_captions" = false ] && [ "$step_save_captions" = false ] \
+	 && [ "$step_internet_archive" = false ]
+then
+	step_all=true
+fi
+
 if [ "$step_all" = true ] || [ "$step_all" = "1" ]; then
 	step_download=true
 	step_screenshots=true
@@ -61,15 +70,6 @@ if [ "$step_all" = true ] || [ "$step_all" = "1" ]; then
 	step_get_captions=true
 	step_save_captions=true
 	step_internet_archive=true
-fi
-
-# If no steps are defined, this is a legacy SQS message -- complete all steps.
-if [ "$step_download" = false ] && [ "$step_screenshots" = false ] && [ "$step_crop_chyrons" = false ] \
-	 && [ "$step_ocr_chyrons" = false ] && [ "$step_create_clips" = false ] \
-	 && [ "$step_get_captions" = false ] && [ "$step_save_captions" = false ] \
-	 && [ "$step_internet_archive" = false ]
-then
-	step_all=true
 fi
 
 # Define the name of the directory that will store the extracted chyrons.
