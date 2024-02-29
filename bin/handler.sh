@@ -34,9 +34,10 @@ export VIDEO_DIR="../video/"
 # Make a videos directory, if it doesn't already exist.
 mkdir -p "$VIDEO_DIR"
 
-# Retrieve the video, saving it to a file and to S3.
+# Retrieve the video, saving it to a file and to S3. The PHP script sends to stderr a 1 in case of
+# failure and 2 if there are no further videos in the queue. Separately, it uses stdout
 cd "$VIDEO_DIR" || exit 1
-php ../bin/get_video.php
+VIDEO_ID=$(php ../bin/get_video.php)
 GOT_VIDEO=$?
 if [ $GOT_VIDEO -eq 1 ]; then
 	exit 1

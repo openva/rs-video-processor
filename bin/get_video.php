@@ -350,7 +350,9 @@ if ($video_handler->submit() == false) {
     $log->put('The ' . ucfirst($video->chamber) . ' ' . $video->type . ' video for '
         . date('M d, Y', strtotime($video->date)) . ' could not be saved to the database.', 5);
 }
-$video_handler->id;
 
 $log->put('Stored new ' . ucfirst($video->chamber) . ' ' . $video->type . ' video, for '
     . date('M d, Y', strtotime($video->date)) . ': ' . $video->path, 4);
+
+// Return the video ID to be captured by the Bash script
+echo $video_handler->id;
