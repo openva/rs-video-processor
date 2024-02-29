@@ -20,6 +20,9 @@ $log = new Log();
  */
 define('SQS_URL', 'https://sqs.us-east-1.amazonaws.com/947603853016/rs-video-harvester.fifo');
 
+// Our webroot, but for the CLI interface
+define('CLI_ROOT', '/home/ubuntu/video-processor');
+
 /*
  * Submit this video back to the queue. We run this if this process fails in any way.
  */
