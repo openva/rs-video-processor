@@ -49,24 +49,8 @@ elif [ $GOT_VIDEO -gt 2 ]; then
 	exit 1
 fi
 
-# Turn the JSON into key/value pairs, and make them into environment variables.
+# Turn the JSON environment variables.
 eval "$(jq -r '. | to_entries | .[] | .key + "=\"" + .value + "\""' < metadata.json)"
-set "$filename"
-set "$date"
-set "$date_hyphens"
-set "$s3_url"
-set "$chamber"
-set "$type"
-set "$committee"
-set "$step_all"
-set "$step_download"
-set "$step_screenshots"
-set "$step_crop_chyrons"
-set "$step_ocr_chyrons"
-set "$step_create_clips"
-set "$step_get_captions"
-set "$step_save_captions"
-set "$step_internet_archive"
 
 if [ "$step_all" = true ] || [ "$step_all" = "1" ]; then
 	step_download=true
