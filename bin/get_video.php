@@ -302,6 +302,7 @@ try {
         . $e->getMessage(), 6);
     die();
 }
+$log->put('Saved ' . $video->filename . ' to S3.', 3);
 
 /*
  * Save metadata about this to a JSON file, to be used elsewhere in the processing pipeline.
@@ -328,7 +329,9 @@ $video_handler = new Video();
  */
 $video_handler->path = $video->filename;
 $video_handler->video = (array) $video;
-$video_handler->extract_file_data();
+if ($video_handler->extract_file_data() == false) {
+    $log->put('Error: Failed to extract file data about ' . $video_handler->path, 5);
+}
 
 /*
  * Assign any missing data.
@@ -342,7 +345,11 @@ $video->date = $metadata['date_hyphens'];
 foreach ((array) $video as $key => $value) {
     $video_handler->video[$key] = $value;
 }
-$video_handler->submit();
+if ($video_handler->submit() == false) {
+    $log->put('The ' . ucfirst($video->chamber) . ' ' . $video->type . ' video for '
+        . date('M d, Y', strtotime($video->date)) . 'could not be saved to the database.', 5);
+}
+$video_handler->id;
 
 $log->put('Stored new ' . ucfirst($video->chamber) . ' ' . $video->type . ' video, for '
     . date('M d, Y', strtotime($video->date)) . ': ' . $video->path, 4);
