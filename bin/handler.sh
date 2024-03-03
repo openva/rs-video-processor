@@ -72,7 +72,7 @@ if [ "$step_all" = true ] || [ "$step_all" = "1" ]; then
 	step_internet_archive=true
 fi
 
-# Define the name of the directory that will store the extracted chyrons.
+# Define the name of the directory that will store the extracted chyrons and screenshots
 export output_dir="${filename/.mp4/}"
 
 # Save the video to the database
@@ -109,7 +109,7 @@ if [ "$step_screenshots" = true ]; then
 		echo Deleting all local screenshots
 		rm ./*.jpg
 	else
-		echo "AWS S3 sync didn't finish successfully, so screenshots were not thumbnailed or deleted"
+		echo "AWS S3 sync didn't finish successfully, so screenshots were neither thumbnailed nor deleted"
 	fi
 
 fi
