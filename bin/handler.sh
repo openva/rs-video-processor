@@ -95,7 +95,6 @@ fi
 
 # Generate screenshots and thumbnails.
 if [ "$step_screenshots" = true ]; then
-	../bin/screenshots.sh "$filename" "$chamber" "$committee"
 
 	# Move screenshots to S3.
 	cd "$VIDEO_DIR" || exit $?
