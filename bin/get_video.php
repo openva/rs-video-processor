@@ -321,7 +321,7 @@ $metadata['type'] = $video->type;
 if ($video->type == 'committee') {
     $metadata['committee'] = $video->committee;
 }
-file_put_contents('video/metadata.json', json_encode($metadata));
+file_put_contents('../video/metadata.json', json_encode($metadata));
 
 $video_handler = new Video();
 
