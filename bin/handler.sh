@@ -38,7 +38,7 @@ mkdir -p "$VIDEO_DIR"
 # Retrieve the video, saving it to a file and S3 (but not MySQL). The PHP script sends to stderr a
 # 1 in case of failure and 2 if there are no further videos in the queue.
 cd "$VIDEO_DIR" || exit 1
-VIDEO_ID=$(php ../bin/get_video.php)
+FILENAME=$(php ../bin/get_video.php)
 GOT_VIDEO=$?
 if [ $GOT_VIDEO -eq 1 ]; then
 	exit 1
@@ -74,12 +74,12 @@ if [ "$step_all" = true ] || [ "$step_all" = "1" ]; then
 fi
 
 # Define the name of the directory that will store the extracted chyrons and screenshots
-export output_dir="${filename/.mp4/}"
+export output_dir="${FILENAME/.mp4/}"
 mkdir "$VIDEO_DIR$output_dir"
 
 # Save the video to the database
 cd ..
-export VIDEO_ID="$(php bin/save_metadata.php "$filename" "$output_dir")" || exit $?
+export VIDEO_ID="$(php bin/save_metadata.php "$FILENAME" "$output_dir")" || exit $?
 
 # Make sure that we got a valid video ID.
 if [[ "$VIDEO_ID" =~ ^[0-9]+$ ]]; then
@@ -91,7 +91,7 @@ fi
 
 # OCR the video.
 if [ "$step_ocr_chyrons" = true ]; then
-	../bin/ocr.py "$VIDEO_ID" "$output_dir" "$filename"
+	../bin/ocr.py "$VIDEO_ID" "$output_dir" "$FILENAME"
 fi
 
 # Generate screenshots and thumbnails.

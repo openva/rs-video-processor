@@ -354,5 +354,5 @@ if ($video_handler->submit() == false) {
 $log->put('Stored new ' . ucfirst($video->chamber) . ' ' . $video->type . ' video, for '
     . date('M d, Y', strtotime($video->date)) . ': ' . $video->path, 4);
 
-// Return the video ID to be captured by the Bash script
-//echo $video_handler->id;
+// Return the filename to be captured by the Bash handler
+echo $video->filename;
