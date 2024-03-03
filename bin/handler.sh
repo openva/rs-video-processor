@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -x
+set -e
 
 # Clean up before we're finished.
 function finish {
