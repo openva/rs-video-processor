@@ -8,21 +8,21 @@ import glob
 import re
 from rs_video import *
 
-directory_path = '.'
 DB_FILE = 'chyrons.db'
-video_filename = 'video.mp4'
 
-if len(sys.argv) > 1:
+if len(sys.argv) > 3:
     VIDEO_ID = sys.argv[1]
+    VIDEO_DIR = sys.argv[2]
+    VIDEO_FILE = sys.argv[3]
 else:
-    print('Error: Video ID must be provided (example: ocr.py 132)')
+    print('Error: Must provide video ID, output directory, and video file, in that order')
     sys.exit(1)
 
 # Save one screenshot for each second of video
-extract_frames(directory_path + '/' + video_filename, directory_path)
+extract_frames(VIDEO_DIR + '/' + VIDEO_FILE, VIDEO_DIR)
 
 # Determine the boundaries to use
-bounding_boxes = sample_chyrons(directory_path)
+bounding_boxes = sample_chyrons(VIDEO_DIR)
 
 # Create a chyron database
 conn = sqlite3.connect(DB_FILE)
@@ -43,7 +43,7 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS videos (
                     "committee" TEXT
                 )''')
 
-for image_path in glob.glob(f'{directory_path}/*.jpg'):
+for image_path in glob.glob(f'{VIDEO_DIR}/*.jpg'):
 
     print(f"Processing {image_path}")
 

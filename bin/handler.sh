@@ -89,7 +89,7 @@ fi
 
 # OCR the video.
 if [ "$step_ocr_chyrons" = true ]; then
-	../bin/ocr.py "$VIDEO_ID"
+	../bin/ocr.py "$VIDEO_ID" "$output_dir" "$filename"
 fi
 
 # Generate screenshots and thumbnails.
