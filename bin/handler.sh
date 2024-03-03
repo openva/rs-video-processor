@@ -74,7 +74,7 @@ fi
 
 # Define the name of the directory that will store the extracted chyrons and screenshots
 export output_dir="${filename/.mp4/}"
-mkdir -f "$VIDEO_DIR$output_dir"
+mkdir "$VIDEO_DIR$output_dir"
 
 # Save the video to the database
 cd ..
