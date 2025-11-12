@@ -1,4 +1,4 @@
 opencv-python-headless>=4
-Pillow>=9
+Pillow>=10.0.0
 pytesseract>=0
-numpy>=1
+numpy>=1.22.0
