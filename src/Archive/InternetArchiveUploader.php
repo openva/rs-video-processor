@@ -46,7 +46,7 @@ class InternetArchiveUploader
 
         $command = $this->buildCommand($identifier, $videoPath, $metadata, $captions);
         $output = [];
-        $status = call_user_func($this->commandRunner, $command, $output);
+        $status = $this->invokeCommandRunner($command, $output);
         foreach ($tempFiles as $file) {
             @unlink($file);
         }
@@ -85,5 +85,13 @@ class InternetArchiveUploader
         $path = tempnam(sys_get_temp_dir(), $prefix);
         file_put_contents($path, $contents);
         return $path;
+    }
+
+    private function invokeCommandRunner(string $command, array &$output): int
+    {
+        if (is_array($this->commandRunner) || $this->commandRunner instanceof \Closure) {
+            return call_user_func_array($this->commandRunner, [$command, &$output]);
+        }
+        return ($this->commandRunner)($command, $output);
     }
 }
