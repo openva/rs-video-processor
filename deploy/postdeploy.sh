@@ -1,16 +1,11 @@
 #!/bin/bash
 
+set -euo pipefail
+
 cd /home/ubuntu/video-processor/
 
-# Set up the crontab
-CRONTAB="$(grep video-processor /etc/crontab)"
-if [ -z "$CRONTAB" ]
-then
-    crontab deploy/crontab.txt
-fi
+python3 -m pip install --upgrade pip
+python3 -m pip install -r requirements.txt
 
-cd ~
-
-# Move the mplayer config file to its proper location.
-[ -d ~/.mplayer/ ] || mkdir ~/.mplayer/
-mv -f ~/video-processor/deploy/mplayer-config ~/.mplayer/config
+sudo apt-get update
+sudo apt-get install -y ffmpeg
