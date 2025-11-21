@@ -12,18 +12,10 @@ use RichmondSunlight\VideoProcessor\Fetcher\VideoDownloadProcessor;
 use RichmondSunlight\VideoProcessor\Fetcher\VideoDownloadQueue;
 use RichmondSunlight\VideoProcessor\Fetcher\VideoMetadataExtractor;
 
-require_once __DIR__ . '/../includes/settings.inc.php';
-require_once __DIR__ . '/../includes/functions.inc.php';
-require_once __DIR__ . '/../includes/vendor/autoload.php';
-require_once __DIR__ . '/../includes/class.Database.php';
+$app = require __DIR__ . '/bootstrap.php';
 
-$log = new Log();
-$database = new Database();
-$pdo = $database->connect();
-
-if (!$pdo) {
-    throw new RuntimeException('Unable to connect to database.');
-}
+$log = $app->log;
+$pdo = $app->pdo;
 
 $limit = isset($argv[1]) ? (int) $argv[1] : 5;
 

@@ -4,6 +4,7 @@ namespace RichmondSunlight\VideoProcessor\Tests\Transcripts;
 
 use PDO;
 use PHPUnit\Framework\TestCase;
+use RichmondSunlight\VideoProcessor\Transcripts\AudioExtractor;
 use RichmondSunlight\VideoProcessor\Transcripts\CaptionParser;
 use RichmondSunlight\VideoProcessor\Transcripts\OpenAITranscriber;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptJob;
@@ -41,6 +42,8 @@ class TranscriptProcessorTest extends TestCase
 
     public function testFallsBackToOpenAi(): void
     {
+        $this->requireFfmpeg();
+
         $pdo = new PDO('sqlite::memory:');
         $pdo->exec('CREATE TABLE video_transcript (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,38 +63,29 @@ class TranscriptProcessorTest extends TestCase
             ['start' => 0.0, 'end' => 1.0, 'text' => 'Fallback']
         ]);
 
-        $processor = new TranscriptProcessor($writer, $transcriber, $parser, new DummyAudioExtractor(), null);
-        $video = $this->createSampleVideo();
+        $processor = new TranscriptProcessor($writer, $transcriber, $parser, new AudioExtractor(), null);
+        $video = $this->getVideoFixture('house-floor.mp4');
         $job = new TranscriptJob(1, 'house', 'file://' . $video, '', '', null);
         $processor->process($job);
-        @unlink($video);
 
         $count = $pdo->query('SELECT COUNT(*) FROM video_transcript')->fetchColumn();
         $this->assertSame(1, (int) $count);
     }
 
-    private function createSampleVideo(): string
+    private function getVideoFixture(string $filename): string
     {
-        $path = tempnam(sys_get_temp_dir(), 'video_') . '.mp4';
-        $cmd = sprintf('ffmpeg -y -loglevel error -f lavfi -i testsrc=size=320x240:duration=2 -f lavfi -i sine=frequency=440:duration=2 -shortest -c:v mpeg4 -c:a aac %s', escapeshellarg($path));
-        exec($cmd, $output, $status);
-        if ($status !== 0) {
-            $this->markTestSkipped('ffmpeg is required for transcript tests.');
+        $path = __DIR__ . '/../fixtures/' . $filename;
+        if (!file_exists($path)) {
+            $this->markTestSkipped('Missing video fixture ' . $filename . '. Run bin/fetch_test_fixtures.php.');
         }
         return $path;
     }
-}
 
-class DummyAudioExtractor extends \RichmondSunlight\VideoProcessor\Transcripts\AudioExtractor
-{
-    public function __construct()
+    private function requireFfmpeg(): void
     {
-    }
-
-    public function extract(string $videoUrl): string
-    {
-        $temp = tempnam(sys_get_temp_dir(), 'audio_') . '.mp3';
-        file_put_contents($temp, 'dummy');
-        return $temp;
+        exec('ffmpeg -version > /dev/null 2>&1', $output, $status);
+        if ($status !== 0) {
+            $this->markTestSkipped('ffmpeg is required for transcript tests.');
+        }
     }
 }

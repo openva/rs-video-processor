@@ -8,29 +8,27 @@ use RichmondSunlight\VideoProcessor\Tests\Support\FakeHttpClient;
 
 class SenateScraperTest extends TestCase
 {
-    public function testParsesYouTubeFeed(): void
+    public function testParsesGranicusListing(): void
     {
         $client = new FakeHttpClient([
-            'feeds/videos.xml' => file_get_contents(__DIR__ . '/../fixtures/senate-feed.xml'),
+            'MediaPlayer.php?view_id=3&clip_id=' => file_get_contents(__DIR__ . '/../fixtures/senate-video.html'),
+            'ViewPublisher.php?view_id=3' => file_get_contents(__DIR__ . '/../fixtures/senate-listing.html'),
         ]);
 
-        $scraper = new SenateScraper($client, 'https://www.youtube.com/feeds/videos.xml?channel_id=test');
+        $scraper = new SenateScraper($client, 'https://virginia-senate.granicus.com/ViewPublisher.php?view_id=3', maxRecords: 5);
         $records = $scraper->scrape();
 
-        $this->assertCount(2, $records);
+        $this->assertCount(5, $records);
+
         $first = $records[0];
-
         $this->assertSame('senate', $first['chamber']);
-        $this->assertSame('6aYWtT8hGtM', $first['video_id']);
-        $this->assertSame('https://www.youtube.com/watch?v=6aYWtT8hGtM', $first['video_url']);
-        $this->assertStringContainsString('Joint Commission on Technology and Science', $first['title']);
-        $this->assertSame('https://www.youtube.com/api/timedtext?v=6aYWtT8hGtM&lang=en', $first['captions_url']);
+        $this->assertSame('7681', $first['video_id']);
+        $this->assertSame('State Water Commission', $first['committee']);
         $this->assertSame('2025-11-19', $first['meeting_date']);
-        $this->assertSame('Joint Commission on Technology and Science', $first['committee']);
-        $this->assertSame('Blockchain Subcommittee', $first['subcommittee']);
-
-        $second = $records[1];
-        $this->assertSame('State Water Commission', $second['committee']);
-        $this->assertNull($second['subcommittee']);
+        $this->assertSame('committee', $first['event_type']);
+        $this->assertSame('https://virginia-senate.granicus.com/MediaPlayer.php?view_id=3&clip_id=7681', $first['embed_url']);
+        $this->assertSame('https://virginia-senate.granicus.com/json.php?clip_id=7681', $first['captions_url']);
+        $this->assertSame('https://archive-video.granicus.com/virginia-senate/virginia-senate_f9e7145f-e3f8-11ef-a9e2-005056a89546.mp4', $first['video_url']);
+        $this->assertStringContainsString('General Laws and Technology', $first['description']);
     }
 }

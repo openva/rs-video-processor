@@ -14,6 +14,8 @@ class ScreenshotGeneratorTest extends TestCase
 {
     public function testGeneratesScreenshotsAndUpdatesDatabase(): void
     {
+        $this->requireFfmpeg();
+
         $pdo = new PDO('sqlite::memory:');
         $pdo->exec('CREATE TABLE committees (id INTEGER PRIMARY KEY, name TEXT, shortname TEXT, chamber TEXT, parent_id INTEGER)');
         $pdo->exec("INSERT INTO committees (id, name, shortname, chamber, parent_id) VALUES (1, 'Finance Committee', 'finance', 'senate', NULL)");
@@ -32,7 +34,7 @@ class ScreenshotGeneratorTest extends TestCase
         $pdo->prepare('INSERT INTO files (chamber, committee_id, title, date, path, capture_directory, capture_rate, date_created, date_modified) VALUES ("senate", NULL, "Test", "2025-11-19", :path, "", 0, "2025-11-19 12:00:00", "2025-11-19 12:00:00")')
             ->execute([':path' => 'file://FAKE']);
 
-        $fixture = $this->createSampleVideo();
+        $fixture = $this->getVideoFixture('senate-floor.mp4');
         $job = new ScreenshotJob(
             1,
             'senate',
@@ -57,21 +59,26 @@ class ScreenshotGeneratorTest extends TestCase
 
         $generator = new ScreenshotGenerator($pdo, $storage, $directory, $keyBuilder, null, sys_get_temp_dir());
         $generator->process($job);
-        @unlink($fixture);
 
         $row = $pdo->query('SELECT capture_directory FROM files WHERE id = 1')->fetchColumn();
         $this->assertNotEmpty($row);
         $this->assertStringContainsString('screenshots/full', $row);
     }
 
-    private function createSampleVideo(): string
+    private function getVideoFixture(string $filename): string
     {
-        $path = tempnam(sys_get_temp_dir(), 'video_') . '.mp4';
-        $cmd = sprintf('ffmpeg -y -loglevel error -f lavfi -i testsrc=size=320x240:duration=2 -f lavfi -i sine=frequency=440:duration=2 -shortest -c:v mpeg4 -c:a aac %s', escapeshellarg($path));
-        exec($cmd, $output, $status);
+        $path = __DIR__ . '/../fixtures/' . $filename;
+        if (!file_exists($path)) {
+            $this->markTestSkipped('Missing video fixture ' . $filename . '. Run bin/fetch_test_fixtures.php.');
+        }
+        return $path;
+    }
+
+    private function requireFfmpeg(): void
+    {
+        exec('ffmpeg -version > /dev/null 2>&1', $output, $status);
         if ($status !== 0) {
             $this->markTestSkipped('ffmpeg is required for screenshot tests.');
         }
-        return $path;
     }
 }

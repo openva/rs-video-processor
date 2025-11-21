@@ -5,7 +5,9 @@ declare(strict_types=1);
 
 use Log;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\AgendaExtractor;
+use RichmondSunlight\VideoProcessor\Analysis\Bills\BillDetectionJob;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\BillDetectionJobQueue;
+use RichmondSunlight\VideoProcessor\Analysis\Bills\BillDetectionJobPayloadMapper;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\BillDetectionProcessor;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\BillParser;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\BillResultWriter;
@@ -14,35 +16,28 @@ use RichmondSunlight\VideoProcessor\Analysis\Bills\ChamberConfig;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\ScreenshotFetcher;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\ScreenshotManifestLoader;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\TesseractOcrEngine;
+use RichmondSunlight\VideoProcessor\Queue\JobType;
 
-require_once __DIR__ . '/../includes/settings.inc.php';
-require_once __DIR__ . '/../includes/functions.inc.php';
-require_once __DIR__ . '/../includes/vendor/autoload.php';
-require_once __DIR__ . '/../includes/class.Database.php';
+$app = require __DIR__ . '/bootstrap.php';
+$log = $app->log;
+$pdo = $app->pdo;
+$dispatcher = $app->dispatcher;
 
-$log = new Log();
-$database = new Database();
-$pdo = $database->connect();
-if (!$pdo) {
-    throw new RuntimeException('Unable to connect to database.');
+$options = getopt('', ['limit::', 'enqueue']);
+$limit = isset($options['limit']) ? (int) $options['limit'] : 2;
+foreach ($argv as $arg) {
+    if (str_starts_with($arg, '--')) {
+        continue;
+    }
+    if (is_numeric($arg)) {
+        $limit = (int) $arg;
+        break;
+    }
 }
-
-$limit = isset($argv[1]) ? (int) $argv[1] : 2;
-
-$s3 = new S3Client([
-    'key' => AWS_ACCESS_KEY,
-    'secret' => AWS_SECRET_KEY,
-    'region' => 'us-east-1',
-    'version' => '2006-03-01',
-]);
-$storage = new S3Storage($s3, 'video.richmondsunlight.com');
+$mode = isset($options['enqueue']) ? 'enqueue' : 'worker';
 
 $queue = new BillDetectionJobQueue($pdo);
-$jobs = $queue->fetch($limit);
-if (empty($jobs)) {
-    $log->put('No files pending bill detection.', 3);
-    exit(0);
-}
+$mapper = new BillDetectionJobPayloadMapper();
 
 $processor = new BillDetectionProcessor(
     new ScreenshotManifestLoader(),
@@ -55,10 +50,61 @@ $processor = new BillDetectionProcessor(
     $log
 );
 
-foreach ($jobs as $job) {
+if ($mode === 'enqueue') {
+    $jobs = $queue->fetch($limit);
+    if (empty($jobs)) {
+        $log->put('No files pending bill detection.', 3);
+        exit(0);
+    }
+    if ($dispatcher->usesInMemoryQueue()) {
+        processBillJobs($jobs, $processor, $log);
+        exit(0);
+    }
+    foreach ($jobs as $job) {
+        $dispatcher->dispatch($mapper->toPayload($job));
+    }
+    $log->put('Enqueued ' . count($jobs) . ' bill-detection jobs.', 3);
+    exit(0);
+}
+
+if ($dispatcher->usesInMemoryQueue()) {
+    $jobs = $queue->fetch($limit);
+    if (empty($jobs)) {
+        $log->put('No files pending bill detection.', 3);
+        exit(0);
+    }
+    processBillJobs($jobs, $processor, $log);
+    exit(0);
+}
+
+$messages = $dispatcher->receive($limit, 10);
+if (empty($messages)) {
+    $log->put('No bill-detection jobs in queue.', 3);
+    exit(0);
+}
+
+foreach ($messages as $message) {
     try {
+        if ($message->payload->type !== JobType::BILL_DETECTION) {
+            $log->put('Skipping job of type ' . $message->payload->type, 4);
+            continue;
+        }
+        $job = $mapper->fromPayload($message->payload);
         $processor->process($job);
     } catch (Throwable $e) {
-        $log->put('Bill detection failed for file #' . $job->fileId . ': ' . $e->getMessage(), 6);
+        $log->put('Bill detection failed for file #' . $message->payload->fileId . ': ' . $e->getMessage(), 6);
+    } finally {
+        $dispatcher->acknowledge($message);
+    }
+}
+
+function processBillJobs(array $jobs, BillDetectionProcessor $processor, Log $log): void
+{
+    foreach ($jobs as $job) {
+        try {
+            $processor->process($job);
+        } catch (Throwable $e) {
+            $log->put('Bill detection failed for file #' . $job->fileId . ': ' . $e->getMessage(), 6);
+        }
     }
 }

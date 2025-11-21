@@ -1,0 +1,107 @@
+<?php
+
+namespace RichmondSunlight\VideoProcessor\Tests\Integration;
+
+use Log;
+use PDO;
+use PHPUnit\Framework\TestCase;
+use RichmondSunlight\VideoProcessor\Queue\InMemoryQueue;
+use RichmondSunlight\VideoProcessor\Queue\JobDispatcher;
+use RichmondSunlight\VideoProcessor\Transcripts\CaptionParser;
+use RichmondSunlight\VideoProcessor\Transcripts\OpenAITranscriber;
+use RichmondSunlight\VideoProcessor\Transcripts\TranscriptJob;
+use RichmondSunlight\VideoProcessor\Transcripts\TranscriptJobPayloadMapper;
+use RichmondSunlight\VideoProcessor\Transcripts\TranscriptProcessor;
+use RichmondSunlight\VideoProcessor\Transcripts\TranscriptWriter;
+
+class TranscriptQueueIntegrationTest extends TestCase
+{
+    public function testDispatchAndProcessTranscriptJobViaInMemoryQueue(): void
+    {
+        $pdo = $this->createDatabase();
+        $writer = new TranscriptWriter($pdo);
+        $transcriber = new OpenAITranscriber(new NullHttpClient(), 'test');
+        $processor = new TranscriptProcessor(
+            $writer,
+            $transcriber,
+            new CaptionParser(),
+            null,
+            new NullLogger()
+        );
+
+        $job = new TranscriptJob(
+            1,
+            'house',
+            'file://unused',
+            "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHello world",
+            null,
+            'Test'
+        );
+
+        $mapper = new TranscriptJobPayloadMapper();
+        $dispatcher = new JobDispatcher(new InMemoryQueue());
+
+        $dispatcher->dispatch($mapper->toPayload($job));
+
+        $messages = $dispatcher->receive();
+        $this->assertCount(1, $messages);
+
+        $receivedJob = $mapper->fromPayload($messages[0]->payload);
+        $processor->process($receivedJob);
+        $dispatcher->acknowledge($messages[0]);
+
+        $count = (int) $pdo->query('SELECT COUNT(*) FROM video_transcript')->fetchColumn();
+        $this->assertSame(1, $count);
+    }
+
+    private function createDatabase(): PDO
+    {
+        $pdo = new PDO('sqlite::memory:');
+        $pdo->exec('CREATE TABLE video_transcript (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_id INTEGER,
+            text TEXT,
+            time_start TEXT,
+            time_end TEXT,
+            new_speaker TEXT,
+            legislator_id INTEGER,
+            date_created TEXT
+        )');
+        return $pdo;
+    }
+}
+class NullLogger extends Log
+{
+    public function put($message, $level)
+    {
+        return true;
+    }
+}
+
+class NullHttpClient implements \GuzzleHttp\ClientInterface
+{
+    public function send(\Psr\Http\Message\RequestInterface $request, array $options = []): \Psr\Http\Message\ResponseInterface
+    {
+        throw new \RuntimeException('Not implemented');
+    }
+
+    public function sendAsync(\Psr\Http\Message\RequestInterface $request, array $options = []): \GuzzleHttp\Promise\PromiseInterface
+    {
+        throw new \RuntimeException('Not implemented');
+    }
+
+    public function request($method, $uri, array $options = []): \Psr\Http\Message\ResponseInterface
+    {
+        throw new \RuntimeException('Not implemented');
+    }
+
+    public function requestAsync($method, $uri, array $options = []): \GuzzleHttp\Promise\PromiseInterface
+    {
+        throw new \RuntimeException('Not implemented');
+    }
+
+    public function getConfig($option = null)
+    {
+        return null;
+    }
+}

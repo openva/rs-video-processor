@@ -14,4 +14,12 @@ if [[ "$STATE" != "true" ]]; then
   exit 1
 fi
 
-$COMPOSE_BINARY exec "$SERVICE" bash -lc './includes/vendor/bin/phpunit'
+$COMPOSE_BINARY exec "$SERVICE" bash -lc '
+  set -euo pipefail
+  echo "Ensuring video fixtures are available..."
+  bin/fetch_test_fixtures.php || {
+    echo "Fixture download failed. Verify RS_VIDEO_FIXTURE_BASE_URL and network access." >&2
+    exit 1
+  }
+  ./includes/vendor/bin/phpunit --display-skipped
+'

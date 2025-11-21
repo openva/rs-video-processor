@@ -29,6 +29,7 @@ class InternetArchiveUploaderTest extends TestCase
 
         $logger = new TestLogger();
         $commandLog = [];
+        $fixture = $this->getVideoFixture('house-committee.mp4');
         $uploader = new InternetArchiveUploader(
             $logger,
             function (string $command, array &$output) use (&$commandLog) {
@@ -36,8 +37,8 @@ class InternetArchiveUploaderTest extends TestCase
                 $output[] = 'ok';
                 return 0;
             },
-            function (string $url) {
-                return __DIR__ . '/../fixtures/house-committee-video.mp4';
+            function (string $url) use ($fixture) {
+                return $fixture;
             }
         );
 
@@ -63,6 +64,15 @@ class InternetArchiveUploaderTest extends TestCase
         $this->assertNull($result);
         $this->assertNotEmpty($logger->entries);
         $this->assertSame(6, $logger->entries[0]['level']);
+    }
+
+    private function getVideoFixture(string $filename): string
+    {
+        $path = __DIR__ . '/../fixtures/' . $filename;
+        if (!file_exists($path)) {
+            $this->markTestSkipped('Missing video fixture ' . $filename . '. Run bin/fetch_test_fixtures.php.');
+        }
+        return $path;
     }
 }
 

@@ -4,3 +4,4 @@ includes/
 video/
 bin/__pycache__/
 logs/site.log
+tests/fixtures/*.mp4
