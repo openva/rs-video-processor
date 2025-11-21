@@ -4,7 +4,6 @@ namespace RichmondSunlight\VideoProcessor\Queue;
 
 use Log;
 
-
 class JobDispatcher
 {
     public function __construct(private QueueInterface $queue, private ?Log $logger = null)
