@@ -21,5 +21,5 @@ $COMPOSE_BINARY exec "$SERVICE" bash -lc '
     echo "Fixture download failed. Verify RS_VIDEO_FIXTURE_BASE_URL and network access." >&2
     exit 1
   }
-  ./includes/vendor/bin/phpunit --display-skipped
+  php -d error_reporting="E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED" ./includes/vendor/bin/phpunit --display-skipped --display-warnings
 '
