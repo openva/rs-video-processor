@@ -4,7 +4,6 @@
 declare(strict_types=1);
 
 use Aws\S3\S3Client;
-use Log;
 use RichmondSunlight\VideoProcessor\Queue\JobType;
 use RichmondSunlight\VideoProcessor\Fetcher\CommitteeDirectory;
 use RichmondSunlight\VideoProcessor\Fetcher\S3KeyBuilder;
