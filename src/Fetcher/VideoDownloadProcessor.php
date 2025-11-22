@@ -59,7 +59,9 @@ class VideoDownloadProcessor
 
         $this->recentCaptionCandidates = [];
 
-        if ($job->isSenate() || str_contains($job->remoteUrl, 'youtube.com') || str_contains($job->remoteUrl, 'youtu.be')) {
+        if ($this->isGranicusUrl($job->remoteUrl)) {
+            $this->downloadViaHttp($job->remoteUrl, $localPath);
+        } elseif ($job->isSenate() || str_contains($job->remoteUrl, 'youtube.com') || str_contains($job->remoteUrl, 'youtu.be')) {
             $this->downloadViaYtDlp($job->remoteUrl, $localPath);
         } elseif (str_ends_with($job->remoteUrl, '.m3u8')) {
             $this->downloadViaFfmpeg($job->remoteUrl, $localPath);
@@ -74,7 +76,7 @@ class VideoDownloadProcessor
         return $localPath;
     }
 
-    private function downloadViaHttp(string $url, string $destination): void
+    protected function downloadViaHttp(string $url, string $destination): void
     {
         $response = $this->http->get($url, ['sink' => $destination]);
         if ($response->getStatusCode() >= 400) {
@@ -82,13 +84,13 @@ class VideoDownloadProcessor
         }
     }
 
-    private function downloadViaFfmpeg(string $url, string $destination): void
+    protected function downloadViaFfmpeg(string $url, string $destination): void
     {
         $cmd = sprintf('ffmpeg -y -loglevel error -i %s -c copy %s', escapeshellarg($url), escapeshellarg($destination));
         $this->runCommand($cmd, 'Failed to download HLS stream via ffmpeg.');
     }
 
-    private function downloadViaYtDlp(string $url, string $destination): void
+    protected function downloadViaYtDlp(string $url, string $destination): void
     {
         $ytDlp = trim((string) shell_exec('command -v yt-dlp'));
         if ($ytDlp === '') {
@@ -114,7 +116,7 @@ class VideoDownloadProcessor
         $this->recentCaptionCandidates = $captionMatches ?: [];
     }
 
-    private function downloadCaptions(VideoDownloadJob $job): ?string
+    protected function downloadCaptions(VideoDownloadJob $job): ?string
     {
         if ($job->isSenate() && !empty($this->recentCaptionCandidates)) {
             return $this->recentCaptionCandidates[0];
@@ -158,11 +160,20 @@ class VideoDownloadProcessor
         ]);
     }
 
-    private function runCommand(string $cmd, string $errorMessage): void
+    protected function runCommand(string $cmd, string $errorMessage): void
     {
         exec($cmd, $output, $status);
         if ($status !== 0) {
             throw new \RuntimeException($errorMessage);
         }
+    }
+
+    private function isGranicusUrl(string $url): bool
+    {
+        $normalized = strtolower($url);
+        if (str_contains($normalized, 'granicus.com') && str_contains($normalized, '.mp4')) {
+            return true;
+        }
+        return false;
     }
 }
