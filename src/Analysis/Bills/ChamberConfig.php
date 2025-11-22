@@ -10,10 +10,10 @@ class ChamberConfig
     public function __construct()
     {
         $this->configs = [
-            'senate_floor' => new CropConfig(0.70, 0.08, 0.28, 0.14),
-            'senate_committee' => new CropConfig(0.70, 0.08, 0.28, 0.14),
-            'house_floor' => new CropConfig(0.0, 0.0, 1.0, 0.18),
-            'house_committee' => new CropConfig(0.02, 0.05, 0.96, 0.25),
+            'senate_floor' => new CropConfig(0.73, 0.10, 0.28, 0.08),
+            'senate_committee' => new CropConfig(0.73, 0.10, 0.28, 0.08),
+            'house_floor' => new CropConfig(0.73, 0.09, 0.3, 0.10),
+            'house_committee' => new CropConfig(0.00, 0.00, 1, 0.05),
         ];
     }
 
