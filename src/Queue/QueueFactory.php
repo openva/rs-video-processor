@@ -28,7 +28,7 @@ class QueueFactory
         if (is_array($creds) && isset($creds['key'], $creds['secret'])) {
             return true;
         }
-        return getenv('AWS_ACCESS_KEY_ID') && getenv('AWS_SECRET_ACCESS_KEY');
+        return getenv('AWS_ACCESS_KEY') && getenv('AWS_SECRET_KEY');
     }
 
     private function normalizeConfig(array $config): array
@@ -39,10 +39,10 @@ class QueueFactory
         if (!isset($config['version'])) {
             $config['version'] = '2012-11-05';
         }
-        if (!isset($config['credentials']) && getenv('AWS_ACCESS_KEY_ID')) {
+        if (!isset($config['credentials']) && getenv('AWS_ACCESS_KEY')) {
             $config['credentials'] = [
-                'key' => getenv('AWS_ACCESS_KEY_ID'),
-                'secret' => getenv('AWS_SECRET_ACCESS_KEY'),
+                'key' => getenv('AWS_ACCESS_KEY'),
+                'secret' => getenv('AWS_SECRET_KEY'),
                 'token' => getenv('AWS_SESSION_TOKEN') ?: null,
             ];
         }
