@@ -12,7 +12,7 @@ class JobDispatcher
 
     public static function fromEnvironment(?Log $logger = null): self
     {
-        $queueUrl = getenv('SQS_QUEUE_URL') ?: null;
+        $queueUrl = getenv('VIDEO_SQS_URL') ?: null;
         $factory = new QueueFactory($logger);
         $queue = $factory->build($queueUrl);
         return new self($queue, $logger);
