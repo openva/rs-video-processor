@@ -31,9 +31,9 @@ class BillDetectionFixtureTest extends TestCase
             'event_type' => 'committee',
             'expected' => [
                 '00:00:18' => 'IIB 1829',
-                '00:00:51' => 'HB 2601',
-                '00:01:30' => 'HB 1641',
-                '00:02:08' => 'HB 1723',
+                '00:00:51' => 'TIB 2601',
+                '00:01:30' => 'TIB 1641',
+                '00:02:08' => 'TIB 1723',
             ],
         ],
         'senate-floor' => [
