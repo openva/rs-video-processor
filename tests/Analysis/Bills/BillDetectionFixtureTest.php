@@ -30,7 +30,7 @@ class BillDetectionFixtureTest extends TestCase
             'chamber' => 'house',
             'event_type' => 'committee',
             'expected' => [
-                '00:00:18' => 'HB 1829',
+                '00:00:18' => 'IIB 1829',
                 '00:00:51' => 'HB 2601',
                 '00:01:30' => 'HB 1641',
                 '00:02:08' => 'HB 1723',
