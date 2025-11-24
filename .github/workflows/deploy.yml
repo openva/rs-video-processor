@@ -27,24 +27,19 @@ jobs:
         with:
           secrets: ${{ toJSON(secrets) }}
 
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.4'
-          extensions: curl, mbstring, simplexml
-          tools: composer:v2
-
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y awscli zip mplayer tesseract-ocr imagemagick
+          sudo apt-get install -y awscli zip
 
-      - name: Validate PHP syntax
-        run: |
-          find . -path './includes/vendor' -prune -o -name '*.php' -print0 | xargs -0 -n1 -P8 php -l
+      - name: Build Docker environment
+        run: ./docker-run.sh
 
-      - name: Install Composer dependencies
-        run: composer install --no-interaction --prefer-dist
+      - name: Run test suite inside Docker
+        run: ./docker-tests.sh
+
+      - name: Stop Docker environment
+        run: ./docker-stop.sh
 
       - name: Build artifact
         run: |

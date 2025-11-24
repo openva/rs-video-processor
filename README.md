@@ -19,6 +19,8 @@ The worker stack mirrors the main `richmondsunlight.com` repo: PHP 8.x, Composer
 
 Job orchestration is handled via `JobDispatcher`. In production the dispatcher speaks to the FIFO queue `rs-video-harvester.fifo` (SQS); in Docker/tests it falls back to an in-memory queue so the full pipeline can run locally without AWS credentials.
 
+When deployed, this will not run any video analysis unless `/home/ubuntu/video-processor.txt` is present (the contents of the file are immaterial). This is to allow it to run on a dual-server configuration, with the scraper etc. running on Machine, reserving video analysis for a more powerful instance.
+
 Sample MP4 fixtures are pulled from `video.richmondsunlight.com/fixtures` (see `bin/fetch_test_fixtures.php`) so integration tests exercise real video. Most CLI tests synthesize temporary MP4s via ffmpeg when needed.
 
 ---
