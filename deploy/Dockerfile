@@ -8,6 +8,7 @@ RUN apt-get update &&  apt-get install -y zip \
     ffmpeg \
     curl \
     wget \
+    git \
     tesseract-ocr \
     python3 \
     python3-pip \
