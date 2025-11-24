@@ -25,7 +25,6 @@ sudo apt-get update
 
 # Install necessary packages.
 sudo apt-get install -y \
-  awscli \
   curl \
   git \
   unzip \
@@ -43,6 +42,14 @@ sudo apt-get install -y \
   php8.3-mysql \
   php8.3-zip \
   composer
+
+# Install the AWS CLI
+if ! command -v aws &> /dev/null; then
+  curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+  unzip awscliv2.zip
+  sudo ./aws/install
+  rm -rf awscliv2.zip aws
+fi
 
 # Install Python tooling for video downloads.
 python3 -m pip install --upgrade pip
