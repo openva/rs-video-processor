@@ -55,7 +55,7 @@ jobs:
       - name: Build artifact
         run: |
           ./deploy/config_variables.sh
-          && ./deploy/aws_credentials.sh
+          ./deploy/aws_credentials.sh
           mkdir -p upload
           zip -qr upload/latest.zip . -x '*.git*' '*.scannerwork*' 'upload/*'
 
