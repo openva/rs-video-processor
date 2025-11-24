@@ -21,6 +21,9 @@ RUN apt-get update &&  apt-get install -y zip \
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install gd
 
+# Allow git to operate on the bind-mounted repo path in CI.
+RUN git config --global --add safe.directory /root/video-processor
+
 # Copy the current directory contents into the container
 COPY . .
 
