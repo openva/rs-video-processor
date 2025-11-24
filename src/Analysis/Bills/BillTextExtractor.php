@@ -39,15 +39,6 @@ class BillTextExtractor
 
         $temp = tempnam(sys_get_temp_dir(), 'ocr_') . '.jpg';
         imagejpeg($region, $temp, 95);
-        if (getenv('SAVE_OCR_CROPS')) {
-            $repoTmp = dirname(__DIR__, 3) . '/tmp/ocr_crops';
-            if (!is_dir($repoTmp)) {
-                @mkdir($repoTmp, 0775, true);
-            }
-            $label = preg_replace('/[^a-z0-9]+/i', '_', $chamber . '_' . basename($imagePath));
-            $debugPath = sprintf('%s/%s_%s.jpg', $repoTmp, $label, uniqid());
-            @copy($temp, $debugPath);
-        }
         imagedestroy($region);
         imagedestroy($src);
         $text = $this->ocr->extractText($temp);
