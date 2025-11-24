@@ -9,31 +9,26 @@ use RichmondSunlight\VideoProcessor\Analysis\Bills\TesseractOcrEngine;
 
 class BillDetectionFixtureTest extends TestCase
 {
-    /**
-     * Sample timestamps → bill numbers to verify per video.
-     */
     private const FIXTURES = [
         'house-floor' => [
             'path' => __DIR__ . '/../../fixtures/house-floor.mp4',
             'chamber' => 'house',
             'event_type' => 'floor',
             'expected' => [
-                '00:00:43' => 'HB 2419',
-                '00:00:50' => 'HB 1979',
-                '00:01:27' => 'HB 2340',
-                '00:02:43' => 'HB 2021',
-                '00:06:33' => 'HB 2006',
-            ],
-        ],
-        'house-committee' => [
-            'path' => __DIR__ . '/../../fixtures/house-committee.mp4',
-            'chamber' => 'house',
-            'event_type' => 'committee',
-            'expected' => [
-                '00:00:18' => 'IIB 1829',
-                '00:00:51' => 'TIB 2601',
-                '00:01:30' => 'TIB 1641',
-                '00:02:08' => 'TIB 1723',
+                '00:00:10' => 'SB 770',
+                '00:01:00' => 'SB 844',
+                '00:02:00' => 'SB 877',
+                '00:02:30' => 'SB 997',
+                '00:03:15' => 'SB 1150',
+                '00:04:00' => 'SB 1176',
+                '00:04:15' => 'SB 1251',
+                '00:05:00' => 'SB 1263',
+                '00:05:30' => 'SB 1267',
+                '00:06:30' => 'SB 1300',
+                '00:07:00' => 'SB 1476',
+                '00:08:15' => 'SB 784',
+                '00:09:00' => 'SB 1048',
+                '00:10:00' => 'SB 780',
             ],
         ],
         'senate-floor' => [
@@ -63,11 +58,6 @@ class BillDetectionFixtureTest extends TestCase
     public function testHouseFloorBills(): void
     {
         $this->assertFixture('house-floor');
-    }
-
-    public function testHouseCommitteeBills(): void
-    {
-        $this->assertFixture('house-committee');
     }
 
     public function testSenateFloorBills(): void

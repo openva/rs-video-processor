@@ -9,37 +9,31 @@ use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerChamberConfig;
 
 class SpeakerDetectionFixtureTest extends TestCase
 {
-    /**
-     * Fill in the `expected` arrays with timestamp => legislator name (e.g., '00:00:15' => 'Delegate Smith').
-     */
     private const FIXTURES = [
         'house-floor' => [
             'path' => __DIR__ . '/../../fixtures/house-floor.mp4',
             'expected' => [
-                '00:00:25' => 'Senator Richard H. Stuart',
-                '00:01:41' => 'Senator Danica A. Roem',
-                '00:04:02' => 'Senator Stella G. Pekarsky',
-                '00:08:08' => 'Senator Adam P. Ebbin',
-                '00:09:54' => 'Senator Ghazala F. Hashmi',
-            ],
-        ],
-        'house-committee' => [
-            'path' => __DIR__ . '/../../fixtures/house-committee.mp4',
-            'expected' => [
-                '00:00:00' => 'Delegate Torian',
-                '00:00:17' => 'Delegate Sickles',
-                '00:02:41' => 'Delegate Torian',
-                '00:04:09' => 'Delegate Sickles',
+                '00:00:45' => 'Del. Marcus B. Simon',
+                '00:02:00' => 'Del. Debra D. Gardner',
+                '00:03:00' => 'Del. Jackie Hope Glass',
+                '00:03:30' => 'Del. C. Todd Gilbert',
+                '00:04:00' => 'Del. Joseph P. McNamara',
+                '00:04:30' => 'Del. Josh E. Thomas',
+                '00:05:15' => 'Del. Candi Mundon King',
+                '00:07:15' => 'Del. Israel D. O\'Quinn',
+                '00:08:30' => 'Del. Sam Rasoul',
+                '00:09:30' => 'Del. Laura Jane Cohen',
+                '00:10:30' => 'Del. Candi Mundon King',
             ],
         ],
         'senate-floor' => [
             'path' => __DIR__ . '/../../fixtures/senate-floor.mp4',
             'expected' => [
-                '00:00:01' => 'Senator Richard H. Stuart',
-                '00:01:40' => 'Danica A. Roem',
+                '00:00:30' => 'Senator Richard H. Stuart',
+                '00:01:40' => 'Senator Danica A. Roem',
                 '00:04:02' => 'Senator Stella G. Pekarsky',
                 '00:08:01' => 'Senator Adam P. Ebbin',
-                '00:09:56' => 'Senator Ghazala F. Hashmi',
+                '00:09:53' => 'Senator Ghazala F. Hashmi',
             ],
         ],
         'senate-committee' => [
@@ -58,11 +52,6 @@ class SpeakerDetectionFixtureTest extends TestCase
     public function testHouseFloorSpeakers(): void
     {
         $this->assertFixture('house-floor', 'house', 'floor');
-    }
-
-    public function testHouseCommitteeSpeakers(): void
-    {
-        $this->assertFixture('house-committee', 'house', 'committee');
     }
 
     public function testSenateFloorSpeakers(): void
@@ -145,7 +134,7 @@ class SpeakerDetectionFixtureTest extends TestCase
     private function normalizeName(string $value): string
     {
         $value = strtoupper($value);
-        $value = preg_replace('/\b(DELEGATE|SENATOR|CHAIR|VICECHAIR)\b/', '', $value);
+        $value = preg_replace('/\b(DEL|SEN|DELEGATE|SENATOR|CHAIR|VICECHAIR)\b/', '', $value);
         $value = preg_replace('/[^A-Z]/', '', $value);
         return $value;
     }

@@ -2,6 +2,7 @@
 
 namespace RichmondSunlight\VideoProcessor\Analysis\Bills;
 
+use GdImage;
 use RuntimeException;
 
 class BillTextExtractor
@@ -33,12 +34,46 @@ class BillTextExtractor
             imagedestroy($src);
             throw new RuntimeException('Failed to crop screenshot region.');
         }
+
+        $region = $this->preprocessForOcr($region);
+
         $temp = tempnam(sys_get_temp_dir(), 'ocr_') . '.jpg';
         imagejpeg($region, $temp, 95);
+        if (getenv('SAVE_OCR_CROPS')) {
+            $repoTmp = dirname(__DIR__, 3) . '/tmp/ocr_crops';
+            if (!is_dir($repoTmp)) {
+                @mkdir($repoTmp, 0775, true);
+            }
+            $label = preg_replace('/[^a-z0-9]+/i', '_', $chamber . '_' . basename($imagePath));
+            $debugPath = sprintf('%s/%s_%s.jpg', $repoTmp, $label, uniqid());
+            @copy($temp, $debugPath);
+        }
         imagedestroy($region);
         imagedestroy($src);
         $text = $this->ocr->extractText($temp);
         @unlink($temp);
         return $text;
+    }
+
+    private function preprocessForOcr(GdImage $image): GdImage
+    {
+        $width = imagesx($image);
+        $height = imagesy($image);
+        $scale = 3;
+        $scaled = imagescale(
+            $image,
+            max(1, (int) ($width * $scale)),
+            max(1, (int) ($height * $scale)),
+            IMG_BICUBIC
+        );
+        if ($scaled !== false) {
+            imagedestroy($image);
+            $image = $scaled;
+        }
+        imagefilter($image, IMG_FILTER_GRAYSCALE);
+        imagefilter($image, IMG_FILTER_CONTRAST, -35);
+        imagefilter($image, IMG_FILTER_BRIGHTNESS, 15);
+
+        return $image;
     }
 }
