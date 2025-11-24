@@ -31,6 +31,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y zip
+      
+      - name : Fetch Richmond Sunlight includes
+        run: |
+          git clone -b deploy https://github.com/openva/richmondsunlight.com.git
+          cd richmondsunlight.com && composer install --no-interaction --no-progress --prefer-dist && cd ..
+          mkdir includes/
+          cp richmondsunlight.com/htdocs/includes/*.php includes/
+          rm -Rf richmondsunlight.com
 
       - name: Build Docker environment
         run: ./docker-run.sh
@@ -40,10 +48,14 @@ jobs:
 
       - name: Stop Docker environment
         run: ./docker-stop.sh
+      
+      - name: Make sure there are no fatal errors in PHP
+        run: find *.php -print0 |xargs -0 -n1 -P8 php -l
 
       - name: Build artifact
         run: |
           ./deploy/config_variables.sh
+          && ./deploy/aws_credentials.sh
           mkdir -p upload
           zip -qr upload/latest.zip . -x '*.git*' '*.scannerwork*' 'upload/*'
 

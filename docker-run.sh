@@ -20,11 +20,7 @@ until [[ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null
   fi
  done
 
-# Install Composer dependencies and prepare the workspace.
-$COMPOSE_BINARY exec "$SERVICE" bash -lc '
-  set -euo pipefail
-  rm -rf includes/vendor
-  composer install --no-interaction --prefer-dist
-'
+# Install dependencies and prepare the workspace.
+deploy/docker-setup.sh
 
 echo "Docker environment is ready. Container: ${CONTAINER_NAME}."
