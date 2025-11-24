@@ -21,6 +21,10 @@ until [[ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null
  done
 
 # Install Composer dependencies and prepare the workspace.
-$COMPOSE_BINARY exec "$SERVICE" bash -lc 'composer install --no-interaction --prefer-dist'
+$COMPOSE_BINARY exec "$SERVICE" bash -lc '
+  set -euo pipefail
+  rm -rf includes/vendor
+  composer install --no-interaction --prefer-dist
+'
 
 echo "Docker environment is ready. Container: ${CONTAINER_NAME}."
