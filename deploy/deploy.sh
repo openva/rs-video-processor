@@ -18,7 +18,8 @@ fi
 
 # Update the OS and repositories (need ondrej/php for PHP 8.x)
 sudo apt-get update
-sudo apt-get -y upgrade
+sudo apt-get install -y unattended-upgrades
+sudo unattended-upgrades --verbose
 sudo apt-get install -y software-properties-common
 sudo add-apt-repository -y ppa:ondrej/php
 sudo apt-get update
