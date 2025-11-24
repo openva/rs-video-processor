@@ -1,4 +1,1 @@
-opencv-python-headless>=4
-Pillow>=10.0.0
-pytesseract>=0
-numpy>=1.22.0
+yt-dlp>=2024.0

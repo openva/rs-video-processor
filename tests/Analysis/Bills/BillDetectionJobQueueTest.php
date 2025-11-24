@@ -1,0 +1,38 @@
+<?php
+
+namespace RichmondSunlight\VideoProcessor\Tests\Analysis\Bills;
+
+use PDO;
+use PHPUnit\Framework\TestCase;
+use RichmondSunlight\VideoProcessor\Analysis\Bills\BillDetectionJobQueue;
+
+class BillDetectionJobQueueTest extends TestCase
+{
+    public function testFetchBuildsManifestPath(): void
+    {
+        $pdo = new PDO('sqlite::memory:');
+        $pdo->exec('CREATE TABLE files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chamber TEXT,
+            committee_id INTEGER,
+            capture_directory TEXT,
+            video_index_cache TEXT,
+            date_created TEXT
+        )');
+        $pdo->exec('CREATE TABLE video_index (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_id INTEGER,
+            type TEXT
+        )');
+        $pdo->prepare('INSERT INTO files (chamber, committee_id, capture_directory, video_index_cache, date_created) VALUES ("house", 123, :dir, :cache, "2025-01-01")')
+            ->execute([
+                ':dir' => 'https://s3.amazonaws.com/video.richmondsunlight.com/house/floor/20250101/screenshots/full/',
+                ':cache' => json_encode(['AgendaTree' => []]),
+            ]);
+        $queue = new BillDetectionJobQueue($pdo);
+        $jobs = $queue->fetch();
+        $this->assertCount(1, $jobs);
+        $this->assertStringContainsString('manifest.json', $jobs[0]->manifestUrl);
+        $this->assertSame(123, $jobs[0]->committeeId);
+    }
+}

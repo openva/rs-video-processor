@@ -1,0 +1,31 @@
+{
+  "NextTime": "2025-02-05T14:30:00",
+  "PreviousTime": null,
+  "Weeks": [
+    {
+      "WeekStart": "2025-01-27T00:00:00",
+      "ContentEntityDatas": [
+        {
+          "Title": "Appropriations",
+          "IconUri": "",
+          "EntityStatus": -1,
+          "EntityStatusDesc": "Adjourned",
+          "Location": "HAC12",
+          "Description": "House Committee Room 1200, General Assembly Building",
+          "ThumbnailUri": "/00304/Harmony/images/video_small.png",
+          "ScheduledStart": "2025-01-31T13:40:09",
+          "ScheduledEnd": "2025-01-31T14:35:09",
+          "HasArchiveStream": true,
+          "ActualStart": "2025-01-31T13:40:09",
+          "ActualEnd": "2025-01-31T14:35:09",
+          "LastModifiedTime": "2025-01-31T14:42:14",
+          "CommitteeId": 952,
+          "VenueId": null,
+          "ForeignKey": "20760",
+          "Id": 20760,
+          "Tag": null
+        }
+      ]
+    }
+  ]
+}

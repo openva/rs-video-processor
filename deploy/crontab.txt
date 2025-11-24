@@ -1,7 +1,0 @@
-# On boot, get the latest copy of the code.
-@reboot ubuntu /home/ubuntu/video-processor/deploy/update_source.sh
-
-# On boot, run the video handler.
-@reboot ubuntu /home/ubuntu/video-processor/bin/handler.sh
-
-0,15,30,45 * * * * root /home/ubuntu/video-processor/deploy/monitor_load.sh

@@ -1,64 +1,75 @@
 name: Deploy Process
 
+permissions:
+  contents: read
+
 on:
   push:
-    branches:
-      - master
+    branches: [master]
   pull_request:
+    branches: [master]
   schedule:
-    - cron: 0 4 * * * # Redeploy at 4 AM every day
+    - cron: '0 4 * * *'
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    name: Build
+    runs-on: ubuntu-24.04
     steps:
+      - uses: actions/checkout@v4
+
       - uses: Firenza/secrets-to-env@v1.2.0
         with:
           secrets: ${{ toJSON(secrets) }}
-      - name: Specify PHP version
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '5.6'
-          tools: composer:v2
-      - name: Make branch name available as Bash variable
-        run: echo "GITHUB_BRANCH=${GITHUB_REF#refs/heads/}" >> $GITHUB_ENV
-      - run: >-
-          sudo apt-get update && 
-          sudo apt-get install -y awscli php5.6-cli php5.6-curl php5.6-memcached php5.6-mysql yarn \
-            zip mplayer tesseract-ocr imagemagick
-      - uses: actions/checkout@v3
-      - run: sudo apt-get update -qq
-      - run: git clone -b deploy https://github.com/openva/richmondsunlight.com.git
-      - run: cp richmondsunlight.com/htdocs/includes/*.php includes/
-      - run: rm -Rf richmondsunlight.com
-      - run: composer install
-      - run: find cron/*.php -print0 |xargs -0 -n1 -P8 php5.6 -l
-      - run: >-
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y awscli zip
+
+      - name: Build Docker environment
+        run: ./docker-run.sh
+
+      - name: Run test suite inside Docker
+        run: ./docker-tests.sh
+
+      - name: Stop Docker environment
+        run: ./docker-stop.sh
+
+      - name: Build artifact
+        run: |
           ./deploy/config_variables.sh
-          && zip -qr latest.zip rs-video-processor . --exclude *.git* *.scannerwork*
-          && mkdir -p upload
-          && mv latest.zip upload/latest.zip
-      - name: Save secret-populated code for a subsequent deploy step
+          mkdir -p upload
+          zip -qr upload/latest.zip . -x '*.git*' '*.scannerwork*' 'upload/*'
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: codebase
           path: .
 
   deploy:
-    runs-on: ubuntu-20.04
-    needs: build # Don't deploy unless the build succeeds
+    name: Deploy
+    runs-on: ubuntu-24.04
+    needs: build
+    if: github.event_name != 'pull_request'
     steps:
-      - name: Get the secret-populated code
+      - name: Download artifact
         uses: actions/download-artifact@v4
         with:
           name: codebase
+
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v3
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
           aws-region: us-east-1
+
       - name: Copy file to S3
-        run: |
-          aws s3 cp upload/latest.zip s3://deploy.richmondsunlight.com/rs-video-processor-master.zip
+        run: aws s3 cp upload/latest.zip s3://deploy.richmondsunlight.com/rs-video-processor-master.zip
