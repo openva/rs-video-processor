@@ -45,16 +45,7 @@ For Docker development, override those values via environment variables or mount
 
 ## Local Setup
 
-1. Install Composer dependencies:
-
-   ```bash
-   composer install
-   ```
-
-2. Copy the shared includes from the main site (or use the `includes/` directory committed to this repo) and adjust `includes/settings.inc.php` for your local DB/keys.
-   ```
-
-3. To stand up the Docker environment with all tooling (PHP, ffmpeg, OpenAI CLI deps, etc.):
+1. To stand up the Docker environment with all tooling (PHP, ffmpeg, OpenAI CLI deps, etc.):
 
    ```bash
    ./docker-run.sh    # builds/starts the container
@@ -62,6 +53,8 @@ For Docker development, override those values via environment variables or mount
    ```
 
    Use `./docker-stop.sh` to shut the container down when finished. Inside Docker the dispatcher automatically uses the in-memory queue, and no writes go to production resources as long as you point `PDO_*`/`AWS_*` at staging.
+
+   If you have an OpenAPI key that you want to use, specify that in `includes/settings.inc.php` (which will be copied over automatically from `deploy/settings-docker.inc.php` on first run, or you can copy it manually and add the OpenAPI key at the same time.)
 
 ---
 
