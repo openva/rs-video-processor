@@ -27,7 +27,7 @@ class SenateScraperTest extends TestCase
         $this->assertSame('2025-11-19', $first['meeting_date']);
         $this->assertSame('committee', $first['event_type']);
         $this->assertSame('https://virginia-senate.granicus.com/MediaPlayer.php?view_id=3&clip_id=7681', $first['embed_url']);
-        $this->assertSame('https://virginia-senate.granicus.com/json.php?clip_id=7681', $first['captions_url']);
+        $this->assertSame('https://virginia-senate.granicus.com/videos/7681/captions.vtt', $first['captions_url']);
         $this->assertSame('https://archive-video.granicus.com/virginia-senate/virginia-senate_f9e7145f-e3f8-11ef-a9e2-005056a89546.mp4', $first['video_url']);
         $this->assertStringContainsString('General Laws and Technology', $first['description']);
     }

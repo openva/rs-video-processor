@@ -25,6 +25,8 @@ class HouseScraperTest extends TestCase
         $this->assertSame('house', $record['chamber']);
         $this->assertSame('Appropriations', $record['title']);
         $this->assertSame('https://sg001-harmony01.sliq.net/00304archives/2025/01/31/Appropriations_2025-01-31-13.40.09_3299_20760_6.mp4', $record['video_url']);
+        $this->assertNotEmpty($record['captions']);
+        $this->assertStringContainsString('I mean, there\'s a', $record['captions']);
         $this->assertNotEmpty($record['agenda']);
         $this->assertNotEmpty($record['speakers']);
         $this->assertStringContainsString('/PowerBrowser/PowerBrowserV2/', $record['detail_url']);

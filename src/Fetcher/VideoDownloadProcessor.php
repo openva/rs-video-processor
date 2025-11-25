@@ -4,6 +4,7 @@ namespace RichmondSunlight\VideoProcessor\Fetcher;
 
 use GuzzleHttp\Client;
 use Log;
+use RichmondSunlight\VideoProcessor\Analysis\Metadata\MetadataIndexer;
 use PDO;
 
 class VideoDownloadProcessor
@@ -17,6 +18,7 @@ class VideoDownloadProcessor
         private CommitteeDirectory $committeeDirectory,
         private VideoMetadataExtractor $metadataExtractor,
         private S3KeyBuilder $keyBuilder,
+        private ?MetadataIndexer $metadataIndexer = null,
         private ?Log $logger = null,
         ?string $downloadDir = null
     ) {
@@ -25,6 +27,7 @@ class VideoDownloadProcessor
             mkdir($this->downloadDir, 0775, true);
         }
         $this->http = new Client(['timeout' => 600]);
+        $this->metadataIndexer = $this->metadataIndexer ?? new MetadataIndexer($this->pdo);
     }
 
     public function process(VideoDownloadJob $job): void
@@ -43,6 +46,7 @@ class VideoDownloadProcessor
             : null;
 
         $this->updateDatabase($job, $s3Url, $s3Key, $meta, $captionContents);
+        $this->metadataIndexer?->index($job->id, $job->metadata);
 
         @unlink($localVideo);
         if ($captionPath) {
@@ -86,7 +90,15 @@ class VideoDownloadProcessor
 
     protected function downloadCaptions(VideoDownloadJob $job): ?string
     {
+        // If metadata already contains caption text (e.g., from House ccItems), prefer that.
         $metadata = $job->metadata;
+        $embedded = $metadata['captions'] ?? $metadata['captions_vtt'] ?? null;
+        if (is_string($embedded) && trim($embedded) !== '') {
+            $target = $this->downloadDir . '/' . $job->chamber . '-' . $job->id . '.vtt';
+            file_put_contents($target, $embedded);
+            return $target;
+        }
+
         $captionUrl = $metadata['captions_url'] ?? null;
         if ($captionUrl) {
             $target = $this->downloadDir . '/' . $job->chamber . '-' . $job->id . '.vtt';

@@ -101,6 +101,8 @@ class HouseScraper implements VideoSourceScraperInterface
         $downloadMedia = $this->extractJsonArray($html, 'downloadMediaUrls');
         $agendaItems = $this->extractJsonSection($html, 'AgendaTree');
         $speakerItems = $this->extractJsonSection($html, 'Speakers');
+        $ccItems = $this->extractJsonSection($html, 'ccItems');
+        $captions = $this->extractCaptionsWebVtt($ccItems);
 
         $title = $event['Title'] ?? $rootState['set_title'] ?? '';
         $description = $event['Description'] ?? $rootState['set_description'] ?? '';
@@ -150,28 +152,29 @@ class HouseScraper implements VideoSourceScraperInterface
             ),
             'detail_url' => $detailUrl,
             'captions_url' => null,
+            'captions' => $captions,
             'scraped_at' => (new DateTimeImmutable('now'))->format(DateTimeInterface::ATOM),
         ];
     }
 
     private function extractJsonArray(string $html, string $variable): array
     {
-        $pattern = sprintf('/var\s+%s\s*=\s*(\[[\s\S]*?\]);/m', preg_quote($variable, '/'));
-        if (!preg_match($pattern, $html, $matches)) {
+        $block = $this->extractJsonBlock($html, $variable);
+        if ($block === null) {
             return [];
         }
 
-        return json_decode($matches[1], true, 512, JSON_THROW_ON_ERROR);
+        return json_decode($block, true, 512, JSON_THROW_ON_ERROR);
     }
 
     private function extractJsonSection(string $html, string $key): array
     {
-        $pattern = sprintf('/%s\s*:\s*(\[[\s\S]*?\])/m', preg_quote($key, '/'));
-        if (!preg_match($pattern, $html, $matches)) {
+        $block = $this->extractJsonBlock($html, $key);
+        if ($block === null) {
             return [];
         }
 
-        return json_decode($matches[1], true, 512, JSON_THROW_ON_ERROR);
+        return json_decode($block, true, 512, JSON_THROW_ON_ERROR);
     }
 
     private function extractRootClone(string $html): array
@@ -181,5 +184,117 @@ class HouseScraper implements VideoSourceScraperInterface
         }
 
         return json_decode($matches[1], true, 512, JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * Extract a JSON object/array following a key by scanning for balanced brackets.
+     */
+    private function extractJsonBlock(string $html, string $key): ?string
+    {
+        if (!preg_match('/' . preg_quote($key, '/') . '\s*(?:=|:)\s*([{\[])/', $html, $matches, PREG_OFFSET_CAPTURE)) {
+            return null;
+        }
+        $startChar = $matches[1][0];
+        $startPos = $matches[1][1];
+        $segment = substr($html, $startPos);
+
+        $depth = 0;
+        $inString = false;
+        $escape = false;
+        $len = strlen($segment);
+        for ($i = 0; $i < $len; $i++) {
+            $ch = $segment[$i];
+            if ($escape) {
+                $escape = false;
+                continue;
+            }
+            if ($ch === '\\') {
+                $escape = true;
+                continue;
+            }
+            if ($ch === '"') {
+                $inString = !$inString;
+                continue;
+            }
+            if ($inString) {
+                continue;
+            }
+            if ($ch === '{' || $ch === '[') {
+                $depth++;
+            } elseif ($ch === '}' || $ch === ']') {
+                $depth--;
+                if ($depth === 0) {
+                    return substr($segment, 0, $i + 1);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function extractCaptionsWebVtt(array $ccItems): ?string
+    {
+        if (empty($ccItems)) {
+            return null;
+        }
+
+        // Pick the first language block (e.g., ['en' => [...] ]).
+        $first = array_values($ccItems)[0] ?? null;
+        if (!is_array($first)) {
+            return null;
+        }
+
+        // If nested under a language key.
+        if (array_key_exists('Begin', $first) || array_key_exists(0, $first)) {
+            $entries = array_key_exists(0, $first) ? $first : $ccItems;
+        } else {
+            $entries = $first;
+        }
+        if (!is_array($entries)) {
+            return null;
+        }
+
+        // Use first timestamp as zero to create relative cues.
+        $segments = [];
+        $firstStart = null;
+        foreach ($entries as $entry) {
+            if (!is_array($entry) || empty($entry['Begin']) || empty($entry['End']) || !isset($entry['Content'])) {
+                continue;
+            }
+            $begin = strtotime($entry['Begin']);
+            $end = strtotime($entry['End']);
+            if ($begin === false || $end === false) {
+                continue;
+            }
+            $firstStart ??= $begin;
+            $segments[] = [
+                'start' => $begin - $firstStart,
+                'end' => $end - $firstStart,
+                'text' => trim((string) $entry['Content']),
+            ];
+        }
+
+        if (empty($segments)) {
+            return null;
+        }
+
+        $buffer = ["WEBVTT", ""];
+        foreach ($segments as $seg) {
+            $buffer[] = $this->formatSeconds($seg['start']) . ' --> ' . $this->formatSeconds($seg['end']);
+            $buffer[] = $seg['text'];
+            $buffer[] = '';
+        }
+
+        return implode("\n", $buffer);
+    }
+
+    private function formatSeconds(float $seconds): string
+    {
+        $ms = (int) round(($seconds - floor($seconds)) * 1000);
+        $totalSeconds = (int) floor($seconds);
+        $hours = intdiv($totalSeconds, 3600);
+        $minutes = intdiv($totalSeconds % 3600, 60);
+        $secs = $totalSeconds % 60;
+        return sprintf('%02d:%02d:%02d.%03d', $hours, $minutes, $secs, $ms);
     }
 }

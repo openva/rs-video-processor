@@ -103,7 +103,7 @@ class SenateScraper implements VideoSourceScraperInterface
             'video_url' => $mp4FromRow,
             'embed_url' => sprintf(self::DETAIL_URL_TEMPLATE, $clipId),
             'thumbnail_url' => null,
-            'captions_url' => sprintf('https://virginia-senate.granicus.com/json.php?clip_id=%s', $clipId),
+            'captions_url' => sprintf('https://virginia-senate.granicus.com/videos/%s/captions.vtt', $clipId),
             'duration_seconds' => $durationSeconds,
             'scraped_at' => (new DateTimeImmutable('now'))->format(DateTimeInterface::ATOM),
         ];
