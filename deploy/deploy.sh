@@ -56,6 +56,11 @@ fi
 python3 -m pip install --upgrade pip
 python3 -m pip install --upgrade -r requirements.txt
 
+# Install one-shot updater (runs on boot) when enabled via guard file.
+sudo cp deploy/services/update-from-s3.service /etc/systemd/system/update-from-s3.service
+sudo systemctl daemon-reload
+sudo systemctl enable update-from-s3.service
+
 # If this is the instance that will analyze video contents.
 if [[ -f /home/ubuntu/video-processor.txt ]]; then
   echo "Installing screenshot worker service..."

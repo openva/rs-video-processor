@@ -1,0 +1,15 @@
+[Unit]
+Description=Update rs-video-processor code from S3 on boot
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/home/ubuntu/video-processor.txt
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/video-processor
+ExecStart=/home/ubuntu/video-processor/deploy/update-from-s3.sh
+
+[Install]
+WantedBy=multi-user.target
