@@ -10,7 +10,6 @@ class VideoDownloadProcessor
 {
     private string $downloadDir;
     private Client $http;
-    private array $recentCaptionCandidates = [];
 
     public function __construct(
         private PDO $pdo,
@@ -26,7 +25,6 @@ class VideoDownloadProcessor
             mkdir($this->downloadDir, 0775, true);
         }
         $this->http = new Client(['timeout' => 600]);
-        $this->recentCaptionCandidates = [];
     }
 
     public function process(VideoDownloadJob $job): void
@@ -57,12 +55,8 @@ class VideoDownloadProcessor
         $ext = '.mp4';
         $localPath = $this->downloadDir . '/' . $job->chamber . '-' . $job->id . $ext;
 
-        $this->recentCaptionCandidates = [];
-
         if ($this->isGranicusUrl($job->remoteUrl)) {
             $this->downloadViaHttp($job->remoteUrl, $localPath);
-        } elseif ($job->isSenate() || str_contains($job->remoteUrl, 'youtube.com') || str_contains($job->remoteUrl, 'youtu.be')) {
-            $this->downloadViaYtDlp($job->remoteUrl, $localPath);
         } elseif (str_ends_with($job->remoteUrl, '.m3u8')) {
             $this->downloadViaFfmpeg($job->remoteUrl, $localPath);
         } else {
@@ -90,38 +84,8 @@ class VideoDownloadProcessor
         $this->runCommand($cmd, 'Failed to download HLS stream via ffmpeg.');
     }
 
-    protected function downloadViaYtDlp(string $url, string $destination): void
-    {
-        $ytDlp = trim((string) shell_exec('command -v yt-dlp'));
-        if ($ytDlp === '') {
-            throw new \RuntimeException('yt-dlp is not installed. Run bin/install-yt-dlp.sh.');
-        }
-
-        $base = substr($destination, 0, -strlen('.mp4'));
-        $cmd = sprintf(
-            '%s --no-progress --recode-video mp4 --write-auto-sub --sub-lang en --sub-format vtt -o %s %s',
-            escapeshellcmd($ytDlp),
-            escapeshellarg($base . '.%(ext)s'),
-            escapeshellarg($url)
-        );
-        $this->runCommand($cmd, 'Failed to download video via yt-dlp.');
-
-        $downloaded = glob($base . '.mp4');
-        if (!$downloaded) {
-            throw new \RuntimeException('Unable to find yt-dlp output file.');
-        }
-        rename($downloaded[0], $destination);
-
-        $captionMatches = glob($base . '*.vtt');
-        $this->recentCaptionCandidates = $captionMatches ?: [];
-    }
-
     protected function downloadCaptions(VideoDownloadJob $job): ?string
     {
-        if ($job->isSenate() && !empty($this->recentCaptionCandidates)) {
-            return $this->recentCaptionCandidates[0];
-        }
-
         $metadata = $job->metadata;
         $captionUrl = $metadata['captions_url'] ?? null;
         if ($captionUrl) {
@@ -171,9 +135,6 @@ class VideoDownloadProcessor
     private function isGranicusUrl(string $url): bool
     {
         $normalized = strtolower($url);
-        if (str_contains($normalized, 'granicus.com') && str_contains($normalized, '.mp4')) {
-            return true;
-        }
-        return false;
+        return str_contains($normalized, 'granicus.com') && str_contains($normalized, '.mp4');
     }
 }
