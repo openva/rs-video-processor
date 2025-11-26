@@ -56,6 +56,15 @@ fi
 python3 -m pip install --upgrade pip
 python3 -m pip install --upgrade -r requirements.txt --break-system-packages
 
+# Ensure user-level scripts (e.g., yt-dlp) are on PATH and available system-wide.
+LOCAL_BIN="$HOME/.local/bin"
+if [[ -d "$LOCAL_BIN" ]] && ! printf '%s' "$PATH" | grep -q "$LOCAL_BIN"; then
+  echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.profile"
+fi
+if [[ -x "$LOCAL_BIN/yt-dlp" ]]; then
+  sudo ln -sf "$LOCAL_BIN/yt-dlp" /usr/local/bin/yt-dlp
+fi
+
 # Install one-shot updater (runs on boot) when enabled via guard file.
 sudo cp deploy/services/update-from-s3.service /etc/systemd/system/update-from-s3.service
 sudo systemctl daemon-reload
