@@ -21,12 +21,15 @@ $logger = class_exists('Log') ? new Log() : null;
 
 $http = new RateLimitedHttpClient(
     new GuzzleHttpClient(new Client([
-        'timeout' => 30,
+        'timeout' => 60,
+        'connect_timeout' => 10,
         'headers' => [
             'User-Agent' => 'rs-video-processor (+https://richmondsunlight.com/)',
         ],
     ])),
-    1.0
+    1.0,
+    3,
+    5.0
 );
 
 $houseScraper = new HouseScraper($http, logger: $logger);

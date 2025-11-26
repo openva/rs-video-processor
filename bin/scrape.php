@@ -16,12 +16,15 @@ require_once __DIR__ . '/../includes/class.Log.php';
 
 $http = new RateLimitedHttpClient(
     new GuzzleHttpClient(new Client([
-        'timeout' => 30,
+        'timeout' => 60,
+        'connect_timeout' => 10,
         'headers' => [
             'User-Agent' => 'rs-video-processor (+https://richmondsunlight.com/)',
         ],
     ])),
-    1.0
+    1.0,
+    3,
+    5.0
 );
 
 $house = new HouseScraper($http);
