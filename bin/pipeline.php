@@ -21,6 +21,10 @@ $pdo = $app->pdo ?? null;
 if (!$pdo) {
     throw new RuntimeException('Unable to connect to the database.');
 }
+$pdoFactory = static function () {
+    $db = new \Database();
+    return $db->connect();
+};
 
 $http = new RateLimitedHttpClient(
     new GuzzleHttpClient(new Client([
@@ -45,7 +49,7 @@ $records = array_merge(
 
 $logger?->put(sprintf('Total scraped records: %d', count($records)), 3);
 
-$repository = new ExistingFilesRepository($pdo);
+$repository = new ExistingFilesRepository($pdo, $pdoFactory);
 $filter = new MissingVideoFilter($repository);
 $missing = $filter->filter($records);
 
