@@ -4,6 +4,7 @@
 declare(strict_types=1);
 
 use GuzzleHttp\Client;
+use RichmondSunlight\VideoProcessor\Bootstrap\AppBootstrap;
 use RichmondSunlight\VideoProcessor\Fetcher\CommitteeDirectory;
 use RichmondSunlight\VideoProcessor\Scraper\House\HouseScraper;
 use RichmondSunlight\VideoProcessor\Scraper\Http\GuzzleHttpClient;
@@ -13,11 +14,13 @@ use RichmondSunlight\VideoProcessor\Sync\ExistingFilesRepository;
 use RichmondSunlight\VideoProcessor\Sync\MissingVideoFilter;
 use RichmondSunlight\VideoProcessor\Sync\VideoImporter;
 
-require_once __DIR__ . '/../includes/vendor/autoload.php';
-require_once __DIR__ . '/../includes/class.Log.php';
-require_once __DIR__ . '/../includes/class.Database.php';
+$app = require __DIR__ . '/bootstrap.php';
+$logger = $app->log ?? (class_exists('Log') ? new Log() : null);
+$pdo = $app->pdo ?? null;
 
-$logger = class_exists('Log') ? new Log() : null;
+if (!$pdo) {
+    throw new RuntimeException('Unable to connect to the database.');
+}
 
 $http = new RateLimitedHttpClient(
     new GuzzleHttpClient(new Client([
@@ -41,12 +44,6 @@ $records = array_merge(
 );
 
 $logger?->put(sprintf('Total scraped records: %d', count($records)), 3);
-
-$database = new Database();
-$pdo = $database->connect();
-if (!$pdo) {
-    throw new RuntimeException('Unable to connect to the database.');
-}
 
 $repository = new ExistingFilesRepository($pdo);
 $filter = new MissingVideoFilter($repository);
