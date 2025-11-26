@@ -54,7 +54,7 @@ fi
 
 # Install Python tooling for video downloads.
 python3 -m pip install --upgrade pip
-python3 -m pip install --upgrade -r requirements.txt
+python3 -m pip install --upgrade -r requirements.txt --break-system-packages
 
 # Install one-shot updater (runs on boot) when enabled via guard file.
 sudo cp deploy/services/update-from-s3.service /etc/systemd/system/update-from-s3.service
