@@ -12,9 +12,13 @@ class JobDispatcher
 
     public static function fromEnvironment(?Log $logger = null): self
     {
-        $queueUrl = getenv('VIDEO_SQS_URL') ?: null;
+        $queueUrl = getenv('VIDEO_SQS_URL') ?: (defined('VIDEO_SQS_URL') ? VIDEO_SQS_URL : null);
         $factory = new QueueFactory($logger);
-        $queue = $factory->build($queueUrl);
+        $config = [];
+        if (defined('AWS_REGION') && AWS_REGION) {
+            $config['region'] = AWS_REGION;
+        }
+        $queue = $factory->build($queueUrl, $config);
         return new self($queue, $logger);
     }
 
