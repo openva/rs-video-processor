@@ -22,7 +22,7 @@ $limit = isset($argv[1]) ? (int) $argv[1] : 5;
 $s3Client = new S3Client([
     'key' => AWS_ACCESS_KEY,
     'secret' => AWS_SECRET_KEY,
-    'region' => 'us-east-1',
+    'region' => AWS_REGION,
     'version' => '2006-03-01',
 ]);
 
