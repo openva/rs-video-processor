@@ -17,27 +17,26 @@ class ExistingFilesRepository implements ExistingVideoKeyProviderInterface
     {
         $keys = [];
 
-        $stmt = $this->queryWithReconnect('SELECT chamber, date, TIME_TO_SEC(length) AS duration_seconds FROM files');
+        $stmt = $this->queryWithReconnect('SELECT chamber, date, path FROM files');
 
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $chamber = $row['chamber'] ?? null;
             $date = $row['date'] ?? null;
-            $duration = $row['duration_seconds'] ?? null;
+            $path = $row['path'] ?? null;
 
-            if ($chamber === null || $date === null || $duration === null) {
+            if ($chamber === null || $date === null || $path === null) {
                 continue;
             }
 
-            $durationInt = (int) $duration;
-            $keys[$this->buildKey($chamber, $date, $durationInt)] = true;
+            $keys[$this->buildKey($chamber, $date, $path)] = true;
         }
 
         return $keys;
     }
 
-    private function buildKey(string $chamber, string $date, int $durationSeconds): string
+    private function buildKey(string $chamber, string $date, string $path): string
     {
-        return strtolower($chamber) . '|' . $date . '|' . $durationSeconds;
+        return strtolower($chamber) . '|' . $date . '|' . $path;
     }
 
     private function queryWithReconnect(string $sql)

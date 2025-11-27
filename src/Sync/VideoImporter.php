@@ -48,8 +48,24 @@ class VideoImporter
                 continue;
             }
 
-            if ($insert->execute($payload) === false) {
-                throw new RuntimeException('Failed to insert video record into files table.');
+            try {
+                if ($insert->execute($payload) === false) {
+                    throw new RuntimeException('Failed to insert video record into files table.');
+                }
+            } catch (\Throwable $e) {
+                $path = $payload['path'] ?? '';
+                $title = $payload['title'] ?? '';
+                $this->logger?->put(
+                    sprintf(
+                        'Insert failed. Title length=%d Title sample=%s | Path length=%d Path sample=%s',
+                        strlen((string) $title),
+                        substr((string) $title, 0, 200),
+                        strlen((string) $path),
+                        substr((string) $path, 0, 200)
+                    ),
+                    6
+                );
+                throw $e;
             }
 
             $count++;
@@ -67,8 +83,18 @@ class VideoImporter
         $title = $record['title'] ?? 'Video';
         $date = VideoRecordNormalizer::deriveMeetingDate($record);
         $duration = VideoRecordNormalizer::deriveDurationSeconds($record);
-
-        if (!$chamber || !$date || $duration === null) {
+        if (!$chamber || !$date || empty($record['video_url'])) {
+            $this->logger?->put(
+                sprintf(
+                    'Skipping record: chamber=%s date=%s duration=%s path=%s title=%s',
+                    var_export($chamber, true),
+                    var_export($date, true),
+                    var_export($duration, true),
+                    isset($record['video_url']) ? substr((string) $record['video_url'], 0, 120) : 'NULL',
+                    isset($record['title']) ? substr((string) $record['title'], 0, 120) : ''
+                ),
+                5
+            );
             return null;
         }
 
@@ -84,7 +110,7 @@ class VideoImporter
             'title' => $title,
             'description' => $record['description'] ?? '',
             'type' => 'video',
-            'length' => $this->formatDuration($duration),
+            'length' => $duration !== null ? $this->formatDuration($duration) : null,
             'date' => $date,
             'sponsor' => $committeeName,
             'width' => $record['width'] ?? null,
