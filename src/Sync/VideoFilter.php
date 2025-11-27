@@ -53,13 +53,16 @@ class VideoFilter
         ];
 
         $hasKeep = self::containsAny($title, $keepKeywords);
+        $hasSessionOrFloor = str_contains($title, 'session') || str_contains($title, 'floor');
         $hasSkip = self::containsAny($title, $skipKeywords);
 
-        if ($hasKeep && !$hasSkip) {
-            return true;
-        }
-        if ($hasSkip && !$hasKeep) {
+        // Skip wins unless this is clearly a session/floor item.
+        if ($hasSkip && !$hasSessionOrFloor) {
             return false;
+        }
+
+        if ($hasKeep) {
+            return true;
         }
 
         // Default to inclusion on tie/unknown.

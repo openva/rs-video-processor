@@ -39,8 +39,8 @@ class VideoFilterTest extends TestCase
     public function testKeepWinsOnOverlap(): void
     {
         $title = 'Finance Committee Commission Update';
-        // Contains both "committee" (keep) and "commission" (skip); keep should win.
-        $this->assertTrue(VideoFilter::shouldKeep(['title' => $title]));
+        // Contains both "committee" (keep) and "commission" (skip); skip should win unless session/floor present.
+        $this->assertFalse(VideoFilter::shouldKeep(['title' => $title]));
     }
 
     public function testTitleNormalization(): void
