@@ -26,6 +26,12 @@ $pdoFactory = static function () {
     return $db->connect();
 };
 
+$outputDir = __DIR__ . '/../storage/pipeline';
+if (!is_dir($outputDir)) {
+    mkdir($outputDir, 0775, true);
+}
+$snapshotPath = $outputDir . '/scraped-latest.json';
+
 $http = new RateLimitedHttpClient(
     new GuzzleHttpClient(new Client([
         'timeout' => 60,
@@ -39,15 +45,27 @@ $http = new RateLimitedHttpClient(
     5.0
 );
 
-$houseScraper = new HouseScraper($http, logger: $logger);
-$senateScraper = new SenateScraper($http, logger: $logger);
+$records = [];
+if (file_exists($snapshotPath)) {
+    $loaded = json_decode(file_get_contents($snapshotPath), true);
+    if (is_array($loaded)) {
+        $records = $loaded;
+        $logger?->put(sprintf('Loaded %d scraped records from snapshot %s', count($records), $snapshotPath), 3);
+    }
+}
 
-$records = array_merge(
-    $houseScraper->scrape(),
-    $senateScraper->scrape()
-);
-
-$logger?->put(sprintf('Total scraped records: %d', count($records)), 3);
+if (empty($records)) {
+    $houseScraper = new HouseScraper($http, logger: $logger);
+    $senateScraper = new SenateScraper($http, logger: $logger);
+    $records = array_merge(
+        $houseScraper->scrape(),
+        $senateScraper->scrape()
+    );
+    file_put_contents($snapshotPath, json_encode($records, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+    $logger?->put(sprintf('Total scraped records: %d (snapshot saved to %s)', count($records), $snapshotPath), 3);
+} else {
+    $logger?->put(sprintf('Skipping scrape; using existing snapshot %s', $snapshotPath), 3);
+}
 
 $repository = new ExistingFilesRepository($pdo, $pdoFactory);
 $filter = new MissingVideoFilter($repository);
@@ -60,10 +78,6 @@ $importer = new VideoImporter($pdo, $committees, $logger);
 $importedCount = $importer->import($missing);
 $logger?->put(sprintf('Imported %d new videos into files table', $importedCount), 3);
 
-$outputDir = __DIR__ . '/../storage/pipeline';
-if (!is_dir($outputDir)) {
-    mkdir($outputDir, 0775, true);
-}
 $outputPath = $outputDir . '/missing-' . date('Ymd_His') . '.json';
 file_put_contents(
     $outputPath,
