@@ -42,4 +42,18 @@ class VideoFilterTest extends TestCase
         // Contains both "committee" (keep) and "commission" (skip); keep should win.
         $this->assertTrue(VideoFilter::shouldKeep(['title' => $title]));
     }
+
+    public function testTitleNormalization(): void
+    {
+        $cases = [
+            'October 29, 2025 - Privileges and Elections - SR B' => 'Privileges and Elections',
+            'October 29, 2025 - 2024 Special Session I - 3:30 pm' => '2024 Special Session I',
+            'January 23, 2025 - SFAC: Health and Human Resources - SR 1300 - 7:30 am' => 'SFAC: Health and Human Resources',
+            'February 12, 2025 - General Laws and Technology - SR B (306) - 30 min. after adjournment' => 'General Laws and Technology',
+        ];
+
+        foreach ($cases as $raw => $expected) {
+            $this->assertSame($expected, VideoFilter::normalizeTitle($raw), 'Normalization failed for ' . $raw);
+        }
+    }
 }

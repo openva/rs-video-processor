@@ -81,6 +81,7 @@ class VideoImporter
     {
         $chamber = isset($record['chamber']) ? strtolower((string) $record['chamber']) : null;
         $title = $record['title'] ?? 'Video';
+        $title = \RichmondSunlight\VideoProcessor\Sync\VideoFilter::normalizeTitle($title);
         $date = VideoRecordNormalizer::deriveMeetingDate($record);
         $duration = VideoRecordNormalizer::deriveDurationSeconds($record);
         if (!$chamber || !$date || empty($record['video_url'])) {

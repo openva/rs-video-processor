@@ -75,4 +75,45 @@ class VideoFilter
         }
         return false;
     }
+
+    /**
+     * Normalize a raw title by stripping dates/times/rooms and keeping the core segment.
+     */
+    public static function normalizeTitle(string $raw): string
+    {
+        $parts = preg_split('/\s*-\s*/', $raw) ?: [];
+        $parts = array_values(array_filter(array_map('trim', $parts), static fn ($p) => $p !== ''));
+
+        // Drop leading date-like segment.
+        if (!empty($parts) && preg_match('/^[A-Za-z]+\s+\d{1,2},\s+\d{4}$/', $parts[0])) {
+            array_shift($parts);
+        }
+
+        // Remove trailing time/room phrases.
+        $parts = array_values(array_filter($parts, static function ($p) {
+            $p = strtolower($p);
+            if (preg_match('/\b\d{1,2}:\d{2}\s*(am|pm|m\.?)/', $p)) {
+                return false;
+            }
+            if (str_contains($p, 'adjournment')) {
+                return false;
+            }
+            if (preg_match('/^sr\s+[a-z]\b/', $p)) {
+                return false;
+            }
+            if (preg_match('/^sr\s*\d+/', $p)) {
+                return false;
+            }
+            if (preg_match('/^sr\s+[a-z]\s*\(\d+\)/', $p)) {
+                return false;
+            }
+            return true;
+        }));
+
+        if (!empty($parts)) {
+            return $parts[0];
+        }
+
+        return trim($raw);
+    }
 }
