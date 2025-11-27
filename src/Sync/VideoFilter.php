@@ -1,0 +1,78 @@
+<?php
+
+namespace RichmondSunlight\VideoProcessor\Sync;
+
+class VideoFilter
+{
+    /**
+     * Decide whether a scraped video record should be kept.
+     * Bias toward inclusion: keep wins if both keep and skip keywords are present.
+     */
+    public static function shouldKeep(array $record): bool
+    {
+        $title = isset($record['title']) ? strtolower((string) $record['title']) : '';
+        if ($title === '') {
+            return true; // can't decide; keep
+        }
+
+        $keepKeywords = [
+            'session',
+            'floor',
+            'committee',
+            'subcommittee',
+            'sfac',
+            'finance',
+            'appropriations',
+            'education and health',
+            'general laws',
+            'technology',
+            'transportation',
+            'courts of justice',
+            'privileges and elections',
+            'rules',
+            'public safety',
+            'health and human resources',
+            'resources',
+        ];
+
+        $skipKeywords = [
+            'commission',
+            'board',
+            'authority',
+            'jlarc',
+            'vrs',
+            'crime commission',
+            'code commission',
+            'civic education',
+            'manufacturing development',
+            'small business commission',
+            'health insurance reform commission',
+            'recurrent flooding',
+            'mei project approval commission',
+            'public hearing',
+        ];
+
+        $hasKeep = self::containsAny($title, $keepKeywords);
+        $hasSkip = self::containsAny($title, $skipKeywords);
+
+        if ($hasKeep && !$hasSkip) {
+            return true;
+        }
+        if ($hasSkip && !$hasKeep) {
+            return false;
+        }
+
+        // Default to inclusion on tie/unknown.
+        return true;
+    }
+
+    private static function containsAny(string $haystack, array $needles): bool
+    {
+        foreach ($needles as $needle) {
+            if ($needle !== '' && str_contains($haystack, $needle)) {
+                return true;
+            }
+        }
+        return false;
+    }
+}

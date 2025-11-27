@@ -12,6 +12,7 @@ use RichmondSunlight\VideoProcessor\Scraper\Http\RateLimitedHttpClient;
 use RichmondSunlight\VideoProcessor\Scraper\Senate\SenateScraper;
 use RichmondSunlight\VideoProcessor\Sync\ExistingFilesRepository;
 use RichmondSunlight\VideoProcessor\Sync\MissingVideoFilter;
+use RichmondSunlight\VideoProcessor\Sync\VideoFilter;
 use RichmondSunlight\VideoProcessor\Sync\VideoImporter;
 
 $app = require __DIR__ . '/bootstrap.php';
@@ -66,6 +67,10 @@ if (empty($records)) {
 } else {
     $logger?->put(sprintf('Skipping scrape; using existing snapshot %s', $snapshotPath), 3);
 }
+
+$before = count($records);
+$records = array_values(array_filter($records, [VideoFilter::class, 'shouldKeep']));
+$logger?->put(sprintf('Filtered records: %d -> %d after applying keep/skip rules', $before, count($records)), 3);
 
 $repository = new ExistingFilesRepository($pdo, $pdoFactory);
 $filter = new MissingVideoFilter($repository);
