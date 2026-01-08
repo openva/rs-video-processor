@@ -19,11 +19,15 @@ class ChamberConfig
 
     public function getCrop(string $chamber, string $eventType): ?CropConfig
     {
+        $chamberLower = strtolower($chamber);
         $type = $eventType === 'subcommittee' ? 'subcommittee' : ($eventType === 'committee' ? 'committee' : 'floor');
-        $key = strtolower($chamber) . '_' . $type;
-        if ($type === 'floor' && !isset($this->configs[$key])) {
-            $key = strtolower($chamber) . '_committee';
+        $key = $chamberLower . '_' . $type;
+
+        // If exact key not found, fall back to committee config (covers subcommittee case)
+        if (!isset($this->configs[$key])) {
+            $key = $chamberLower . '_committee';
         }
+
         return $this->configs[$key] ?? null;
     }
 }

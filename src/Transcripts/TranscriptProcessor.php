@@ -14,8 +14,8 @@ class TranscriptProcessor
     public function __construct(
         private TranscriptWriter $writer,
         private OpenAITranscriber $transcriber,
-        CaptionParser $parser = null,
-        AudioExtractor $audioExtractor = null,
+        ?CaptionParser $parser = null,
+        ?AudioExtractor $audioExtractor = null,
         private ?Log $logger = null
     ) {
         $this->parser = $parser ?? new CaptionParser();

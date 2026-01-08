@@ -31,7 +31,7 @@ $storage = new S3Storage($s3Client, $bucket);
 $directory = new CommitteeDirectory($pdo);
 $metadataExtractor = new VideoMetadataExtractor();
 $keyBuilder = new S3KeyBuilder();
-$processor = new VideoDownloadProcessor($pdo, $storage, $directory, $metadataExtractor, $keyBuilder, $log);
+$processor = new VideoDownloadProcessor($pdo, $storage, $directory, $metadataExtractor, $keyBuilder, null, $log);
 $queue = new VideoDownloadQueue($pdo);
 
 $jobs = $queue->fetch($limit);

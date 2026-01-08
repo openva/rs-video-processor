@@ -9,13 +9,16 @@ class SpeakerMetadataExtractor
      */
     public function extract(?array $metadata): array
     {
-        if (!$metadata || empty($metadata['Speakers'])) {
+        // Support both 'Speakers' (raw from Sliq) and 'speakers' (normalized by HouseScraper)
+        $speakerData = $metadata['speakers'] ?? $metadata['Speakers'] ?? null;
+        if (!$metadata || empty($speakerData)) {
             return [];
         }
         $segments = [];
-        foreach ($metadata['Speakers'] as $entry) {
-            $name = trim((string) ($entry['text'] ?? ''));
-            $start = $entry['startTime'] ?? null;
+        foreach ($speakerData as $entry) {
+            // Support both raw format (text/startTime) and normalized format (name/start_time)
+            $name = trim((string) ($entry['name'] ?? $entry['text'] ?? ''));
+            $start = $entry['start_time'] ?? $entry['startTime'] ?? null;
             if ($name === '' || !$start) {
                 continue;
             }

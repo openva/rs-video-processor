@@ -31,7 +31,6 @@ class BillTextExtractor
         $h = min($h, $height - $y);
         $region = imagecrop($src, ['x' => $x, 'y' => $y, 'width' => $w, 'height' => $h]);
         if ($region === false) {
-            imagedestroy($src);
             throw new RuntimeException('Failed to crop screenshot region.');
         }
 
@@ -39,8 +38,6 @@ class BillTextExtractor
 
         $temp = tempnam(sys_get_temp_dir(), 'ocr_') . '.jpg';
         imagejpeg($region, $temp, 95);
-        imagedestroy($region);
-        imagedestroy($src);
         $text = $this->ocr->extractText($temp);
         @unlink($temp);
         return $text;
@@ -58,7 +55,6 @@ class BillTextExtractor
             IMG_BICUBIC
         );
         if ($scaled !== false) {
-            imagedestroy($image);
             $image = $scaled;
         }
         imagefilter($image, IMG_FILTER_GRAYSCALE);

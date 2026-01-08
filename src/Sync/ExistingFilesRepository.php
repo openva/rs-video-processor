@@ -17,26 +17,42 @@ class ExistingFilesRepository implements ExistingVideoKeyProviderInterface
     {
         $keys = [];
 
-        $stmt = $this->queryWithReconnect('SELECT chamber, date, path FROM files');
+        $stmt = $this->queryWithReconnect('SELECT chamber, date, length FROM files');
 
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
             $chamber = $row['chamber'] ?? null;
             $date = $row['date'] ?? null;
-            $path = $row['path'] ?? null;
+            $length = $row['length'] ?? null;
 
-            if ($chamber === null || $date === null || $path === null) {
+            if ($chamber === null || $date === null || $length === null) {
                 continue;
             }
 
-            $keys[$this->buildKey($chamber, $date, $path)] = true;
+            $durationSeconds = $this->parseDuration($length);
+            if ($durationSeconds === null) {
+                continue;
+            }
+
+            $keys[$this->buildKey($chamber, $date, $durationSeconds)] = true;
         }
 
         return $keys;
     }
 
-    private function buildKey(string $chamber, string $date, string $path): string
+    private function buildKey(string $chamber, string $date, int $durationSeconds): string
     {
-        return strtolower($chamber) . '|' . $date . '|' . $path;
+        return strtolower($chamber) . '|' . $date . '|' . $durationSeconds;
+    }
+
+    private function parseDuration(string $length): ?int
+    {
+        $parts = explode(':', $length);
+        if (count($parts) !== 3) {
+            return null;
+        }
+
+        [$hours, $minutes, $seconds] = array_map('intval', $parts);
+        return ($hours * 3600) + ($minutes * 60) + $seconds;
     }
 
     private function queryWithReconnect(string $sql)
