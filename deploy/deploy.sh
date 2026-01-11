@@ -53,7 +53,7 @@ if ! command -v aws &> /dev/null; then
 fi
 
 # Install Python tooling for video downloads.
-python3 -m pip install --upgrade pip
+python3 -m pip install --upgrade pip --break-system-packages
 python3 -m pip install --upgrade -r requirements.txt --break-system-packages
 
 # Ensure user-level scripts (e.g., yt-dlp) are on PATH and available system-wide.
