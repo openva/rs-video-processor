@@ -43,16 +43,14 @@ sudo apt-get install -y \
   imagemagick \
   python3 \
   python3-pip \
-  php8.3-cli \
-  php8.3-mbstring \
-  php8.3-xml \
-  php8.3-curl \
-  php8.3-gd \
-  php8.3-mysql \
-  php8.3-zip \
-  php-memcached \
-  php8.5-mysql \
+  php8.5-cli \
+  php8.5-mbstring \
+  php8.5-xml \
   php8.5-curl \
+  php8.5-gd \
+  php8.5-mysql \
+  php8.5-zip \
+  php-memcached \
   composer
 
 # Install the AWS CLI
