@@ -26,11 +26,22 @@ class ScreenshotFetcher
             }
             return $dest;
         }
+        $normalizedUrl = $this->normalizeUrl($url);
         $dest = tempnam($this->workingDir, 'shot_') . '.jpg';
-        $response = $this->http->get($url, ['sink' => $dest]);
+        $response = $this->http->get($normalizedUrl, ['sink' => $dest]);
         if ($response->getStatusCode() >= 400) {
             throw new RuntimeException('Unable to download screenshot.');
         }
         return $dest;
+    }
+
+    private function normalizeUrl(string $url): string
+    {
+        if (str_starts_with($url, 'http://') || str_starts_with($url, 'https://')) {
+            return $url;
+        }
+        // Strip leading /video from legacy paths
+        $path = preg_replace('#^/video/#', '/', $url);
+        return 'https://video.richmondsunlight.com' . $path;
     }
 }

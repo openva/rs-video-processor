@@ -22,7 +22,8 @@ class ScreenshotManifestLoader
         if (str_starts_with($manifestUrl, 'file://')) {
             $contents = file_get_contents(substr($manifestUrl, 7));
         } else {
-            $response = $this->http->get($manifestUrl);
+            $url = $this->normalizeUrl($manifestUrl);
+            $response = $this->http->get($url);
             if ($response->getStatusCode() >= 400) {
                 throw new RuntimeException('Unable to download screenshot manifest.');
             }
@@ -42,5 +43,15 @@ class ScreenshotManifestLoader
             ];
         }
         return $manifest;
+    }
+
+    private function normalizeUrl(string $url): string
+    {
+        if (str_starts_with($url, 'http://') || str_starts_with($url, 'https://')) {
+            return $url;
+        }
+        // Strip leading /video from legacy paths
+        $path = preg_replace('#^/video/#', '/', $url);
+        return 'https://video.richmondsunlight.com' . $path;
     }
 }
