@@ -15,13 +15,16 @@ class LegislatorDirectory
 
     private function load(): void
     {
-        $sql = 'SELECT id, first_name, nickname, last_name, suffix FROM people';
+        $sql = 'SELECT id, name, name_formal FROM people';
         foreach ($this->pdo->query($sql, PDO::FETCH_ASSOC) as $row) {
+            $fullName = trim((string) ($row['name'] ?? ''));
+            $parts = explode(' ', $fullName, 2);
             $this->entries[] = [
                 'id' => (int) $row['id'],
-                'first' => trim((string) ($row['nickname'] ?: $row['first_name'])),
-                'last' => trim((string) ($row['last_name'] ?? '')),
-                'full' => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')),
+                'first' => $parts[0] ?? '',
+                'last' => $parts[1] ?? '',
+                'full' => $fullName,
+                'formal' => trim((string) ($row['name_formal'] ?? '')),
             ];
         }
     }
