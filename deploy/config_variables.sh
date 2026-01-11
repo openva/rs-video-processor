@@ -16,6 +16,7 @@ variables=(
 	MEMCACHED_SERVER
 	MYSQL_DATABASE
 	SLACK_WEBHOOK
+	OPENAI_KEY
 )
 
 # Iterate over the variables and make sure that they're all populated.
