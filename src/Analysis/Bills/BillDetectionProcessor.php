@@ -24,7 +24,14 @@ class BillDetectionProcessor
             $this->logger?->put('No manifest available for file #' . $job->fileId, 4);
             return;
         }
-        $manifest = $this->manifestLoader->load($job->manifestUrl);
+
+        try {
+            $manifest = $this->manifestLoader->load($job->manifestUrl);
+        } catch (\Throwable $e) {
+            $this->logger?->put('Manifest load failed for file #' . $job->fileId . ': ' . $e->getMessage(), 4);
+            return;
+        }
+
         $crop = $this->chamberConfig->getCrop($job->chamber, $job->eventType);
         if (!$crop) {
             $this->logger?->put('No crop configuration for chamber ' . $job->chamber, 4);
