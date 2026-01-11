@@ -23,6 +23,7 @@ if (!$pdo) {
     throw new RuntimeException('Unable to connect to the database.');
 }
 $pdoFactory = static function () {
+    unset($GLOBALS['db_pdo'], $GLOBALS['db']);
     $db = new \Database();
     return $db->connect();
 };
