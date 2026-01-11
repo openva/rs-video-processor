@@ -12,7 +12,14 @@ $app = require __DIR__ . '/bootstrap.php';
 $log = $app->log;
 $pdo = $app->pdo;
 
-$limit = isset($argv[1]) ? (int) $argv[1] : 2;
+$limit = 2;
+foreach ($argv as $arg) {
+    if (preg_match('/^--limit=(\d+)$/', $arg, $m)) {
+        $limit = (int) $m[1];
+    } elseif (is_numeric($arg)) {
+        $limit = (int) $arg;
+    }
+}
 
 $metadataBuilder = new MetadataBuilder();
 $uploader = new InternetArchiveUploader($log);

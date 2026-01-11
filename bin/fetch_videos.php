@@ -16,7 +16,14 @@ $app = require __DIR__ . '/bootstrap.php';
 $log = $app->log;
 $pdo = $app->pdo;
 
-$limit = isset($argv[1]) ? (int) $argv[1] : 5;
+$limit = 5;
+foreach ($argv as $arg) {
+    if (preg_match('/^--limit=(\d+)$/', $arg, $m)) {
+        $limit = (int) $m[1];
+    } elseif (is_numeric($arg)) {
+        $limit = (int) $arg;
+    }
+}
 
 $s3Client = new S3Client([
     'key' => AWS_ACCESS_KEY,
