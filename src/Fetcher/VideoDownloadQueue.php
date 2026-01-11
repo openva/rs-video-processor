@@ -18,9 +18,13 @@ class VideoDownloadQueue
     {
         $sql = "SELECT id, chamber, committee_id, title, date, path, video_index_cache
             FROM files
-            WHERE (path IS NULL OR path = '' OR path NOT LIKE 'https://s3.amazonaws.com/video.richmondsunlight.com/%')
+            WHERE (path IS NULL OR path = '' OR (
+                path NOT LIKE 'https://s3.amazonaws.com/video.richmondsunlight.com/%'
+                AND path NOT LIKE 'https://archive.org/%'
+            ))
               AND video_index_cache IS NOT NULL
-            ORDER BY date_created ASC
+              AND video_index_cache LIKE '{%'
+            ORDER BY date_created DESC
             LIMIT :limit";
 
         $stmt = $this->pdo->prepare($sql);
