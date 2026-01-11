@@ -42,6 +42,6 @@ php bin/detect_speakers.php
 
 # Step 7: Archive to Internet Archive
 echo "=== Step 7: Archiving videos ==="
-php bin/archive_videos.php
+php bin/upload_archive.php
 
 echo "Pipeline complete at $(date)"
