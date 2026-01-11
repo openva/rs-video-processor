@@ -24,14 +24,19 @@ class HouseScraper implements VideoSourceScraperInterface
 
     public function scrape(): array
     {
+        echo "  Fetching House listing...\n";
         $listing = $this->fetchListing();
+        $events = $this->flattenWeeks($listing);
+        echo "  Found " . count($events) . " House events to process\n";
         $videos = [];
 
-        foreach ($this->flattenWeeks($listing) as $event) {
+        foreach ($events as $i => $event) {
             if (!$this->shouldProcess($event)) {
                 continue;
             }
 
+            $title = $event['Title'] ?? 'Unknown';
+            echo "  [" . ($i + 1) . "/" . count($events) . "] Processing: {$title}\n";
             $detailUrl = $this->buildDetailUrl($event);
             $detailHtml = $this->client->get($detailUrl);
             $videos[] = $this->parseDetailPage($event, $detailUrl, $detailHtml);

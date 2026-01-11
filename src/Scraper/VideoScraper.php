@@ -20,7 +20,11 @@ class VideoScraper
     {
         $records = [];
         foreach ($this->scrapers as $scraper) {
-            $records = array_merge($records, $scraper->scrape());
+            $name = (new \ReflectionClass($scraper))->getShortName();
+            echo "Starting {$name}...\n";
+            $scraped = $scraper->scrape();
+            echo "{$name} complete: " . count($scraped) . " videos found\n";
+            $records = array_merge($records, $scraped);
         }
 
         $path = $this->writer->write($records);

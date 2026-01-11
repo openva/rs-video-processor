@@ -27,6 +27,7 @@ class SenateScraper implements VideoSourceScraperInterface
 
     public function scrape(): array
     {
+        echo "  Fetching Senate listing...\n";
         $listingHtml = $this->client->get($this->listingUrl);
         $dom = $this->createDom($listingHtml);
         $xpath = new DOMXPath($dom);
@@ -36,6 +37,10 @@ class SenateScraper implements VideoSourceScraperInterface
         if ($rows === false) {
             return $results;
         }
+
+        $totalRows = $rows->length;
+        echo "  Found {$totalRows} Senate rows to process\n";
+        $processed = 0;
 
         foreach ($rows as $row) {
             if (!$row instanceof DOMElement) {
@@ -49,6 +54,10 @@ class SenateScraper implements VideoSourceScraperInterface
             if (!$baseRecord) {
                 continue;
             }
+
+            $processed++;
+            $title = $baseRecord['title'] ?? 'Unknown';
+            echo "  [{$processed}/{$totalRows}] Processing: {$title}\n";
 
             $detail = $this->client->get(sprintf(self::DETAIL_URL_TEMPLATE, $clipId));
             $detailData = $this->parseDetail($detail);
