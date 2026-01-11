@@ -19,7 +19,7 @@ class ScreenshotJobQueue
             FROM files
             WHERE path LIKE 'https://s3.amazonaws.com/video.richmondsunlight.com/%'
               AND (capture_directory IS NULL OR capture_directory = '')
-            ORDER BY date_created ASC
+            ORDER BY date_created DESC
             LIMIT :limit";
 
         $stmt = $this->pdo->prepare($sql);

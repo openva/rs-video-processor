@@ -19,7 +19,7 @@ class TranscriptJobQueue
             FROM files f
             WHERE f.path LIKE 'https://s3.amazonaws.com/video.richmondsunlight.com/%'
               AND NOT EXISTS (SELECT 1 FROM video_transcript vt WHERE vt.file_id = f.id)
-            ORDER BY f.date_created ASC
+            ORDER BY f.date_created DESC
             LIMIT :limit";
 
         $stmt = $this->pdo->prepare($sql);

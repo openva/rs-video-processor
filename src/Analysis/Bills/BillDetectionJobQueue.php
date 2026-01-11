@@ -22,7 +22,7 @@ class BillDetectionJobQueue
                 SELECT 1 FROM video_index vi
                 WHERE vi.file_id = f.id AND vi.type = 'bill'
               )
-            ORDER BY f.date_created ASC
+            ORDER BY f.date_created DESC
             LIMIT :limit";
 
         $stmt = $this->pdo->prepare($sql);

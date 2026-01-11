@@ -19,7 +19,7 @@ class ArchiveJobQueue
             FROM files
             WHERE path LIKE 'https://s3.amazonaws.com/video.richmondsunlight.com/%'
               AND (webvtt IS NOT NULL OR srt IS NOT NULL)
-            ORDER BY date_created ASC
+            ORDER BY date_created DESC
             LIMIT :limit";
 
         $stmt = $this->pdo->prepare($sql);
