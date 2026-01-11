@@ -4,7 +4,6 @@
 declare(strict_types=1);
 
 use GuzzleHttp\Client;
-use Log;
 use RichmondSunlight\VideoProcessor\Queue\JobType;
 use RichmondSunlight\VideoProcessor\Transcripts\CaptionParser;
 use RichmondSunlight\VideoProcessor\Transcripts\OpenAITranscriber;

@@ -4,7 +4,6 @@
 declare(strict_types=1);
 
 use GuzzleHttp\Client;
-use Log;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\LegislatorDirectory;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\OpenAIDiarizer;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerJob;

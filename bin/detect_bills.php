@@ -3,7 +3,6 @@
 
 declare(strict_types=1);
 
-use Log;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\AgendaExtractor;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\BillDetectionJob;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\BillDetectionJobQueue;
