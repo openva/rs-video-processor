@@ -22,7 +22,12 @@ class SpeakerDetectionProcessor
         $segments = $this->metadataExtractor->extract($job->metadata);
         if (empty($segments)) {
             $this->logger?->put('No metadata speakers for file #' . $job->fileId . ', running diarization.', 4);
-            $segments = $this->diarizer->diarize($job->videoUrl);
+            try {
+                $segments = $this->diarizer->diarize($job->videoUrl);
+            } catch (\Throwable $e) {
+                $this->logger?->put('Diarization failed for file #' . $job->fileId . ': ' . $e->getMessage(), 4);
+                $segments = [];
+            }
         }
 
         if (empty($segments)) {

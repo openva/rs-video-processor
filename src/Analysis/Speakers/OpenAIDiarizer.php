@@ -20,18 +20,20 @@ class OpenAIDiarizer implements DiarizerInterface
     {
         $audioPath = $this->audioExtractor->extract($videoUrl);
         try {
-            $response = $this->client->request('POST', 'https://api.openai.com/v1/audio/diarize', [
+            $response = $this->client->request('POST', 'https://api.openai.com/v1/audio/transcriptions', [
                 'headers' => [
                     'Authorization' => 'Bearer ' . $this->apiKey,
                 ],
                 'multipart' => [
-                    ['name' => 'model', 'contents' => 'whisper-1'],
+                    ['name' => 'model', 'contents' => 'gpt-4o-transcribe-diarize'],
                     ['name' => 'file', 'contents' => fopen($audioPath, 'r'), 'filename' => basename($audioPath)],
+                    ['name' => 'response_format', 'contents' => 'diarized_json'],
+                    ['name' => 'chunking_strategy', 'contents' => 'auto'],
                 ],
             ]);
             $payload = json_decode((string) $response->getBody(), true);
             if (!isset($payload['segments'])) {
-                throw new RuntimeException('Unexpected response from diarization endpoint.');
+                throw new RuntimeException('Unexpected response from transcription endpoint.');
             }
             $segments = [];
             foreach ($payload['segments'] as $segment) {
