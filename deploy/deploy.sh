@@ -50,6 +50,7 @@ sudo apt-get install -y \
   php8.5-gd \
   php8.5-mysql \
   php8.5-zip \
+  php8.5-intl \
   php-memcached \
   composer
 
