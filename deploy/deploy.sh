@@ -42,6 +42,9 @@ sudo apt-get install -y \
   php8.3-gd \
   php8.3-mysql \
   php8.3-zip \
+  php-memcached \
+  php8.5-mysql \
+  php8.5-curl \
   composer
 
 # Install the AWS CLI
