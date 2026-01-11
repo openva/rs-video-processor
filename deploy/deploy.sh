@@ -7,13 +7,21 @@ cd /home/ubuntu/video-processor/
 # Change the timezone to Eastern
 sudo cp /usr/share/zoneinfo/US/Eastern /etc/localtime
     
+# Ensure root filesystem entry exists in fstab (required for read-write remount on boot)
+if ! grep -q ' / ' /etc/fstab; then
+    ROOT_PARTUUID=$(findmnt -n -o PARTUUID /)
+    if [ -n "$ROOT_PARTUUID" ]; then
+        echo "PARTUUID=$ROOT_PARTUUID   /   ext4   defaults,discard   0   1" | sudo tee -a /etc/fstab
+    fi
+fi
+
 # Add swap space, if it doesn't exist
-if [ "$(grep -c swap /etc/fstab)" -eq "0" ]; then
+if ! grep -q swap /etc/fstab; then
     sudo /bin/dd if=/dev/zero of=/var/swap.1 bs=1M count=1024
     sudo /sbin/mkswap /var/swap.1
     sudo chmod 600 /var/swap.1
     sudo /sbin/swapon /var/swap.1
-    echo "/var/swap.1   swap    swap    defaults        0   0" | sudo tee /etc/fstab
+    echo "/var/swap.1   swap    swap    defaults        0   0" | sudo tee -a /etc/fstab
 fi
 
 # Update the OS and repositories (need ondrej/php for PHP 8.x)
