@@ -16,8 +16,20 @@ class SpeakerDetectionProcessorTest extends TestCase
     public function testUsesMetadataBeforeDiarizer(): void
     {
         $pdo = new PDO('sqlite::memory:');
-        $pdo->exec('CREATE TABLE people (id INTEGER PRIMARY KEY, first_name TEXT, last_name TEXT, nickname TEXT, suffix TEXT)');
-        $pdo->exec("INSERT INTO people (id, first_name, last_name) VALUES (1, 'John', 'Smith')");
+        $pdo->exec('CREATE TABLE people (
+            id INTEGER PRIMARY KEY,
+            shortname TEXT NOT NULL,
+            name TEXT NOT NULL,
+            name_formal TEXT NOT NULL,
+            birthday DATE,
+            race TEXT,
+            sex TEXT,
+            bio TEXT,
+            date_created DATETIME NOT NULL,
+            date_modified TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )');
+        $pdo->exec("INSERT INTO people (id, shortname, name, name_formal, date_created)
+                    VALUES (1, 'smith-j', 'John Smith', 'John A. Smith Jr.', datetime('now'))");
         $pdo->exec('CREATE TABLE video_index (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             file_id INTEGER,
