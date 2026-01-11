@@ -1,0 +1,20 @@
+[Unit]
+Description=Richmond Sunlight Video Processing Pipeline
+After=network-online.target update-from-s3.service
+Wants=network-online.target
+Requires=update-from-s3.service
+ConditionPathExists=/home/ubuntu/video-processor.txt
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/video-processor
+ExecStart=/home/ubuntu/video-processor/deploy/run-pipeline.sh
+ExecStopPost=/home/ubuntu/video-processor/deploy/auto-shutdown.sh
+TimeoutStartSec=infinity
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -9,4 +9,9 @@ services:
       - type: bind
         source: .
         target: /root/video-processor/
+    networks:
+      - rs_video_network
     container_name: rs_video_processor
+
+networks:
+  rs_video_network:

@@ -66,16 +66,33 @@ if [[ -x "$LOCAL_BIN/yt-dlp" ]]; then
 fi
 
 # Install one-shot updater (runs on boot) when enabled via guard file.
+echo "Installing update-from-s3 service..."
 sudo cp deploy/services/update-from-s3.service /etc/systemd/system/update-from-s3.service
 sudo systemctl daemon-reload
 sudo systemctl enable update-from-s3.service
 
-# If this is the instance that will analyze video contents.
+# If this is the video processor instance (guard file present)
 if [[ -f /home/ubuntu/video-processor.txt ]]; then
-  echo "Installing screenshot worker service..."
+  echo "Installing video processing services..."
+
+  # Ensure scripts are executable
+  chmod +x deploy/run-pipeline.sh
+  chmod +x deploy/auto-shutdown.sh
+  chmod +x deploy/update-from-s3.sh
+
+  # Install the video pipeline service (runs after update, then auto-shuts down)
+  sudo cp deploy/services/video-pipeline.service /etc/systemd/system/video-pipeline.service
+
+  # Install the screenshot worker service (optional, for continuous processing)
   sudo cp deploy/services/screenshot-worker.service /etc/systemd/system/screenshot-worker.service
+
   sudo systemctl daemon-reload
-  sudo systemctl enable --now screenshot-worker.service
+
+  # Enable services to run on boot
+  sudo systemctl enable video-pipeline.service
+  sudo systemctl enable screenshot-worker.service
+
+  echo "Video processing services installed and enabled."
 else
-  echo "Skipping screenshot worker service install on this host."
+  echo "Skipping video processing services install on this host (guard file not found)."
 fi
