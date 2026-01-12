@@ -60,7 +60,7 @@ class InternetArchiveUploader
 
     private function ensureConfigExists(): bool
     {
-        $path = getenv('HOME') . '/.config/ia.ini';
+        $path = getenv('HOME') . '/.config/internetarchive/ia.ini';
         if (!file_exists($path)) {
             $this->logger?->put('Internet Archive configuration missing at ' . $path . '. Run `ia configure`.', 6);
             return false;
