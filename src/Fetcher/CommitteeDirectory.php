@@ -82,6 +82,10 @@ class CommitteeDirectory
                 $best = $candidate;
             }
         }
+        // Only accept matches with at least 70% similarity
+        if ($bestScore < 70) {
+            return null;
+        }
         return $best;
     }
 }
