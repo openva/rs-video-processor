@@ -23,7 +23,7 @@ class InternetArchiveUploaderTest extends TestCase
     public function testUploadsWhenConfigExists(): void
     {
         $home = sys_get_temp_dir() . '/ia-home-' . uniqid();
-        mkdir($home . '/.config', 0777, true);
+        mkdir($home . '/.config/internetarchive', 0777, true);
         file_put_contents($home . '/.config/internetarchive/ia.ini', '[s3]\naccess = x\nsecret = y');
         putenv('HOME=' . $home);
 
