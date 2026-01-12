@@ -44,7 +44,7 @@ $mapper = new SpeakerJobPayloadMapper();
 $metadataExtractor = new SpeakerMetadataExtractor();
 $legislators = new LegislatorDirectory($pdo);
 $writer = new SpeakerResultWriter($pdo);
-$httpClient = new Client(['timeout' => 300]);
+$httpClient = new Client(['timeout' => 1800]);
 $diarizer = new OpenAIDiarizer($httpClient, OPENAI_KEY, new AudioExtractor());
 $processor = new SpeakerDetectionProcessor($metadataExtractor, $diarizer, $legislators, $writer, $log);
 

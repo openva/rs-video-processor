@@ -38,7 +38,7 @@ $pdo = $app->pdo;
 $jobQueue = new TranscriptJobQueue($pdo);
 $mapper = new TranscriptJobPayloadMapper();
 $writer = new TranscriptWriter($pdo);
-$httpClient = new Client(['timeout' => 120]);
+$httpClient = new Client(['timeout' => 1800]);
 $transcriber = new OpenAITranscriber($httpClient, OPENAI_KEY);
 $processor = new TranscriptProcessor($writer, $transcriber, new CaptionParser(), null, $log);
 
