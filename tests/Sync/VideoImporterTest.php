@@ -64,13 +64,35 @@ class VideoImporterTest extends TestCase
 
         $this->assertSame(1, $count);
 
-        $rows = $this->pdo->query('SELECT chamber, date, length, sponsor, video_index_cache FROM files')->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $this->pdo->query('SELECT chamber, title, date, length, sponsor, video_index_cache FROM files')->fetchAll(PDO::FETCH_ASSOC);
         $this->assertCount(1, $rows);
         $this->assertSame('house', $rows[0]['chamber']);
+        $this->assertSame('House Appropriations', $rows[0]['title']);
         $this->assertSame('2025-01-31', $rows[0]['date']);
         $this->assertSame('00:55:00', $rows[0]['length']);
         $this->assertSame('Appropriations', $rows[0]['sponsor']);
         $this->assertNotEmpty($rows[0]['video_index_cache']);
+    }
+
+    public function testGeneratesFloorSessionTitles(): void
+    {
+        $directory = new CommitteeDirectory($this->pdo);
+        $importer = new VideoImporter($this->pdo, $directory);
+        $count = $importer->import([
+            [
+                'chamber' => 'senate',
+                'title' => 'Floor Session',
+                'meeting_date' => '2025-02-15',
+                'duration_seconds' => 7200,
+                'event_type' => 'floor',
+                'video_url' => 'https://example.com/floor.mp4',
+            ],
+        ]);
+
+        $this->assertSame(1, $count);
+
+        $row = $this->pdo->query('SELECT title FROM files')->fetch(PDO::FETCH_ASSOC);
+        $this->assertSame('Senate Session', $row['title']);
     }
 
     public function testSkipsInvalidRecords(): void
