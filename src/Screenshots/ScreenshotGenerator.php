@@ -111,7 +111,7 @@ class ScreenshotGenerator
             $filter .= ',scale=' . $width . ':-1';
         }
         $cmd = sprintf(
-            'ffmpeg -y -loglevel error -i %s -vf %s %s/frame_%%05d.jpg',
+            'ffmpeg -y -loglevel error -i %s -vf %s %s/%%05d.jpg',
             escapeshellarg($video),
             escapeshellarg($filter),
             escapeshellarg($outputDir)
