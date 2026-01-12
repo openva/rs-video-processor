@@ -317,7 +317,8 @@ function repairMetadata(
                 ':id' => $row['id'],
             ]);
 
-            echo sprintf("  Updated file #%d: %s, %dx%d, %.2f fps\n",
+            echo sprintf(
+                "  Updated file #%d: %s, %dx%d, %.2f fps\n",
                 $row['id'],
                 $meta['length'] ?? 'unknown',
                 $meta['width'] ?? 0,
