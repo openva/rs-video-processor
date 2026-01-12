@@ -18,12 +18,14 @@ class InternetArchiveUploader
         };
         $this->downloader = $downloader ?? function (string $url): string {
             $temp = tempnam(sys_get_temp_dir(), 'ia_video_');
-            $cmd = sprintf('curl -L %s -o %s', escapeshellarg($url), escapeshellarg($temp));
+            $tempWithExt = $temp . '.mp4';
+            rename($temp, $tempWithExt);
+            $cmd = sprintf('curl -L %s -o %s', escapeshellarg($url), escapeshellarg($tempWithExt));
             exec($cmd, $out, $status);
             if ($status !== 0) {
                 throw new RuntimeException('Unable to download video for Internet Archive.');
             }
-            return $temp;
+            return $tempWithExt;
         };
     }
 
@@ -37,10 +39,10 @@ class InternetArchiveUploader
         $tempFiles = [$videoPath];
         $captions = null;
         if ($job->webvtt) {
-            $captions = $this->writeTempFile($job->webvtt, 'ia_vtt_');
+            $captions = $this->writeTempFile($job->webvtt, 'ia_vtt_', '.vtt');
             $tempFiles[] = $captions;
         } elseif ($job->srt) {
-            $captions = $this->writeTempFile($job->srt, 'ia_srt_');
+            $captions = $this->writeTempFile($job->srt, 'ia_srt_', '.srt');
             $tempFiles[] = $captions;
         }
 
@@ -80,9 +82,14 @@ class InternetArchiveUploader
         return implode(' ', $parts);
     }
 
-    private function writeTempFile(string $contents, string $prefix): string
+    private function writeTempFile(string $contents, string $prefix, string $extension = ''): string
     {
         $path = tempnam(sys_get_temp_dir(), $prefix);
+        if ($extension) {
+            $pathWithExt = $path . $extension;
+            rename($path, $pathWithExt);
+            $path = $pathWithExt;
+        }
         file_put_contents($path, $contents);
         return $path;
     }
