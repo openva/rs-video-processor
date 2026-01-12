@@ -52,6 +52,7 @@ sudo apt-get install -y \
   php8.5-zip \
   php8.5-intl \
   php-memcached \
+  internetarchive \
   composer
 
 # Install the AWS CLI

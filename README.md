@@ -87,3 +87,9 @@ That script ensures the container is running, verifies dependencies, and launche
 * `bin/upload_archive.php --limit=N` — upload S3-hosted files + captions to the Internet Archive, updating the `files` table.
 
 All scripts bootstrap via `bin/bootstrap.php`, which wires up the shared `Log`, PDO connection, and `JobDispatcher`. Use the `--enqueue` flag when running on the lightweight instance so work is pushed to SQS; omit it on the worker to poll/process jobs directly.
+
+## Server setup
+
+* Manually install on Ubuntu EC2 instance in `~/video-processor/`
+* Run `deploy/deploy.sh`
+* Configure the Archive.org setup with `ia configure`
