@@ -23,6 +23,8 @@ class ScreenshotJobQueueTest extends TestCase
         )');
 
         $stmt = $pdo->prepare('INSERT INTO files (chamber, committee_id, title, date, path, capture_directory, date_created) VALUES (:chamber, :committee_id, :title, :date, :path, :capture_directory, :created)');
+
+        // Video with empty capture_directory - needs screenshots
         $stmt->execute([
             ':chamber' => 'house',
             ':committee_id' => null,
@@ -33,11 +35,35 @@ class ScreenshotJobQueueTest extends TestCase
             ':created' => '2025-01-31 12:00:00',
         ]);
 
+        // Video with S3 key path (set by VideoDownloadProcessor) - needs screenshots
+        $stmt->execute([
+            ':chamber' => 'senate',
+            ':committee_id' => null,
+            ':title' => 'Floor',
+            ':date' => '2025-02-01',
+            ':path' => 'https://s3.amazonaws.com/video.richmondsunlight.com/senate/floor/20250201.mp4',
+            ':capture_directory' => 'senate/floor/20250201.mp4',
+            ':created' => '2025-02-01 12:00:00',
+        ]);
+
+        // Video with full screenshot URL - already has screenshots, should be excluded
+        $stmt->execute([
+            ':chamber' => 'house',
+            ':committee_id' => null,
+            ':title' => 'Committee',
+            ':date' => '2025-02-02',
+            ':path' => 'https://s3.amazonaws.com/video.richmondsunlight.com/house/committee/20250202.mp4',
+            ':capture_directory' => 'https://s3.amazonaws.com/video.richmondsunlight.com/house/committee/20250202/screenshots/full/',
+            ':created' => '2025-02-02 12:00:00',
+        ]);
+
         $queue = new ScreenshotJobQueue($pdo);
         $jobs = $queue->fetch();
 
-        $this->assertCount(1, $jobs);
-        $this->assertSame('house', strtolower($jobs[0]->chamber));
-        $this->assertSame('2025-01-31', $jobs[0]->date);
+        $this->assertCount(2, $jobs);
+        $this->assertSame('senate', strtolower($jobs[0]->chamber)); // Newest first (DESC order)
+        $this->assertSame('2025-02-01', $jobs[0]->date);
+        $this->assertSame('house', strtolower($jobs[1]->chamber));
+        $this->assertSame('2025-01-31', $jobs[1]->date);
     }
 }

@@ -18,7 +18,7 @@ class ScreenshotJobQueue
         $sql = "SELECT id, chamber, committee_id, title, date, path, capture_directory
             FROM files
             WHERE path LIKE 'https://s3.amazonaws.com/video.richmondsunlight.com/%'
-              AND (capture_directory IS NULL OR capture_directory = '')
+              AND (capture_directory IS NULL OR capture_directory = '' OR capture_directory NOT LIKE 'https://%')
             ORDER BY date_created DESC
             LIMIT :limit";
 
