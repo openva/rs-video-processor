@@ -52,6 +52,10 @@ class ScreenshotManifestLoader
         }
         // Strip leading /video from legacy paths
         $path = preg_replace('#^/video/#', '/', $url);
+        // Ensure leading slash
+        if (!str_starts_with($path, '/')) {
+            $path = '/' . $path;
+        }
         return 'https://video.richmondsunlight.com' . $path;
     }
 }
