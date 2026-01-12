@@ -20,8 +20,7 @@ class SpeakerResultWriterTest extends TestCase
             type TEXT,
             linked_id INTEGER,
             ignored TEXT,
-            date_created TEXT,
-            new_speaker TEXT
+            date_created TEXT
         )');
         $writer = new SpeakerResultWriter($pdo);
         $writer->write(1, [

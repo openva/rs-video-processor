@@ -20,7 +20,7 @@ class SpeakerResultWriter
             return;
         }
         $now = new DateTimeImmutable('now');
-        $stmt = $this->pdo->prepare('INSERT INTO video_index (file_id, time, screenshot, raw_text, type, linked_id, ignored, date_created, new_speaker) VALUES (:file_id, :time, :shot, :raw, :type, :linked, "n", :created, :new)');
+        $stmt = $this->pdo->prepare('INSERT INTO video_index (file_id, time, screenshot, raw_text, type, linked_id, ignored, date_created) VALUES (:file_id, :time, :shot, :raw, :type, :linked, "n", :created)');
         foreach ($segments as $segment) {
             $stmt->execute([
                 ':file_id' => $fileId,
@@ -30,7 +30,6 @@ class SpeakerResultWriter
                 ':type' => 'legislator',
                 ':linked' => $segment['legislator_id'] ?? null,
                 ':created' => $now->format('Y-m-d H:i:s'),
-                ':new' => 'y',
             ]);
         }
     }

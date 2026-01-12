@@ -39,8 +39,7 @@ class SpeakerDetectionProcessorTest extends TestCase
             type TEXT,
             linked_id INTEGER,
             ignored TEXT,
-            date_created TEXT,
-            new_speaker TEXT
+            date_created TEXT
         )');
 
         $metadataExtractor = new SpeakerMetadataExtractor();

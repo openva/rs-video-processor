@@ -58,7 +58,7 @@ class MetadataIndexer
             return;
         }
 
-        $stmt = $this->pdo->prepare('INSERT INTO video_index (file_id, time, screenshot, raw_text, type, linked_id, ignored, date_created, new_speaker) VALUES (:file_id, :time, :shot, :raw, :type, NULL, "n", :created, "y")');
+        $stmt = $this->pdo->prepare('INSERT INTO video_index (file_id, time, screenshot, raw_text, type, linked_id, ignored, date_created) VALUES (:file_id, :time, :shot, :raw, :type, NULL, "n", :created)');
         foreach ($speakers as $speaker) {
             if (empty($speaker['start_time']) || empty($speaker['name'])) {
                 continue;
