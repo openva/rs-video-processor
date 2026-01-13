@@ -14,7 +14,7 @@ The worker stack mirrors the main `richmondsunlight.com` repo: PHP 8.x, Composer
 
 * **Scraper** (`bin/scrape.php`) — collects House/Senate metadata (floor + committee) and persists JSON snapshots under `storage/scraper/`.
 * **Sync + fetchers** (`bin/fetch_videos.php`, `bin/generate_screenshots.php`) — reconcile scraped data against the `files` table, download MP4s to S3, and create screenshot manifests for downstream analysis.
-* **Analysis workers** (`bin/generate_transcripts.php`, `bin/detect_bills.php`, `bin/detect_speakers.php`) — populate `video_transcript` and `video_index` by parsing captions, OCRing chyrons, and mapping speakers. Each script understands both an enqueue mode (for the lightweight control plane) and a worker mode (for the GPU instance).
+* **Analysis workers** (`bin/generate_transcripts.php`, `bin/detect_bills.php`, `bin/detect_speakers.php`) — populate `video_transcript` and `video_index` by parsing captions, OCRing chyrons, and mapping speakers. Each script understands both an enqueue mode (for the lightweight control plane) and a worker mode (for the GPU instance). Speaker detection uses AWS Transcribe for floor videos (House and Senate floor sessions) but skips diarization for committee videos due to cost constraints.
 * **Archival** (`bin/upload_archive.php`) — pushes S3-hosted assets and captions to the Internet Archive and updates `files.path` with the IA URL.
 
 Job orchestration is handled via `JobDispatcher`. In production the dispatcher speaks to the FIFO queue `rs-video-harvester.fifo` (SQS); in Docker/tests it falls back to an in-memory queue so the full pipeline can run locally without AWS credentials.
@@ -31,13 +31,13 @@ Sample MP4 fixtures are pulled from `video.richmondsunlight.com/fixtures` (see `
 * Composer (for installing/updating dependencies under `includes/vendor`).
 * ffmpeg and curl for screenshot/transcription stages.
 * Docker (optional) for the provided test environment (`docker-run.sh`, `docker-tests.sh`).
-* AWS credentials (staging/production) for S3 + SQS, and OpenAI credentials for transcript/diarization fallbacks.
+* AWS credentials (staging/production) for S3, SQS, and Transcribe (for speaker diarization of floor videos).
 
 Environment constants mirror the main site and are declared in `includes/settings.inc.php`. At minimum define:
 
 * `PDO_DSN`, `PDO_USERNAME`, `PDO_PASSWORD` (point at staging DB for local work).
 * `AWS_ACCESS_KEY`, `AWS_SECRET_KEY`, `AWS_REGION`, `SQS_QUEUE_URL`.
-* `OPENAI_KEY`, `IA_ACCESS_KEY`, `IA_SECRET_KEY`, optional `SLACK_WEBHOOK`.
+* `OPENAI_KEY` (for transcript generation fallback), `IA_ACCESS_KEY`, `IA_SECRET_KEY`, optional `SLACK_WEBHOOK`.
 
 For Docker development, override those values via environment variables or mount a tailored `includes/settings.inc.php`.
 
@@ -92,4 +92,5 @@ All scripts bootstrap via `bin/bootstrap.php`, which wires up the shared `Log`, 
 
 * Manually install on Ubuntu EC2 instance in `~/video-processor/`
 * Run `deploy/deploy.sh`
-* Configure the Archive.org setup with `ia configure`
+* Configure the Archive.org setup on the server with `ia configure`
+* Recommended: Set up a CloudWatch alarm to shut down the instance if it's idle (it could get expensive fast)
