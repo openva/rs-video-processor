@@ -12,7 +12,7 @@ $app = require __DIR__ . '/bootstrap.php';
 $log = $app->log;
 $pdo = $app->pdo;
 
-$limit = 2;
+$limit = 10;
 foreach ($argv as $arg) {
     if (preg_match('/^--limit=(\d+)$/', $arg, $m)) {
         $limit = (int) $m[1];
