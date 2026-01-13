@@ -21,6 +21,14 @@ class TranscriptWriterTest extends TestCase
             legislator_id INTEGER,
             date_created TEXT
         )');
+        $pdo->exec('CREATE TABLE files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            transcript TEXT,
+            webvtt TEXT,
+            date_modified TIMESTAMP
+        )');
+        $pdo->exec('INSERT INTO files (id) VALUES (1)');
+
         $writer = new TranscriptWriter($pdo);
         $writer->write(1, [
             ['start' => 1.0, 'end' => 2.5, 'text' => 'Hello'],
@@ -29,5 +37,12 @@ class TranscriptWriterTest extends TestCase
 
         $count = $pdo->query('SELECT COUNT(*) FROM video_transcript')->fetchColumn();
         $this->assertSame(2, (int) $count);
+
+        // Verify files table is updated
+        $file = $pdo->query('SELECT transcript, webvtt FROM files WHERE id = 1')->fetch(PDO::FETCH_ASSOC);
+        $this->assertSame('Hello World', $file['transcript']);
+        $this->assertStringContainsString('WEBVTT', $file['webvtt']);
+        $this->assertStringContainsString('00:00:01.000 --> 00:00:02.500', $file['webvtt']);
+        $this->assertStringContainsString('Hello', $file['webvtt']);
     }
 }

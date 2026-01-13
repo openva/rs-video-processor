@@ -47,7 +47,43 @@ class VideoDownloadProcessorTest extends TestCase
 
         $record = $pdo->query('SELECT path, capture_directory FROM files WHERE id = 1')->fetch(PDO::FETCH_ASSOC);
         $this->assertSame('https://example.test/senate/floor/20250201.mp4', $record['path']);
-        $this->assertSame('senate/floor/20250201.mp4', $record['capture_directory']);
+        $this->assertEmpty($record['capture_directory']); // capture_directory is set during screenshot generation, not download
+    }
+
+    public function testVideoMetadataIsCaptured(): void
+    {
+        $pdo = $this->createDatabase();
+        $pdo->exec("INSERT INTO files (id, chamber, committee_id, path, capture_directory, date_created, date_modified) VALUES (3, 'house', NULL, '', '', '2025-01-01', '2025-01-01')");
+        $pdo->exec("INSERT INTO committees (id, name, shortname, chamber, parent_id) VALUES (2, 'Appropriations', 'appropriations', 'house', NULL)");
+
+        $storage = new InMemoryStorage();
+        $extractor = new StubMetadataExtractor();
+        $processor = new TestableVideoDownloadProcessor(
+            $pdo,
+            $storage,
+            new CommitteeDirectory($pdo),
+            $extractor,
+            new S3KeyBuilder(),
+            null
+        );
+
+        $job = new VideoDownloadJob(
+            3,
+            'house',
+            null,
+            '2025-04-10',
+            'https://example.com/test.mp4',
+            [],
+            'Test Video'
+        );
+
+        $processor->process($job);
+
+        $record = $pdo->query('SELECT length, width, height, fps FROM files WHERE id = 3')->fetch(PDO::FETCH_ASSOC);
+        $this->assertSame('00:02:00', $record['length']);
+        $this->assertSame(1280, (int) $record['width']);
+        $this->assertSame(720, (int) $record['height']);
+        $this->assertSame(30.0, (float) $record['fps']);
     }
 
     public function testCaptionFileIsStoredWhenProvided(): void

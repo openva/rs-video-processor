@@ -26,6 +26,13 @@ class TranscriptProcessorTest extends TestCase
             legislator_id INTEGER,
             date_created TEXT
         )');
+        $pdo->exec('CREATE TABLE files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            transcript TEXT,
+            webvtt TEXT,
+            date_modified TIMESTAMP
+        )');
+        $pdo->exec('INSERT INTO files (id) VALUES (1)');
 
         $writer = new TranscriptWriter($pdo);
         $parser = new CaptionParser();
@@ -55,6 +62,13 @@ class TranscriptProcessorTest extends TestCase
             legislator_id INTEGER,
             date_created TEXT
         )');
+        $pdo->exec('CREATE TABLE files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            transcript TEXT,
+            webvtt TEXT,
+            date_modified TIMESTAMP
+        )');
+        $pdo->exec('INSERT INTO files (id) VALUES (1)');
 
         $writer = new TranscriptWriter($pdo);
         $parser = new CaptionParser();

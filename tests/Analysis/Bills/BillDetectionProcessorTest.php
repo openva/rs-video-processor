@@ -20,18 +20,18 @@ class BillDetectionProcessorTest extends TestCase
 {
     public function testProcessesManifest(): void
     {
-        $fixture = realpath(__DIR__ . '/../../fixtures/screenshot.jpg');
-        $manifestPath = tempnam(sys_get_temp_dir(), 'manifest');
-        file_put_contents($manifestPath, json_encode([
-            ['timestamp' => 0, 'full' => 'file://' . $fixture, 'thumb' => null]
-        ]));
+        $fixture = __DIR__ . '/../../fixtures/senate-floor.jpg';
+        if (!file_exists($fixture)) {
+            $this->markTestSkipped('Fixture file not found: ' . $fixture);
+        }
 
         $loader = $this->createMock(ScreenshotManifestLoader::class);
         $loader->method('load')->willReturn([
-            ['timestamp' => 0, 'full' => 'file://' . $fixture, 'thumb' => null]
+            ['timestamp' => 0, 'full' => 'https://video.richmondsunlight.com/senate/floor/20250101/screenshots/full/00000.jpg', 'thumb' => null]
         ]);
 
-        $fetcher = new ScreenshotFetcher();
+        $fetcher = $this->createMock(ScreenshotFetcher::class);
+        $fetcher->method('fetch')->willReturn($fixture);
         $ocr = new class implements OcrEngineInterface {
             public function extractText(string $imagePath): string
             {
@@ -70,13 +70,15 @@ class BillDetectionProcessorTest extends TestCase
             'senate',
             null,
             'floor',
-            'https://s3.amazonaws.com/video.richmondsunlight.com/senate/floor/20250101/screenshots/full/',
-            'file://' . $manifestPath,
+            'https://video.richmondsunlight.com/senate/floor/20250101/screenshots/full/',
+            'https://video.richmondsunlight.com/senate/floor/20250101/screenshots/manifest.json',
             null
         );
         $processor->process($job);
 
-        $count = $pdo->query('SELECT COUNT(*) FROM video_index')->fetchColumn();
-        $this->assertSame(1, (int) $count);
+        $row = $pdo->query('SELECT screenshot, raw_text, type FROM video_index')->fetch(PDO::FETCH_ASSOC);
+        $this->assertSame('00000.jpg', $row['screenshot']);
+        $this->assertSame('HB1234', $row['raw_text']);
+        $this->assertSame('bill', $row['type']);
     }
 }
