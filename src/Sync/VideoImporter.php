@@ -39,12 +39,6 @@ class VideoImporter
             )'
         );
 
-        $checkDuplicate = $this->pdo->prepare(
-            'SELECT id FROM files WHERE chamber = :chamber AND date = :date AND ' .
-            '(:committee_id IS NULL AND (committee_id IS NULL OR committee_id = \'\') OR committee_id = :committee_id) ' .
-            'LIMIT 1'
-        );
-
         $count = 0;
         $skipped = 0;
 
@@ -56,13 +50,18 @@ class VideoImporter
             }
 
             // Check if this video already exists
-            $checkDuplicate->execute([
-                ':chamber' => $payload['chamber'],
-                ':date' => $payload['date'],
-                ':committee_id' => $payload['committee_id'],
-            ]);
+            // Handle NULL committee_id separately to avoid SQL issues
+            if ($payload['committee_id'] === null) {
+                $checkSql = 'SELECT id FROM files WHERE chamber = ? AND date = ? AND (committee_id IS NULL OR committee_id = \'\') LIMIT 1';
+                $checkStmt = $this->pdo->prepare($checkSql);
+                $checkStmt->execute([$payload['chamber'], $payload['date']]);
+            } else {
+                $checkSql = 'SELECT id FROM files WHERE chamber = ? AND date = ? AND committee_id = ? LIMIT 1';
+                $checkStmt = $this->pdo->prepare($checkSql);
+                $checkStmt->execute([$payload['chamber'], $payload['date'], $payload['committee_id']]);
+            }
 
-            if ($checkDuplicate->fetch()) {
+            if ($checkStmt->fetch()) {
                 $skipped++;
                 $this->logger?->put(
                     sprintf(
