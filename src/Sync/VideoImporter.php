@@ -70,7 +70,7 @@ class VideoImporter
                         $payload['date'],
                         $payload['title']
                     ),
-                    4
+                    1
                 );
                 continue;
             }
