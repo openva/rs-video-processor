@@ -20,12 +20,11 @@ use GuzzleHttp\Client;
 use RichmondSunlight\VideoProcessor\Fetcher\CommitteeDirectory;
 use RichmondSunlight\VideoProcessor\Fetcher\S3KeyBuilder;
 use RichmondSunlight\VideoProcessor\Fetcher\S3Storage;
-use RichmondSunlight\VideoProcessor\Fetcher\VideoDownloadProcessor;
-use RichmondSunlight\VideoProcessor\Fetcher\VideoDownloadJob;
 use RichmondSunlight\VideoProcessor\Fetcher\VideoMetadataExtractor;
 use RichmondSunlight\VideoProcessor\Screenshots\ScreenshotGenerator;
 use RichmondSunlight\VideoProcessor\Screenshots\ScreenshotJob;
-use RichmondSunlight\VideoProcessor\Transcripts\TranscriptGenerator;
+use RichmondSunlight\VideoProcessor\Transcripts\OpenAITranscriber;
+use RichmondSunlight\VideoProcessor\Transcripts\TranscriptProcessor;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptJob;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptWriter;
 
@@ -226,9 +225,14 @@ function repairTranscripts(
     }
 
     // Initialize transcript dependencies
+    if (!defined('OPENAI_KEY') || OPENAI_KEY === '') {
+        echo "Error: OPENAI_KEY is required for transcript generation.\n";
+        return;
+    }
     $httpClient = new Client(['timeout' => 1800]);
     $writer = new TranscriptWriter($pdo);
-    $generator = new TranscriptGenerator($httpClient, $writer, $log);
+    $transcriber = new OpenAITranscriber($httpClient, OPENAI_KEY);
+    $processor = new TranscriptProcessor($writer, $transcriber, null, null, $log);
 
     foreach ($rows as $row) {
         if ($reset && $specificId !== null) {
@@ -237,6 +241,9 @@ function repairTranscripts(
                 ->execute([':id' => $row['id']]);
             $pdo->prepare('UPDATE files SET transcript = NULL, webvtt = NULL WHERE id = :id')
                 ->execute([':id' => $row['id']]);
+            // Force regeneration by clearing cached caption URLs
+            $row['webvtt'] = null;
+            $row['srt'] = null;
             echo sprintf("Reset transcript data for file #%d\n", $row['id']);
         }
 
@@ -251,7 +258,7 @@ function repairTranscripts(
 
         try {
             echo sprintf("Processing transcript for file #%d...\n", $job->id);
-            $generator->process($job);
+            $processor->process($job);
             echo sprintf("  Completed file #%d\n", $job->id);
         } catch (Throwable $e) {
             echo sprintf("  Failed file #%d: %s\n", $job->id, $e->getMessage());
@@ -299,11 +306,12 @@ function repairMetadata(
     $extractor = new VideoMetadataExtractor();
 
     foreach ($rows as $row) {
+        $tempFile = null;
         try {
             echo sprintf("Extracting metadata for file #%d...\n", $row['id']);
 
             // Download video to temp file
-            $tempFile = tempnam(sys_get_temp_dir(), 'meta_') . '.mp4';
+            $tempFile = sys_get_temp_dir() . '/meta_' . uniqid() . '_' . time() . '.mp4';
             $cmd = sprintf('curl -sL %s -o %s', escapeshellarg($row['path']), escapeshellarg($tempFile));
             exec($cmd, $output, $status);
 
@@ -312,7 +320,6 @@ function repairMetadata(
             }
 
             $meta = $extractor->extract($tempFile);
-            @unlink($tempFile);
 
             $updateSql = 'UPDATE files SET length = :length, width = :width, height = :height, fps = :fps, date_modified = CURRENT_TIMESTAMP WHERE id = :id';
             $updateStmt = $pdo->prepare($updateSql);
@@ -334,6 +341,10 @@ function repairMetadata(
             );
         } catch (Throwable $e) {
             echo sprintf("  Failed file #%d: %s\n", $row['id'], $e->getMessage());
+        } finally {
+            if ($tempFile !== null && file_exists($tempFile)) {
+                @unlink($tempFile);
+            }
         }
     }
 }
@@ -375,7 +386,7 @@ function removeDuplicates(
         $committeeId = $group['committee_id'];
         $count = (int) $group['count'];
 
-        $committeeLabel = $committeeId ? "committee $committeeId" : 'floor';
+        $committeeLabel = ($committeeId !== null && $committeeId !== '') ? "committee $committeeId" : 'floor';
         echo sprintf("Processing: %s %s (%s) - %d copies\n", $chamber, $date, $committeeLabel, $count);
 
         // Get all records in this group
@@ -386,16 +397,19 @@ function removeDuplicates(
                    (SELECT COUNT(*) FROM video_index WHERE file_id = files.id) as index_count
             FROM files
             WHERE chamber = :chamber AND date = :date
-              AND " . ($committeeId ? "committee_id = :committee_id" : "(committee_id IS NULL OR committee_id = '')") . "
+              AND " . (($committeeId !== null && $committeeId !== '') ? "committee_id = :committee_id" : "(committee_id IS NULL OR committee_id = '')") . "
             ORDER BY date_created ASC
         ";
 
         $groupStmt = $pdo->prepare($groupSql);
-        $groupStmt->execute([
+        $params = [
             ':chamber' => $chamber,
             ':date' => $date,
-            ':committee_id' => $committeeId,
-        ]);
+        ];
+        if ($committeeId !== null && $committeeId !== '') {
+            $params[':committee_id'] = $committeeId;
+        }
+        $groupStmt->execute($params);
         $records = $groupStmt->fetchAll(PDO::FETCH_ASSOC);
 
         // Score each record by completeness
