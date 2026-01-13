@@ -16,7 +16,7 @@ $app = require __DIR__ . '/bootstrap.php';
 $log = $app->log;
 $pdo = $app->pdo;
 
-$limit = 5;
+$limit = 20;
 foreach ($argv as $arg) {
     if (preg_match('/^--limit=(\d+)$/', $arg, $m)) {
         $limit = (int) $m[1];
