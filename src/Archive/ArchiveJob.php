@@ -13,7 +13,9 @@ class ArchiveJob
         public ?string $webvtt,
         public ?string $srt,
         public ?string $captureDirectory,
-        public ?string $videoIndexCache
+        public ?string $videoIndexCache,
+        public ?int $committeeId = null,
+        public ?string $committeeName = null
     ) {
     }
 }

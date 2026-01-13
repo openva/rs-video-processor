@@ -39,7 +39,9 @@ class ArchiveJobQueue
                 $row['webvtt'] ?? null,
                 $row['srt'] ?? null,
                 $row['capture_directory'] ?? null,
-                $row['video_index_cache'] ?? null
+                $row['video_index_cache'] ?? null,
+                $row['committee_id'] !== null ? (int) $row['committee_id'] : null,
+                $row['committee_name'] ?? null
             );
         }
 
