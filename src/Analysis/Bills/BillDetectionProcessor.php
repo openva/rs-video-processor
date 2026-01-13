@@ -51,7 +51,8 @@ class BillDetectionProcessor
             if (empty($bills) && !empty($agenda)) {
                 $bills = $this->matchAgenda($agenda, $entry['timestamp']);
             }
-            $this->writer->record($job->fileId, $entry['timestamp'], $bills);
+            $screenshotFilename = basename($entry['full']);
+            $this->writer->record($job->fileId, $entry['timestamp'], $bills, $screenshotFilename);
         }
 
         $this->logger?->put('Finished bill detection for file #' . $job->fileId, 3);

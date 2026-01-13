@@ -119,14 +119,13 @@ class VideoDownloadProcessor
 
     private function updateDatabase(VideoDownloadJob $job, string $s3Url, string $s3Key, array $meta, ?string $caption): void
     {
-        $sql = 'UPDATE files SET path = :path, capture_directory = :dir, length = :length,
+        $sql = 'UPDATE files SET path = :path, length = :length,
             width = :width, height = :height, fps = :fps, webvtt = :webvtt,
             date_modified = CURRENT_TIMESTAMP WHERE id = :id';
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([
             ':path' => $s3Url,
-            ':dir' => $s3Key,
             ':length' => $meta['length'] ?? null,
             ':width' => $meta['width'] ?? null,
             ':height' => $meta['height'] ?? null,

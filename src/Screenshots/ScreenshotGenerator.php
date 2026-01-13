@@ -132,12 +132,11 @@ class ScreenshotGenerator
 
     private function updateDatabase(ScreenshotJob $job, string $prefix, string $manifestUrl): void
     {
-        $publicBase = 'https://s3.amazonaws.com/video.richmondsunlight.com/';
-        $fullPath = $publicBase . trim($prefix, '/') . '/full/';
-        $sql = 'UPDATE files SET capture_directory = :dir, capture_rate = 1, date_modified = CURRENT_TIMESTAMP WHERE id = :id';
+        $directory = '/' . trim($prefix, '/') . '/';
+        $sql = 'UPDATE files SET capture_directory = :dir, capture_rate = 60, date_modified = CURRENT_TIMESTAMP WHERE id = :id';
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute([
-            ':dir' => $fullPath,
+            ':dir' => $directory,
             ':id' => $job->id,
         ]);
 

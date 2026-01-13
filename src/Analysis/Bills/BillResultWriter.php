@@ -11,7 +11,7 @@ class BillResultWriter
     {
     }
 
-    public function record(int $fileId, int $timestamp, array $bills): void
+    public function record(int $fileId, int $timestamp, array $bills, string $screenshotFilename): void
     {
         if (empty($bills)) {
             return;
@@ -22,7 +22,7 @@ class BillResultWriter
             $stmt->execute([
                 ':file_id' => $fileId,
                 ':time' => $this->formatTimestamp($timestamp),
-                ':screenshot' => sprintf('bill-%s', $bill),
+                ':screenshot' => $screenshotFilename,
                 ':raw_text' => $bill,
                 ':type' => 'bill',
                 ':created' => $now->format('Y-m-d H:i:s'),

@@ -18,6 +18,7 @@ class BillDetectionJobQueue
         $sql = "SELECT f.id, f.chamber, f.committee_id, f.capture_directory, f.video_index_cache
             FROM files f
             WHERE f.capture_directory IS NOT NULL AND f.capture_directory != ''
+              AND (f.capture_directory LIKE '/%' OR f.capture_directory LIKE 'https://%')
               AND NOT EXISTS (
                 SELECT 1 FROM video_index vi
                 WHERE vi.file_id = f.id AND vi.type = 'bill'
@@ -66,10 +67,24 @@ class BillDetectionJobQueue
         if ($captureDirectory === '') {
             return null;
         }
-        $base = rtrim($captureDirectory, '/');
-        if (str_ends_with($base, '/full')) {
-            $base = substr($base, 0, -strlen('/full'));
+
+        // Handle old format: full S3 URL
+        if (str_starts_with($captureDirectory, 'https://')) {
+            $base = rtrim($captureDirectory, '/');
+            if (str_ends_with($base, '/full')) {
+                $base = substr($base, 0, -strlen('/full'));
+            }
+            return $base . '/manifest.json';
         }
-        return $base . '/manifest.json';
+
+        // Handle new format: directory path like /senate/floor/20250111/screenshots/
+        $path = trim($captureDirectory, '/');
+        if (str_ends_with($path, '/full')) {
+            $path = substr($path, 0, -strlen('/full'));
+        }
+        return sprintf(
+            'https://video.richmondsunlight.com/%s/manifest.json',
+            $path
+        );
     }
 }
