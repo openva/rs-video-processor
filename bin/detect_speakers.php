@@ -3,10 +3,10 @@
 
 declare(strict_types=1);
 
-use GuzzleHttp\Client;
+use Aws\S3\S3Client;
+use Aws\TranscribeService\TranscribeServiceClient;
+use RichmondSunlight\VideoProcessor\Analysis\Speakers\AwsTranscribeDiarizer;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\LegislatorDirectory;
-use RichmondSunlight\VideoProcessor\Analysis\Speakers\OpenAIDiarizer;
-use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerJob;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerDetectionProcessor;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerJobQueue;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerJobPayloadMapper;
@@ -16,11 +16,6 @@ use RichmondSunlight\VideoProcessor\Queue\JobType;
 use RichmondSunlight\VideoProcessor\Transcripts\AudioExtractor;
 
 $app = require __DIR__ . '/bootstrap.php';
-
-if (!defined('OPENAI_KEY') || OPENAI_KEY === '') {
-    fwrite(STDERR, "OPENAI_KEY is not defined.\n");
-    exit(1);
-}
 
 $options = getopt('', ['limit::', 'enqueue']);
 $limit = isset($options['limit']) ? (int) $options['limit'] : 3;
@@ -44,8 +39,25 @@ $mapper = new SpeakerJobPayloadMapper();
 $metadataExtractor = new SpeakerMetadataExtractor();
 $legislators = new LegislatorDirectory($pdo);
 $writer = new SpeakerResultWriter($pdo);
-$httpClient = new Client(['timeout' => 1800]);
-$diarizer = new OpenAIDiarizer($httpClient, OPENAI_KEY, new AudioExtractor());
+
+$s3Client = new S3Client([
+    'key' => AWS_ACCESS_KEY,
+    'secret' => AWS_SECRET_KEY,
+    'region' => AWS_REGION,
+    'version' => '2006-03-01',
+]);
+
+$transcribeClient = new TranscribeServiceClient([
+    'credentials' => [
+        'key' => AWS_ACCESS_KEY,
+        'secret' => AWS_SECRET_KEY,
+    ],
+    'region' => AWS_REGION,
+    'version' => '2017-10-26',
+]);
+
+$bucket = 'video.richmondsunlight.com';
+$diarizer = new AwsTranscribeDiarizer($transcribeClient, $s3Client, $bucket, new AudioExtractor());
 $processor = new SpeakerDetectionProcessor($metadataExtractor, $diarizer, $legislators, $writer, $log);
 
 if ($mode === 'enqueue') {

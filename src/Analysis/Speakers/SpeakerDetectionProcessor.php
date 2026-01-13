@@ -21,12 +21,17 @@ class SpeakerDetectionProcessor
     {
         $segments = $this->metadataExtractor->extract($job->metadata);
         if (empty($segments)) {
-            $this->logger?->put('No metadata speakers for file #' . $job->fileId . ', running diarization.', 4);
-            try {
-                $segments = $this->diarizer->diarize($job->videoUrl);
-            } catch (\Throwable $e) {
-                $this->logger?->put('Diarization failed for file #' . $job->fileId . ': ' . $e->getMessage(), 4);
-                $segments = [];
+            // Only diarize floor videos (not committee videos)
+            if ($this->isFloorVideo($job->metadata)) {
+                $this->logger?->put('No metadata speakers for file #' . $job->fileId . ', running diarization (floor video).', 4);
+                try {
+                    $segments = $this->diarizer->diarize($job->videoUrl);
+                } catch (\Throwable $e) {
+                    $this->logger?->put('Diarization failed for file #' . $job->fileId . ': ' . $e->getMessage(), 4);
+                    $segments = [];
+                }
+            } else {
+                $this->logger?->put('Skipping diarization for file #' . $job->fileId . ' (committee video).', 4);
             }
         }
 
@@ -46,5 +51,18 @@ class SpeakerDetectionProcessor
 
         $this->writer->write($job->fileId, $mapped);
         $this->logger?->put('Stored speaker data for file #' . $job->fileId, 3);
+    }
+
+    private function isFloorVideo(?array $metadata): bool
+    {
+        if ($metadata === null) {
+            return false;
+        }
+
+        // Floor videos have no committee_name, or event_type is explicitly 'floor'
+        $committeeName = $metadata['committee_name'] ?? null;
+        $eventType = strtolower($metadata['event_type'] ?? 'floor');
+
+        return empty($committeeName) && $eventType === 'floor';
     }
 }

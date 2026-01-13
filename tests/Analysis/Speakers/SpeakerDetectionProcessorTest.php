@@ -15,6 +15,76 @@ class SpeakerDetectionProcessorTest extends TestCase
 {
     public function testUsesMetadataBeforeDiarizer(): void
     {
+        $pdo = $this->createTestDatabase();
+
+        $metadataExtractor = new SpeakerMetadataExtractor();
+        $diarizer = $this->createMock(DiarizerInterface::class);
+        $diarizer->expects($this->never())->method('diarize');
+        $legislators = new LegislatorDirectory($pdo);
+        $writer = new SpeakerResultWriter($pdo);
+        $processor = new SpeakerDetectionProcessor($metadataExtractor, $diarizer, $legislators, $writer, null);
+
+        $job = new SpeakerJob(1, 'house', 'file://example', ['Speakers' => [['text' => 'Smith', 'startTime' => '00:00:10']]]);
+        $processor->process($job);
+
+        $count = $pdo->query('SELECT COUNT(*) FROM video_index')->fetchColumn();
+        $this->assertSame(1, (int) $count);
+    }
+
+    public function testSkipsCommitteeVideosWhenNoMetadata(): void
+    {
+        $pdo = $this->createTestDatabase();
+
+        $metadataExtractor = new SpeakerMetadataExtractor();
+        $diarizer = $this->createMock(DiarizerInterface::class);
+        $diarizer->expects($this->never())->method('diarize');
+        $legislators = new LegislatorDirectory($pdo);
+        $writer = new SpeakerResultWriter($pdo);
+        $processor = new SpeakerDetectionProcessor($metadataExtractor, $diarizer, $legislators, $writer, null);
+
+        $job = new SpeakerJob(
+            1,
+            'house',
+            'file://example',
+            ['event_type' => 'committee', 'committee_name' => 'Finance Committee']
+        );
+        $processor->process($job);
+
+        $count = $pdo->query('SELECT COUNT(*) FROM video_index')->fetchColumn();
+        $this->assertSame(0, (int) $count);
+    }
+
+    public function testDiarizesFloorVideosWhenNoMetadata(): void
+    {
+        $pdo = $this->createTestDatabase();
+
+        $metadataExtractor = new SpeakerMetadataExtractor();
+        $diarizer = $this->createMock(DiarizerInterface::class);
+        $diarizer->expects($this->once())
+            ->method('diarize')
+            ->with('file://example')
+            ->willReturn([
+                ['name' => 'Speaker_00', 'start' => 0.0],
+                ['name' => 'Speaker_01', 'start' => 10.0],
+            ]);
+        $legislators = new LegislatorDirectory($pdo);
+        $writer = new SpeakerResultWriter($pdo);
+        $processor = new SpeakerDetectionProcessor($metadataExtractor, $diarizer, $legislators, $writer, null);
+
+        $job = new SpeakerJob(
+            1,
+            'house',
+            'file://example',
+            ['event_type' => 'floor', 'committee_name' => null]
+        );
+        $processor->process($job);
+
+        $count = $pdo->query('SELECT COUNT(*) FROM video_index')->fetchColumn();
+        $this->assertSame(2, (int) $count);
+    }
+
+    private function createTestDatabase(): PDO
+    {
         $pdo = new PDO('sqlite::memory:');
         $pdo->exec('CREATE TABLE people (
             id INTEGER PRIMARY KEY,
@@ -41,18 +111,6 @@ class SpeakerDetectionProcessorTest extends TestCase
             ignored TEXT,
             date_created TEXT
         )');
-
-        $metadataExtractor = new SpeakerMetadataExtractor();
-        $diarizer = $this->createMock(DiarizerInterface::class);
-        $diarizer->expects($this->never())->method('diarize');
-        $legislators = new LegislatorDirectory($pdo);
-        $writer = new SpeakerResultWriter($pdo);
-        $processor = new SpeakerDetectionProcessor($metadataExtractor, $diarizer, $legislators, $writer, null);
-
-        $job = new SpeakerJob(1, 'house', 'file://example', ['Speakers' => [['text' => 'Smith', 'startTime' => '00:00:10']]]);
-        $processor->process($job);
-
-        $count = $pdo->query('SELECT COUNT(*) FROM video_index')->fetchColumn();
-        $this->assertSame(1, (int) $count);
+        return $pdo;
     }
 }
