@@ -52,7 +52,7 @@ $stages = [
         'description' => 'Videos with source URL but not yet downloaded to S3',
         'query' => "SELECT id FROM files
             WHERE (path IS NULL OR path = '' OR (
-                path NOT LIKE 'https://s3.amazonaws.com/video.richmondsunlight.com/%'
+                path NOT LIKE 'https://video.richmondsunlight.com/%'
                 AND path NOT LIKE 'https://archive.org/%'
             ))
             AND video_index_cache IS NOT NULL
@@ -63,7 +63,7 @@ $stages = [
         'label' => 'Pending Screenshots',
         'description' => 'Videos on S3 but screenshots not generated',
         'query' => "SELECT id FROM files
-            WHERE path LIKE 'https://s3.amazonaws.com/video.richmondsunlight.com/%'
+            WHERE path LIKE 'https://video.richmondsunlight.com/%'
             AND (capture_directory IS NULL OR capture_directory = ''
                  OR (capture_directory NOT LIKE '/%' AND capture_directory NOT LIKE 'https://%'))
             ORDER BY date_created DESC",
@@ -72,7 +72,7 @@ $stages = [
         'label' => 'Pending Transcripts',
         'description' => 'Videos on S3 but no transcript in video_transcript table',
         'query' => "SELECT f.id FROM files f
-            WHERE f.path LIKE 'https://s3.amazonaws.com/video.richmondsunlight.com/%'
+            WHERE f.path LIKE 'https://video.richmondsunlight.com/%'
             AND NOT EXISTS (SELECT 1 FROM video_transcript vt WHERE vt.file_id = f.id)
             ORDER BY f.date_created DESC",
     ],
@@ -89,7 +89,7 @@ $stages = [
         'label' => 'Pending Speaker Detection',
         'description' => 'Videos on S3 but no speaker detection in video_index',
         'query' => "SELECT f.id FROM files f
-            WHERE f.path LIKE 'https://s3.amazonaws.com/video.richmondsunlight.com/%'
+            WHERE f.path LIKE 'https://video.richmondsunlight.com/%'
             AND NOT EXISTS (SELECT 1 FROM video_index vi WHERE vi.file_id = f.id AND vi.type = 'legislator')
             ORDER BY f.date_created DESC",
     ],
@@ -97,7 +97,7 @@ $stages = [
         'label' => 'Ready for Archive.org',
         'description' => 'Videos on S3 with transcripts, ready for archive.org upload',
         'query' => "SELECT f.id FROM files f
-            WHERE f.path LIKE 'https://s3.amazonaws.com/video.richmondsunlight.com/%'
+            WHERE f.path LIKE 'https://video.richmondsunlight.com/%'
             AND (f.webvtt IS NOT NULL OR f.srt IS NOT NULL)
             ORDER BY f.date_created DESC",
     ],
@@ -105,7 +105,7 @@ $stages = [
 
 // Get total counts
 $totalFiles = (int) $pdo->query('SELECT COUNT(*) FROM files')->fetchColumn();
-$s3Files = (int) $pdo->query("SELECT COUNT(*) FROM files WHERE path LIKE 'https://s3.amazonaws.com/video.richmondsunlight.com/%'")->fetchColumn();
+$s3Files = (int) $pdo->query("SELECT COUNT(*) FROM files WHERE path LIKE 'https://video.richmondsunlight.com/%'")->fetchColumn();
 $archivedFiles = (int) $pdo->query("SELECT COUNT(*) FROM files WHERE path LIKE 'https://archive.org/%'")->fetchColumn();
 
 echo "\n=== Video Processing Pipeline Status ===\n\n";
@@ -147,8 +147,8 @@ foreach ($stages as $key => $stage) {
 echo "=== Data Quality Checks ===\n\n";
 
 $qualityChecks = [
-    'Missing length' => "SELECT COUNT(*) FROM files WHERE path LIKE 'https://s3.amazonaws.com/%' AND (length IS NULL OR length = '')",
-    'Missing dimensions' => "SELECT COUNT(*) FROM files WHERE path LIKE 'https://s3.amazonaws.com/%' AND (width IS NULL OR height IS NULL)",
+    'Missing length' => "SELECT COUNT(*) FROM files WHERE path LIKE 'https://video.richmondsunlight.com/%' AND (length IS NULL OR length = '')",
+    'Missing dimensions' => "SELECT COUNT(*) FROM files WHERE path LIKE 'https://video.richmondsunlight.com/%' AND (width IS NULL OR height IS NULL)",
     'Missing title' => "SELECT COUNT(*) FROM files WHERE title IS NULL OR title = ''",
     'Missing chamber' => "SELECT COUNT(*) FROM files WHERE chamber IS NULL OR chamber = ''",
     'Missing date' => "SELECT COUNT(*) FROM files WHERE date IS NULL OR date = ''",

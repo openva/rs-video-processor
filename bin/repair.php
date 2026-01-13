@@ -124,7 +124,7 @@ function repairScreenshots(
     } else {
         $sql = "SELECT id, chamber, committee_id, title, date, path, capture_directory
             FROM files
-            WHERE path LIKE 'https://s3.amazonaws.com/video.richmondsunlight.com/%'
+            WHERE path LIKE 'https://video.richmondsunlight.com/%'
             AND (capture_directory IS NULL OR capture_directory = ''
                  OR (capture_directory NOT LIKE '/%' AND capture_directory NOT LIKE 'https://%'))
             ORDER BY date_created DESC
@@ -194,7 +194,7 @@ function repairTranscripts(
     } else {
         $sql = "SELECT f.id, f.chamber, f.path, f.webvtt, f.srt, f.title
             FROM files f
-            WHERE f.path LIKE 'https://s3.amazonaws.com/video.richmondsunlight.com/%'
+            WHERE f.path LIKE 'https://video.richmondsunlight.com/%'
             AND NOT EXISTS (SELECT 1 FROM video_transcript vt WHERE vt.file_id = f.id)
             ORDER BY f.date_created DESC
             LIMIT :limit";
@@ -265,7 +265,7 @@ function repairMetadata(
         $stmt->execute([':id' => $specificId]);
     } else {
         $sql = "SELECT id, path, title FROM files
-            WHERE path LIKE 'https://s3.amazonaws.com/video.richmondsunlight.com/%'
+            WHERE path LIKE 'https://video.richmondsunlight.com/%'
             AND (length IS NULL OR length = '' OR width IS NULL OR height IS NULL)
             ORDER BY date_created DESC
             LIMIT :limit";
