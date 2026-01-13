@@ -105,6 +105,14 @@ class VideoImporter
         $committeeEntry = $committeeName ? $this->committees->matchEntry($committeeName, $chamber, $eventType === 'subcommittee' ? 'subcommittee' : 'committee') : null;
         $committeeId = $committeeEntry['id'] ?? null;
 
+        // Build descriptive title
+        $chamberName = ucfirst($chamber);
+        if ($committeeName) {
+            $title = sprintf('%s %s', $chamberName, $committeeName);
+        } else {
+            $title = sprintf('%s Session', $chamberName);
+        }
+
         return [
             'chamber' => $chamber,
             'committee_id' => $committeeId,
