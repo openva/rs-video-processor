@@ -17,7 +17,7 @@ class TranscriptJobQueue
     {
         $sql = "SELECT f.id, f.chamber, f.path, f.webvtt, f.srt, f.title
             FROM files f
-            WHERE f.path LIKE 'https://s3.amazonaws.com/video.richmondsunlight.com/%'
+            WHERE f.path LIKE 'https://video.richmondsunlight.com/%'
               AND NOT EXISTS (SELECT 1 FROM video_transcript vt WHERE vt.file_id = f.id)
             ORDER BY f.date_created DESC
             LIMIT :limit";

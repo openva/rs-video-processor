@@ -42,7 +42,7 @@ class InternetArchiveUploaderTest extends TestCase
             }
         );
 
-        $job = new ArchiveJob(1, 'house', 'Test Video', '2025-01-01', 'https://s3.amazonaws.com/video.richmondsunlight.com/house/floor/file.mp4', 'WEBVTT', null, null, null);
+        $job = new ArchiveJob(1, 'house', 'Test Video', '2025-01-01', 'https://video.richmondsunlight.com/house/floor/file.mp4', 'WEBVTT', null, null, null);
         $metadata = ['title' => 'Test Video'];
         $result = $uploader->upload($job, $metadata);
 
@@ -58,7 +58,7 @@ class InternetArchiveUploaderTest extends TestCase
 
         $logger = new TestLogger();
         $uploader = new InternetArchiveUploader($logger);
-        $job = new ArchiveJob(1, 'house', 'Test Video', '2025-01-01', 'https://s3.amazonaws.com/video.richmondsunlight.com/house/floor/file.mp4', null, null, null, null);
+        $job = new ArchiveJob(1, 'house', 'Test Video', '2025-01-01', 'https://video.richmondsunlight.com/house/floor/file.mp4', null, null, null, null);
         $result = $uploader->upload($job, ['title' => 'Test']);
 
         $this->assertNull($result);

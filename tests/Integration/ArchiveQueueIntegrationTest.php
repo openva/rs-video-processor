@@ -12,7 +12,7 @@ class ArchiveQueueIntegrationTest extends TestCase
 {
     public function testDispatchAndReceiveArchiveJob(): void
     {
-        $job = new ArchiveJob(3, 'senate', 'Floor Session', '2025-03-01', 'https://s3.amazonaws.com/video/20250301.mp4', 'WEBVTT', null, 'captures/20250301', '{}');
+        $job = new ArchiveJob(3, 'senate', 'Floor Session', '2025-03-01', 'https://video.richmondsunlight.com/senate/floor/20250301.mp4', 'WEBVTT', null, 'captures/20250301', '{}');
         $mapper = new ArchiveJobPayloadMapper();
         $dispatcher = new JobDispatcher(new InMemoryQueue());
 

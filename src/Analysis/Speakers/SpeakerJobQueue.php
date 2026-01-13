@@ -17,7 +17,7 @@ class SpeakerJobQueue
     {
         $sql = "SELECT f.id, f.chamber, f.path, f.video_index_cache
             FROM files f
-            WHERE f.path LIKE 'https://s3.amazonaws.com/video.richmondsunlight.com/%'
+            WHERE f.path LIKE 'https://video.richmondsunlight.com/%'
               AND NOT EXISTS (
                 SELECT 1 FROM video_index vi
                 WHERE vi.file_id = f.id AND vi.type = 'legislator'

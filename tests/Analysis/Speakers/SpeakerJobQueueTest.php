@@ -25,7 +25,7 @@ class SpeakerJobQueueTest extends TestCase
         )');
         $pdo->prepare('INSERT INTO files (chamber, path, video_index_cache, date_created) VALUES ("house", :path, :cache, "2025-01-01")')
             ->execute([
-                ':path' => 'https://s3.amazonaws.com/video.richmondsunlight.com/house/floor/20250101.mp4',
+                ':path' => 'https://video.richmondsunlight.com/house/floor/20250101.mp4',
                 ':cache' => json_encode(['Speakers' => []]),
             ]);
         $queue = new SpeakerJobQueue($pdo);

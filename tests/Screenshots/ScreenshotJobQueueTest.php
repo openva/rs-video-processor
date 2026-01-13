@@ -30,7 +30,7 @@ class ScreenshotJobQueueTest extends TestCase
             ':committee_id' => null,
             ':title' => 'Floor',
             ':date' => '2025-01-31',
-            ':path' => 'https://s3.amazonaws.com/video.richmondsunlight.com/house/floor/20250131.mp4',
+            ':path' => 'https://video.richmondsunlight.com/house/floor/20250131.mp4',
             ':capture_directory' => '',
             ':created' => '2025-01-31 12:00:00',
         ]);
@@ -41,7 +41,7 @@ class ScreenshotJobQueueTest extends TestCase
             ':committee_id' => null,
             ':title' => 'Floor',
             ':date' => '2025-02-01',
-            ':path' => 'https://s3.amazonaws.com/video.richmondsunlight.com/senate/floor/20250201.mp4',
+            ':path' => 'https://video.richmondsunlight.com/senate/floor/20250201.mp4',
             ':capture_directory' => 'senate/floor/20250201.mp4',
             ':created' => '2025-02-01 12:00:00',
         ]);
@@ -52,8 +52,8 @@ class ScreenshotJobQueueTest extends TestCase
             ':committee_id' => null,
             ':title' => 'Committee',
             ':date' => '2025-02-02',
-            ':path' => 'https://s3.amazonaws.com/video.richmondsunlight.com/house/committee/20250202.mp4',
-            ':capture_directory' => 'https://s3.amazonaws.com/video.richmondsunlight.com/house/committee/20250202/screenshots/full/',
+            ':path' => 'https://video.richmondsunlight.com/house/committee/20250202.mp4',
+            ':capture_directory' => 'https://video.richmondsunlight.com/house/committee/20250202/screenshots/full/',
             ':created' => '2025-02-02 12:00:00',
         ]);
 

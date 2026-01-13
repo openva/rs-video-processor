@@ -15,11 +15,13 @@ class ArchiveJobQueue
      */
     public function fetch(int $limit = 3): array
     {
-        $sql = "SELECT id, chamber, title, date, path, webvtt, srt, capture_directory, video_index_cache
-            FROM files
-            WHERE path LIKE 'https://s3.amazonaws.com/video.richmondsunlight.com/%'
-              AND (webvtt IS NOT NULL OR srt IS NOT NULL)
-            ORDER BY date_created DESC
+        $sql = "SELECT f.id, f.chamber, f.title, f.date, f.path, f.webvtt, f.srt,
+                       f.capture_directory, f.video_index_cache, f.committee_id, c.name as committee_name
+            FROM files f
+            LEFT JOIN committees c ON f.committee_id = c.id
+            WHERE f.path LIKE 'https://video.richmondsunlight.com/%'
+              AND (f.webvtt IS NOT NULL OR f.srt IS NOT NULL)
+            ORDER BY f.date_created DESC
             LIMIT :limit";
 
         $stmt = $this->pdo->prepare($sql);

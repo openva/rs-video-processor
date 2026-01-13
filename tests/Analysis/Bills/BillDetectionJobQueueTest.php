@@ -26,7 +26,7 @@ class BillDetectionJobQueueTest extends TestCase
         )');
         $pdo->prepare('INSERT INTO files (chamber, committee_id, capture_directory, video_index_cache, date_created) VALUES ("house", 123, :dir, :cache, "2025-01-01")')
             ->execute([
-                ':dir' => 'https://s3.amazonaws.com/video.richmondsunlight.com/house/floor/20250101/screenshots/full/',
+                ':dir' => 'https://video.richmondsunlight.com/house/floor/20250101/screenshots/full/',
                 ':cache' => json_encode(['AgendaTree' => []]),
             ]);
         $queue = new BillDetectionJobQueue($pdo);

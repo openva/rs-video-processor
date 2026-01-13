@@ -29,7 +29,7 @@ class TranscriptJobQueueTest extends TestCase
         )');
 
         $pdo->prepare('INSERT INTO files (chamber, title, path, webvtt, srt, date_created) VALUES ("house", "Test", :path, "", "", "2025-01-01")')->execute([
-            ':path' => 'https://s3.amazonaws.com/video.richmondsunlight.com/house/floor/20250101.mp4',
+            ':path' => 'https://video.richmondsunlight.com/house/floor/20250101.mp4',
         ]);
 
         $queue = new TranscriptJobQueue($pdo);

@@ -15,14 +15,14 @@ class ArchiveJobProcessorTest extends TestCase
     public function testProcessesJobsAndUpdatesDatabase(): void
     {
         $pdo = $this->createDatabase();
-        $pdo->exec("INSERT INTO files (id, path) VALUES (1, 'https://s3.amazonaws.com/video.richmondsunlight.com/house/floor/file.mp4')");
+        $pdo->exec("INSERT INTO files (id, path) VALUES (1, 'https://video.richmondsunlight.com/house/floor/file.mp4')");
 
         $job = new ArchiveJob(
             1,
             'house',
             'Floor Session',
             '2025-01-01',
-            'https://s3.amazonaws.com/video.richmondsunlight.com/house/floor/file.mp4',
+            'https://video.richmondsunlight.com/house/floor/file.mp4',
             'WEBVTT',
             null,
             null,
