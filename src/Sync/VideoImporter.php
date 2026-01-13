@@ -39,12 +39,40 @@ class VideoImporter
             )'
         );
 
+        $checkDuplicate = $this->pdo->prepare(
+            'SELECT id FROM files WHERE chamber = :chamber AND date = :date AND ' .
+            '(:committee_id IS NULL AND (committee_id IS NULL OR committee_id = \'\') OR committee_id = :committee_id) ' .
+            'LIMIT 1'
+        );
+
         $count = 0;
+        $skipped = 0;
 
         foreach ($records as $record) {
             $payload = $this->buildPayload($record);
             if ($payload === null) {
                 $this->logger?->put('Skipping record with insufficient metadata for insertion', 4);
+                continue;
+            }
+
+            // Check if this video already exists
+            $checkDuplicate->execute([
+                ':chamber' => $payload['chamber'],
+                ':date' => $payload['date'],
+                ':committee_id' => $payload['committee_id'],
+            ]);
+
+            if ($checkDuplicate->fetch()) {
+                $skipped++;
+                $this->logger?->put(
+                    sprintf(
+                        'Skipping duplicate: %s %s %s',
+                        $payload['chamber'],
+                        $payload['date'],
+                        $payload['title']
+                    ),
+                    4
+                );
                 continue;
             }
 
@@ -69,6 +97,10 @@ class VideoImporter
             }
 
             $count++;
+        }
+
+        if ($skipped > 0) {
+            $this->logger?->put(sprintf('Skipped %d duplicate record(s)', $skipped), 3);
         }
 
         return $count;

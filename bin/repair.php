@@ -49,7 +49,7 @@ Usage:
   php bin/repair.php --stage=NAME [options]
 
 Required:
-  --stage=NAME    Stage to repair (screenshots, transcripts, metadata)
+  --stage=NAME    Stage to repair (screenshots, transcripts, metadata, duplicates)
 
 Options:
   --limit=N       Maximum number of records to process (default: 10)
@@ -62,17 +62,20 @@ Stages:
   screenshots   Re-generate screenshots for videos missing capture_directory
   transcripts   Re-generate transcripts for videos missing transcript data
   metadata      Re-extract video metadata (length, dimensions, fps) from S3 videos
+  duplicates    Remove duplicate video records (keeps most complete copy)
 
 Examples:
   php bin/repair.php --stage=screenshots --limit=5
   php bin/repair.php --stage=transcripts --id=12345 --reset
   php bin/repair.php --stage=metadata --dry-run
+  php bin/repair.php --stage=duplicates --dry-run
+  php bin/repair.php --stage=duplicates --limit=100
 
 HELP;
     exit($help ? 0 : 1);
 }
 
-$validStages = ['screenshots', 'transcripts', 'metadata'];
+$validStages = ['screenshots', 'transcripts', 'metadata', 'duplicates'];
 if (!in_array($stage, $validStages, true)) {
     echo "Unknown stage: $stage\n";
     echo "Valid stages: " . implode(', ', $validStages) . "\n";
@@ -102,6 +105,10 @@ switch ($stage) {
 
     case 'metadata':
         repairMetadata($pdo, $log, $limit, $specificId, $dryRun);
+        break;
+
+    case 'duplicates':
+        removeDuplicates($pdo, $log, $limit, $dryRun);
         break;
 }
 
@@ -328,5 +335,125 @@ function repairMetadata(
         } catch (Throwable $e) {
             echo sprintf("  Failed file #%d: %s\n", $row['id'], $e->getMessage());
         }
+    }
+}
+
+function removeDuplicates(
+    PDO $pdo,
+    Log $log,
+    int $limit,
+    bool $dryRun
+): void {
+    // Find duplicate groups
+    $duplicateSql = "
+        SELECT chamber, date, committee_id, COUNT(*) as count
+        FROM files
+        WHERE chamber IS NOT NULL AND date IS NOT NULL
+        GROUP BY chamber, date, committee_id
+        HAVING COUNT(*) > 1
+        ORDER BY count DESC, date DESC
+        LIMIT :limit
+    ";
+
+    $stmt = $pdo->prepare($duplicateSql);
+    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $stmt->execute();
+    $duplicateGroups = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    if (empty($duplicateGroups)) {
+        echo "No duplicate groups found.\n";
+        return;
+    }
+
+    echo sprintf("Found %d duplicate group(s) to process.\n\n", count($duplicateGroups));
+
+    $totalRemoved = 0;
+
+    foreach ($duplicateGroups as $group) {
+        $chamber = $group['chamber'];
+        $date = $group['date'];
+        $committeeId = $group['committee_id'];
+        $count = (int) $group['count'];
+
+        $committeeLabel = $committeeId ? "committee $committeeId" : 'floor';
+        echo sprintf("Processing: %s %s (%s) - %d copies\n", $chamber, $date, $committeeLabel, $count);
+
+        // Get all records in this group
+        $groupSql = "
+            SELECT id, path, capture_directory, length, width, height, fps, transcript, webvtt,
+                   date_created, date_modified,
+                   (SELECT COUNT(*) FROM video_transcript WHERE file_id = files.id) as transcript_count,
+                   (SELECT COUNT(*) FROM video_index WHERE file_id = files.id) as index_count
+            FROM files
+            WHERE chamber = :chamber AND date = :date
+              AND " . ($committeeId ? "committee_id = :committee_id" : "(committee_id IS NULL OR committee_id = '')") . "
+            ORDER BY date_created ASC
+        ";
+
+        $groupStmt = $pdo->prepare($groupSql);
+        $groupStmt->execute([
+            ':chamber' => $chamber,
+            ':date' => $date,
+            ':committee_id' => $committeeId,
+        ]);
+        $records = $groupStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Score each record by completeness
+        $scored = [];
+        foreach ($records as $record) {
+            $score = 0;
+            $score += !empty($record['path']) && str_contains($record['path'], 'video.richmondsunlight.com') ? 10 : 0;
+            $score += !empty($record['capture_directory']) ? 5 : 0;
+            $score += !empty($record['length']) ? 2 : 0;
+            $score += !empty($record['width']) && !empty($record['height']) ? 2 : 0;
+            $score += !empty($record['transcript']) || !empty($record['webvtt']) ? 3 : 0;
+            $score += (int) $record['transcript_count'];
+            $score += (int) $record['index_count'];
+
+            $scored[] = [
+                'id' => $record['id'],
+                'score' => $score,
+                'date_modified' => $record['date_modified'],
+                'path' => $record['path'] ?? 'none',
+            ];
+        }
+
+        // Sort by score (desc), then by date_modified (desc)
+        usort($scored, function ($a, $b) {
+            if ($a['score'] !== $b['score']) {
+                return $b['score'] <=> $a['score'];
+            }
+            return $b['date_modified'] <=> $a['date_modified'];
+        });
+
+        // Keep the first (best) record, delete the rest
+        $keep = array_shift($scored);
+        $toDelete = $scored;
+
+        echo sprintf("  Keeping file #%d (score: %d, path: %s)\n", $keep['id'], $keep['score'], substr($keep['path'], 0, 60));
+
+        foreach ($toDelete as $record) {
+            echo sprintf("  Deleting file #%d (score: %d)\n", $record['id'], $record['score']);
+
+            if (!$dryRun) {
+                try {
+                    // Delete related records first
+                    $pdo->prepare('DELETE FROM video_transcript WHERE file_id = :id')->execute([':id' => $record['id']]);
+                    $pdo->prepare('DELETE FROM video_index WHERE file_id = :id')->execute([':id' => $record['id']]);
+                    $pdo->prepare('DELETE FROM files WHERE id = :id')->execute([':id' => $record['id']]);
+                    $totalRemoved++;
+                } catch (Throwable $e) {
+                    echo sprintf("    ERROR: Failed to delete file #%d: %s\n", $record['id'], $e->getMessage());
+                }
+            }
+        }
+
+        echo "\n";
+    }
+
+    if ($dryRun) {
+        echo "[DRY-RUN] No changes made.\n";
+    } else {
+        echo sprintf("Removed %d duplicate record(s).\n", $totalRemoved);
     }
 }

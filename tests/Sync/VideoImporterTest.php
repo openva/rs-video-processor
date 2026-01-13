@@ -111,4 +111,42 @@ class VideoImporterTest extends TestCase
         $rows = $this->pdo->query('SELECT COUNT(*) FROM files')->fetchColumn();
         $this->assertSame(0, (int) $rows);
     }
+
+    public function testSkipsDuplicates(): void
+    {
+        $directory = new CommitteeDirectory($this->pdo);
+        $importer = new VideoImporter($this->pdo, $directory);
+
+        // Import first video
+        $count1 = $importer->import([
+            [
+                'chamber' => 'house',
+                'title' => 'Finance Meeting',
+                'meeting_date' => '2025-03-15',
+                'duration_seconds' => 3600,
+                'committee_name' => 'Appropriations',
+                'event_type' => 'committee',
+                'video_url' => 'https://example.com/video1.mp4',
+            ],
+        ]);
+
+        $this->assertSame(1, $count1);
+
+        // Try to import duplicate (same chamber, date, committee)
+        $count2 = $importer->import([
+            [
+                'chamber' => 'house',
+                'title' => 'Finance Meeting',
+                'meeting_date' => '2025-03-15',
+                'duration_seconds' => 3605, // Slightly different duration
+                'committee_name' => 'Appropriations',
+                'event_type' => 'committee',
+                'video_url' => 'https://example.com/video2.mp4', // Different URL
+            ],
+        ]);
+
+        $this->assertSame(0, $count2); // Should be skipped
+        $rows = $this->pdo->query('SELECT COUNT(*) FROM files')->fetchColumn();
+        $this->assertSame(1, (int) $rows); // Only one record should exist
+    }
 }

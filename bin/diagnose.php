@@ -160,3 +160,49 @@ foreach ($qualityChecks as $label => $query) {
 }
 
 echo "\n";
+
+// Detect duplicates
+echo "=== Duplicate Detection ===\n\n";
+
+// Find duplicates by chamber + date + committee_id
+$duplicateSql = "
+    SELECT chamber, date, committee_id, COUNT(*) as count
+    FROM files
+    WHERE chamber IS NOT NULL AND date IS NOT NULL
+    GROUP BY chamber, date, committee_id
+    HAVING COUNT(*) > 1
+    ORDER BY count DESC, date DESC
+";
+
+$duplicateGroups = $pdo->query($duplicateSql)->fetchAll(PDO::FETCH_ASSOC);
+$totalDuplicates = 0;
+$duplicateRecords = 0;
+
+foreach ($duplicateGroups as $group) {
+    $totalDuplicates += (int) $group['count'];
+    $duplicateRecords += ((int) $group['count'] - 1); // Subtract 1 because one should be kept
+}
+
+echo sprintf("Duplicate groups found: %d\n", count($duplicateGroups));
+echo sprintf("Total records in duplicates: %d\n", $totalDuplicates);
+echo sprintf("Excess duplicate records: %d\n", $duplicateRecords);
+
+if ($verbose && !empty($duplicateGroups)) {
+    echo "\nTop duplicate groups:\n";
+    $sample = array_slice($duplicateGroups, 0, 10);
+    foreach ($sample as $group) {
+        $committeeLabel = $group['committee_id'] ? 'committee ' . $group['committee_id'] : 'floor';
+        echo sprintf(
+            "  %s %s (%s): %d copies\n",
+            $group['chamber'],
+            $group['date'],
+            $committeeLabel,
+            $group['count']
+        );
+    }
+    if (count($duplicateGroups) > 10) {
+        echo sprintf("  ... and %d more groups\n", count($duplicateGroups) - 10);
+    }
+}
+
+echo "\n";
