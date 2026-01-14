@@ -18,7 +18,7 @@ class QueueFactory
             return new SqsQueue($client, $queueUrl, $this->logger);
         }
 
-        $this->logger?->put('Falling back to in-memory queue (SQS unavailable).', 4);
+        $this->logger?->put('Falling back to in-memory queue (SQS unavailable).', 2);
         return new InMemoryQueue();
     }
 
