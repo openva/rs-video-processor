@@ -9,7 +9,7 @@ class S3Storage implements StorageInterface
     public function __construct(
         private S3Client $client,
         private string $bucket,
-        private string $publicBase = 'https://s3.amazonaws.com'
+        private string $publicBase = 'https://video.richmondsunlight.com'
     ) {
     }
 
@@ -22,6 +22,6 @@ class S3Storage implements StorageInterface
             'ACL' => 'public-read',
         ]);
 
-        return rtrim($this->publicBase, '/') . '/' . $this->bucket . '/' . $key;
+        return rtrim($this->publicBase, '/') . '/' . $key;
     }
 }
