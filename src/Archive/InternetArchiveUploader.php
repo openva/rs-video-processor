@@ -53,7 +53,9 @@ class InternetArchiveUploader
             @unlink($file);
         }
         if ($status !== 0) {
-            $this->logger?->put('Internet Archive upload failed for file #' . $job->fileId . ': ' . implode('; ', $output), 5);
+            $message = trim(implode('; ', $output));
+            $message = $message !== '' ? $message : 'No output from ia upload command.';
+            $this->logger?->put('Internet Archive upload failed for file #' . $job->fileId . ': ' . $message, 5);
             return null;
         }
 
@@ -79,7 +81,7 @@ class InternetArchiveUploader
         if ($captionPath) {
             $parts[] = escapeshellarg($captionPath);
         }
-        return implode(' ', $parts);
+        return implode(' ', $parts) . ' 2>&1';
     }
 
     private function writeTempFile(string $contents, string $prefix, string $extension = ''): string
