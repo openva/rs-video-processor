@@ -15,6 +15,7 @@ class SpeakerJobQueueTest extends TestCase
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             chamber TEXT,
             path TEXT,
+            capture_directory TEXT,
             video_index_cache TEXT,
             date_created TEXT
         )');
@@ -23,9 +24,10 @@ class SpeakerJobQueueTest extends TestCase
             file_id INTEGER,
             type TEXT
         )');
-        $pdo->prepare('INSERT INTO files (chamber, path, video_index_cache, date_created) VALUES ("house", :path, :cache, "2025-01-01")')
+        $pdo->prepare('INSERT INTO files (chamber, path, capture_directory, video_index_cache, date_created) VALUES ("house", :path, :capture, :cache, "2025-01-01")')
             ->execute([
                 ':path' => 'https://video.richmondsunlight.com/house/floor/20250101.mp4',
+                ':capture' => '/house/floor/20250101/screenshots',
                 ':cache' => json_encode(['Speakers' => []]),
             ]);
         $queue = new SpeakerJobQueue($pdo);

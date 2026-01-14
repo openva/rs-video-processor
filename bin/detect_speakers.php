@@ -5,13 +5,20 @@ declare(strict_types=1);
 
 use Aws\S3\S3Client;
 use Aws\TranscribeService\TranscribeServiceClient;
+use RichmondSunlight\VideoProcessor\Analysis\Bills\ScreenshotFetcher;
+use RichmondSunlight\VideoProcessor\Analysis\Bills\ScreenshotManifestLoader;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\AwsTranscribeDiarizer;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\LegislatorDirectory;
+use RichmondSunlight\VideoProcessor\Analysis\Speakers\OcrSpeakerExtractor;
+use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerChamberConfig;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerDetectionProcessor;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerJobQueue;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerJobPayloadMapper;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerMetadataExtractor;
+use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerNameOcrEngine;
+use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerNameParser;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerResultWriter;
+use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerTextExtractor;
 use RichmondSunlight\VideoProcessor\Queue\JobType;
 use RichmondSunlight\VideoProcessor\Transcripts\AudioExtractor;
 
@@ -39,6 +46,8 @@ $mapper = new SpeakerJobPayloadMapper();
 $metadataExtractor = new SpeakerMetadataExtractor();
 $legislators = new LegislatorDirectory($pdo);
 $writer = new SpeakerResultWriter($pdo);
+$minSegmentSeconds = getenv('SPEAKER_OCR_MIN_SEGMENT_SECONDS');
+$minSegmentSeconds = is_numeric($minSegmentSeconds) ? (int) $minSegmentSeconds : 3;
 
 $s3Client = new S3Client([
     'key' => AWS_ACCESS_KEY,
@@ -58,7 +67,23 @@ $transcribeClient = new TranscribeServiceClient([
 
 $bucket = 'video.richmondsunlight.com';
 $diarizer = new AwsTranscribeDiarizer($transcribeClient, $s3Client, $bucket, new AudioExtractor());
-$processor = new SpeakerDetectionProcessor($metadataExtractor, $diarizer, $legislators, $writer, $log);
+$manifestLoader = new ScreenshotManifestLoader();
+$screenshotFetcher = new ScreenshotFetcher();
+$ocrEngine = new SpeakerNameOcrEngine();
+$textExtractor = new SpeakerTextExtractor($ocrEngine);
+$nameParser = new SpeakerNameParser();
+$chamberConfig = new SpeakerChamberConfig();
+$ocrExtractor = new OcrSpeakerExtractor(
+    $manifestLoader,
+    $screenshotFetcher,
+    $textExtractor,
+    $nameParser,
+    $chamberConfig,
+    max(1, $minSegmentSeconds),
+    $log
+);
+
+$processor = new SpeakerDetectionProcessor($metadataExtractor, $diarizer, $ocrExtractor, $legislators, $writer, $log);
 
 if ($mode === 'enqueue') {
     $jobs = $queue->fetch($limit);

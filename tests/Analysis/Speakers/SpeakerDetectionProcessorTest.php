@@ -6,6 +6,7 @@ use PDO;
 use PHPUnit\Framework\TestCase;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\DiarizerInterface;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\LegislatorDirectory;
+use RichmondSunlight\VideoProcessor\Analysis\Speakers\OcrSpeakerExtractor;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerDetectionProcessor;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerJob;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerMetadataExtractor;
@@ -20,9 +21,11 @@ class SpeakerDetectionProcessorTest extends TestCase
         $metadataExtractor = new SpeakerMetadataExtractor();
         $diarizer = $this->createMock(DiarizerInterface::class);
         $diarizer->expects($this->never())->method('diarize');
+        $ocrExtractor = $this->createMock(OcrSpeakerExtractor::class);
+        $ocrExtractor->expects($this->never())->method('extract');
         $legislators = new LegislatorDirectory($pdo);
         $writer = new SpeakerResultWriter($pdo);
-        $processor = new SpeakerDetectionProcessor($metadataExtractor, $diarizer, $legislators, $writer, null);
+        $processor = new SpeakerDetectionProcessor($metadataExtractor, $diarizer, $ocrExtractor, $legislators, $writer, null);
 
         $job = new SpeakerJob(1, 'house', 'file://example', ['Speakers' => [['text' => 'Smith', 'startTime' => '00:00:10']]]);
         $processor->process($job);
@@ -38,9 +41,11 @@ class SpeakerDetectionProcessorTest extends TestCase
         $metadataExtractor = new SpeakerMetadataExtractor();
         $diarizer = $this->createMock(DiarizerInterface::class);
         $diarizer->expects($this->never())->method('diarize');
+        $ocrExtractor = $this->createMock(OcrSpeakerExtractor::class);
+        $ocrExtractor->expects($this->never())->method('extract');
         $legislators = new LegislatorDirectory($pdo);
         $writer = new SpeakerResultWriter($pdo);
-        $processor = new SpeakerDetectionProcessor($metadataExtractor, $diarizer, $legislators, $writer, null);
+        $processor = new SpeakerDetectionProcessor($metadataExtractor, $diarizer, $ocrExtractor, $legislators, $writer, null);
 
         $job = new SpeakerJob(
             1,
@@ -67,9 +72,11 @@ class SpeakerDetectionProcessorTest extends TestCase
                 ['name' => 'Speaker_00', 'start' => 0.0],
                 ['name' => 'Speaker_01', 'start' => 10.0],
             ]);
+        $ocrExtractor = $this->createMock(OcrSpeakerExtractor::class);
+        $ocrExtractor->expects($this->never())->method('extract');
         $legislators = new LegislatorDirectory($pdo);
         $writer = new SpeakerResultWriter($pdo);
-        $processor = new SpeakerDetectionProcessor($metadataExtractor, $diarizer, $legislators, $writer, null);
+        $processor = new SpeakerDetectionProcessor($metadataExtractor, $diarizer, $ocrExtractor, $legislators, $writer, null);
 
         $job = new SpeakerJob(
             1,

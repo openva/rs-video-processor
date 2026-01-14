@@ -8,7 +8,10 @@ class SpeakerJob
         public int $fileId,
         public string $chamber,
         public string $videoUrl,
-        public ?array $metadata
+        public ?array $metadata,
+        public ?string $eventType = null,
+        public ?string $captureDirectory = null,
+        public ?string $manifestUrl = null
     ) {
     }
 }

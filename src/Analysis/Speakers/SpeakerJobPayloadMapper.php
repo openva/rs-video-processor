@@ -13,6 +13,9 @@ class SpeakerJobPayloadMapper
             'chamber' => $job->chamber,
             'video_url' => $job->videoUrl,
             'metadata' => $job->metadata,
+            'event_type' => $job->eventType,
+            'capture_directory' => $job->captureDirectory,
+            'manifest_url' => $job->manifestUrl,
         ]);
     }
 
@@ -24,7 +27,10 @@ class SpeakerJobPayloadMapper
             $payload->fileId,
             (string) ($context['chamber'] ?? ''),
             (string) ($context['video_url'] ?? ''),
-            is_array($context['metadata'] ?? null) ? $context['metadata'] : null
+            is_array($context['metadata'] ?? null) ? $context['metadata'] : null,
+            isset($context['event_type']) ? (string) $context['event_type'] : null,
+            isset($context['capture_directory']) ? (string) $context['capture_directory'] : null,
+            isset($context['manifest_url']) ? (string) $context['manifest_url'] : null
         );
     }
 }

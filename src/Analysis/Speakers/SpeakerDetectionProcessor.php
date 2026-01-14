@@ -11,6 +11,7 @@ class SpeakerDetectionProcessor
     public function __construct(
         private SpeakerMetadataExtractor $metadataExtractor,
         private DiarizerInterface $diarizer,
+        private OcrSpeakerExtractor $ocrExtractor,
         private LegislatorDirectory $legislators,
         private SpeakerResultWriter $writer,
         private ?Log $logger = null
@@ -19,10 +20,29 @@ class SpeakerDetectionProcessor
 
     public function process(SpeakerJob $job): void
     {
+        if ($this->writer->hasEntries($job->fileId)) {
+            $this->logger?->put('Skipping speaker detection for file #' . $job->fileId . ' (already indexed).', 4);
+            return;
+        }
+
         $segments = $this->metadataExtractor->extract($job->metadata);
         if (empty($segments)) {
+            if ($job->manifestUrl && $job->eventType) {
+                $this->logger?->put('No metadata speakers for file #' . $job->fileId . ', trying OCR.', 4);
+                try {
+                    $segments = $this->ocrExtractor->extract(
+                        $job->manifestUrl,
+                        $job->chamber,
+                        $job->eventType
+                    );
+                } catch (\Throwable $e) {
+                    $this->logger?->put('OCR extraction failed for file #' . $job->fileId . ': ' . $e->getMessage(), 4);
+                    $segments = [];
+                }
+            }
+
             // Only diarize floor videos (not committee videos)
-            if ($this->isFloorVideo($job->metadata)) {
+            if (empty($segments) && $this->isFloorVideo($job->metadata, $job->eventType)) {
                 $this->logger?->put('No metadata speakers for file #' . $job->fileId . ', running diarization (floor video).', 4);
                 try {
                     $segments = $this->diarizer->diarize($job->videoUrl);
@@ -53,8 +73,12 @@ class SpeakerDetectionProcessor
         $this->logger?->put('Stored speaker data for file #' . $job->fileId, 3);
     }
 
-    private function isFloorVideo(?array $metadata): bool
+    private function isFloorVideo(?array $metadata, ?string $eventType = null): bool
     {
+        if ($eventType !== null && $eventType !== '') {
+            return strtolower($eventType) === 'floor';
+        }
+
         if ($metadata === null) {
             return false;
         }

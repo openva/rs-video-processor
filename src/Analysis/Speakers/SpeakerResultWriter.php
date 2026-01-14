@@ -11,6 +11,16 @@ class SpeakerResultWriter
     {
     }
 
+    public function hasEntries(int $fileId): bool
+    {
+        $stmt = $this->pdo->prepare('SELECT 1 FROM video_index WHERE file_id = :id AND type = :type LIMIT 1');
+        $stmt->execute([
+            ':id' => $fileId,
+            ':type' => 'legislator',
+        ]);
+        return (bool) $stmt->fetchColumn();
+    }
+
     /**
      * @param array<int,array{name:string,start:float,legislator_id:?int}> $segments
      */
