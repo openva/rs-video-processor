@@ -46,8 +46,12 @@ foreach ($timeouts as $var => $description) {
         $seconds = $value % 60;
 
         $timeStr = '';
-        if ($hours > 0) $timeStr .= "{$hours}h ";
-        if ($minutes > 0) $timeStr .= "{$minutes}m ";
+        if ($hours > 0) {
+            $timeStr .= "{$hours}h ";
+        }
+        if ($minutes > 0) {
+            $timeStr .= "{$minutes}m ";
+        }
         $timeStr .= "{$seconds}s";
 
         echo sprintf("  %-20s: %6d seconds (%s)\n", $var, $value, trim($timeStr));
