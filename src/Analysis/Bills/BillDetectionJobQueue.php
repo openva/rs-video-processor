@@ -26,6 +26,12 @@ class BillDetectionJobQueue
             ORDER BY f.date_created DESC
             LIMIT :limit";
 
+        $driver = $this->pdo->getAttribute(\PDO::ATTR_DRIVER_NAME);
+        if (in_array($driver, ['mysql', 'pgsql'], true)) {
+            $sql .= " FOR UPDATE SKIP LOCKED";
+            $this->pdo->beginTransaction();
+        }
+
         $stmt = $this->pdo->prepare($sql);
         $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
         $stmt->execute();
@@ -57,6 +63,10 @@ class BillDetectionJobQueue
                 $manifestUrl,
                 $metadata
             );
+        }
+
+        if (in_array($driver, ['mysql', 'pgsql'], true)) {
+            $this->pdo->commit();
         }
 
         return $jobs;

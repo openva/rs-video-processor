@@ -59,6 +59,11 @@ class VideoDownloadProcessor
         $ext = '.mp4';
         $localPath = $this->downloadDir . '/' . $job->chamber . '-' . $job->id . $ext;
 
+        // Ensure download directory exists
+        if (!is_dir($this->downloadDir)) {
+            throw new \RuntimeException('Download directory does not exist: ' . $this->downloadDir);
+        }
+
         if ($this->isGranicusUrl($job->remoteUrl)) {
             $this->downloadViaHttp($job->remoteUrl, $localPath);
         } elseif (str_ends_with($job->remoteUrl, '.m3u8')) {
@@ -67,8 +72,21 @@ class VideoDownloadProcessor
             $this->downloadViaHttp($job->remoteUrl, $localPath);
         }
 
-        if (!file_exists($localPath) || filesize($localPath) < 1048576) {
-            throw new \RuntimeException('Downloaded file is invalid for ' . $job->remoteUrl);
+        if (!file_exists($localPath)) {
+            throw new \RuntimeException(sprintf(
+                'Download failed - file does not exist at %s (source: %s)',
+                $localPath,
+                $job->remoteUrl
+            ));
+        }
+
+        if (filesize($localPath) < 1048576) {
+            @unlink($localPath);
+            throw new \RuntimeException(sprintf(
+                'Downloaded file is too small (%d bytes) for %s',
+                filesize($localPath),
+                $job->remoteUrl
+            ));
         }
 
         return $localPath;
@@ -76,16 +94,46 @@ class VideoDownloadProcessor
 
     protected function downloadViaHttp(string $url, string $destination): void
     {
-        $response = $this->http->get($url, ['sink' => $destination]);
-        if ($response->getStatusCode() >= 400) {
-            throw new \RuntimeException('Failed to download video via HTTP.');
+        try {
+            $response = $this->http->get($url, ['sink' => $destination]);
+            if ($response->getStatusCode() >= 400) {
+                throw new \RuntimeException(sprintf(
+                    'HTTP download failed with status %d for %s',
+                    $response->getStatusCode(),
+                    $url
+                ));
+            }
+        } catch (\Exception $e) {
+            throw new \RuntimeException(sprintf(
+                'Failed to download video via HTTP from %s: %s',
+                $url,
+                $e->getMessage()
+            ), 0, $e);
+        }
+
+        // Verify file was actually written
+        if (!file_exists($destination) || filesize($destination) === 0) {
+            throw new \RuntimeException(sprintf(
+                'HTTP download did not create file at %s (source: %s)',
+                $destination,
+                $url
+            ));
         }
     }
 
     protected function downloadViaFfmpeg(string $url, string $destination): void
     {
         $cmd = sprintf('ffmpeg -y -loglevel error -i %s -c copy %s', escapeshellarg($url), escapeshellarg($destination));
-        $this->runCommand($cmd, 'Failed to download HLS stream via ffmpeg.');
+        $this->runCommand($cmd, sprintf('Failed to download HLS stream via ffmpeg from %s', $url));
+
+        // Verify file was actually created
+        if (!file_exists($destination) || filesize($destination) === 0) {
+            throw new \RuntimeException(sprintf(
+                'FFmpeg download did not create file at %s (source: %s)',
+                $destination,
+                $url
+            ));
+        }
     }
 
     protected function downloadCaptions(VideoDownloadJob $job): ?string

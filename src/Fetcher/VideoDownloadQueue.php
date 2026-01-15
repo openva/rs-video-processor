@@ -16,6 +16,9 @@ class VideoDownloadQueue
      */
     public function fetch(int $limit = 5): array
     {
+        // Use FOR UPDATE SKIP LOCKED to prevent parallel workers from processing the same videos
+        // This is critical when running parallel fetch_videos.php workers
+        // Note: Only supported on MySQL/PostgreSQL, not SQLite (used in tests)
         $sql = "SELECT id, chamber, committee_id, title, date, path, video_index_cache
             FROM files
             WHERE (path IS NULL OR path = '' OR (
@@ -26,6 +29,13 @@ class VideoDownloadQueue
               AND video_index_cache LIKE '{%'
             ORDER BY date_created DESC
             LIMIT :limit";
+
+        // Add row locking for MySQL/PostgreSQL to prevent race conditions in parallel workers
+        $driver = $this->pdo->getAttribute(\PDO::ATTR_DRIVER_NAME);
+        if (in_array($driver, ['mysql', 'pgsql'], true)) {
+            $sql .= " FOR UPDATE SKIP LOCKED";
+            $this->pdo->beginTransaction();
+        }
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
@@ -50,6 +60,11 @@ class VideoDownloadQueue
                 $metadata,
                 $row['title'] ?? null
             );
+        }
+
+        // Commit transaction if we started one
+        if (in_array($driver, ['mysql', 'pgsql'], true)) {
+            $this->pdo->commit();
         }
 
         return $jobs;
