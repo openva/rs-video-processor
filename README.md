@@ -88,6 +88,70 @@ That script ensures the container is running, verifies dependencies, and launche
 
 All scripts bootstrap via `bin/bootstrap.php`, which wires up the shared `Log`, PDO connection, and `JobDispatcher`. Use the `--enqueue` flag when running on the lightweight instance so work is pushed to SQS; omit it on the worker to poll/process jobs directly.
 
+---
+
+## Parallel Processing
+
+To speed up video processing on GPU-capable instances, parallel worker scripts are available for each stage. These scripts launch multiple workers that pull jobs from the SQS queue simultaneously, dramatically reducing processing time.
+
+### Full Pipeline (Recommended)
+
+Run the entire pipeline with parallel workers at each stage:
+
+```bash
+./bin/pipeline_parallel.sh
+```
+
+This script:
+1. Scrapes and imports new video metadata
+2. Downloads videos to S3 (3 parallel workers)
+3. Generates screenshots (4 parallel workers)
+4. Processes transcripts, bills, and speakers simultaneously (9 total workers)
+5. Uploads to Internet Archive (2 parallel workers)
+
+Configure worker counts via environment variables:
+
+```bash
+SCREENSHOT_WORKERS=8 TRANSCRIPT_WORKERS=5 JOBS_PER_WORKER=10 ./bin/pipeline_parallel.sh
+```
+
+### Individual Stage Scripts
+
+For catching up on specific stages or debugging, use the individual parallel scripts:
+
+```bash
+# Screenshots (default: 4 workers, 5 jobs each)
+./bin/generate_screenshots_parallel.sh [workers] [jobs_per_worker]
+
+# Transcripts (default: 3 workers)
+./bin/generate_transcripts_parallel.sh [workers] [jobs_per_worker]
+
+# Bill Detection (default: 3 workers)
+./bin/detect_bills_parallel.sh [workers] [jobs_per_worker]
+
+# Speaker Detection (default: 3 workers)
+./bin/detect_speakers_parallel.sh [workers] [jobs_per_worker]
+
+# Internet Archive Uploads (default: 2 workers)
+./bin/upload_archive_parallel.sh [workers] [jobs_per_worker]
+```
+
+Examples:
+
+```bash
+# Catch up on screenshot backlog with 8 workers processing 10 jobs each
+./bin/generate_screenshots_parallel.sh 8 10
+
+# Run transcripts and bill detection simultaneously
+./bin/generate_transcripts_parallel.sh 3 5 &
+./bin/detect_bills_parallel.sh 3 5 &
+wait
+```
+
+**Note:** Parallel processing requires SQS in production. The in-memory queue (used in Docker/local development) does not support safe parallel processing, as it lacks message locking to prevent duplicate work.
+
+---
+
 ## Server setup
 
 * Manually install on Ubuntu EC2 instance in `~/video-processor/`
