@@ -12,41 +12,18 @@ class MetadataIndexer
     }
 
     /**
-     * Index agenda items and speakers into video_index from scraped metadata.
+     * Index speakers into video_index from scraped metadata.
+     *
+     * Note: Agenda items are not indexed as they don't map to valid video_index types
+     * (only 'bill' and 'legislator' are allowed).
      *
      * @param array{agenda?:array<mixed>,speakers?:array<mixed>} $metadata
      */
     public function index(int $fileId, array $metadata): void
     {
         $now = new DateTimeImmutable('now');
-        $this->indexAgenda($fileId, $metadata['agenda'] ?? [], $now);
+        // Agenda items are not indexed - only bills and legislators are valid types
         $this->indexSpeakers($fileId, $metadata['speakers'] ?? [], $now);
-    }
-
-    /**
-     * @param array<int,array{key?:string,text?:string,start_time?:string}> $agenda
-     */
-    private function indexAgenda(int $fileId, array $agenda, DateTimeImmutable $now): void
-    {
-        if (empty($agenda)) {
-            return;
-        }
-
-        $stmt = $this->pdo->prepare('INSERT INTO video_index (file_id, time, screenshot, raw_text, type, linked_id, ignored, date_created) VALUES (:file_id, :time, :screenshot, :raw, :type, NULL, "n", :created)');
-        foreach ($agenda as $item) {
-            if (empty($item['start_time']) || empty($item['text'])) {
-                continue;
-            }
-            $time = $this->formatIsoOrTime($item['start_time']);
-            $stmt->execute([
-                ':file_id' => $fileId,
-                ':time' => $time,
-                ':screenshot' => 'agenda-' . ($item['key'] ?? preg_replace('/\s+/', '-', strtolower($item['text']))),
-                ':raw' => $item['text'],
-                ':type' => 'agenda',
-                ':created' => $now->format('Y-m-d H:i:s'),
-            ]);
-        }
     }
 
     /**
@@ -69,7 +46,7 @@ class MetadataIndexer
                 ':time' => $time,
                 ':shot' => 'speaker-' . preg_replace('/\s+/', '-', strtolower($speaker['name'])),
                 ':raw' => $speaker['name'],
-                ':type' => 'speaker',
+                ':type' => 'legislator',
                 ':created' => $now->format('Y-m-d H:i:s'),
             ]);
         }
