@@ -31,7 +31,13 @@ class BillDetectionProcessorTest extends TestCase
         ]);
 
         $fetcher = $this->createMock(ScreenshotFetcher::class);
-        $fetcher->method('fetch')->willReturn($fixture);
+        $fetcher->method('fetch')->willReturnCallback(function () use ($fixture) {
+            $temp = tempnam(sys_get_temp_dir(), 'bill_fixture_') . '.jpg';
+            if (!copy($fixture, $temp)) {
+                throw new \RuntimeException('Unable to copy bill fixture.');
+            }
+            return $temp;
+        });
         $ocr = new class implements OcrEngineInterface {
             public function extractText(string $imagePath): string
             {
