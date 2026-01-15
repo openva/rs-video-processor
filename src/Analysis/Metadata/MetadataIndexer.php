@@ -41,10 +41,14 @@ class MetadataIndexer
                 continue;
             }
             $time = $this->formatIsoOrTime($speaker['start_time']);
+
+            // Convert time string back to seconds to get screenshot number
+            $screenshotNumber = $this->timeStringToScreenshotNumber($time);
+
             $stmt->execute([
                 ':file_id' => $fileId,
                 ':time' => $time,
-                ':shot' => 'speaker-' . preg_replace('/\s+/', '-', strtolower($speaker['name'])),
+                ':shot' => $screenshotNumber,
                 ':raw' => $speaker['name'],
                 ':type' => 'legislator',
                 ':created' => $now->format('Y-m-d H:i:s'),
@@ -67,5 +71,22 @@ class MetadataIndexer
         $minutes = intdiv($seconds % 3600, 60);
         $secs = $seconds % 60;
         return sprintf('%02d:%02d:%02d', $hours, $minutes, $secs);
+    }
+
+    /**
+     * Convert HH:MM:SS time string to screenshot number (screenshots are 1 FPS).
+     *
+     * @param string $timeString Time in HH:MM:SS format
+     * @return string Screenshot number with leading zeros (e.g., "00102")
+     */
+    private function timeStringToScreenshotNumber(string $timeString): string
+    {
+        // Parse HH:MM:SS to get total seconds
+        [$h, $m, $s] = array_pad(explode(':', $timeString), 3, 0);
+        $totalSeconds = ((int) $h) * 3600 + ((int) $m) * 60 + (int) $s;
+
+        // Screenshots are 1 per second, numbered starting from 00001
+        $screenshotNumber = max(1, $totalSeconds + 1);
+        return sprintf('%05d', $screenshotNumber);
     }
 }

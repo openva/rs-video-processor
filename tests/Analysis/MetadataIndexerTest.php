@@ -37,9 +37,16 @@ class MetadataIndexerTest extends TestCase
 
         // Only speakers are indexed (as 'legislator' type)
         // Agenda items are not indexed because video_index only allows 'bill' and 'legislator' types
-        $rows = $pdo->query('SELECT type, raw_text FROM video_index ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $pdo->query('SELECT type, raw_text, screenshot FROM video_index ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
         $this->assertCount(1, $rows);
         $this->assertSame('legislator', $rows[0]['type']);
         $this->assertSame('Delegate Example', $rows[0]['raw_text']);
+
+        // Verify screenshot field is numeric
+        $this->assertMatchesRegularExpression(
+            '/^\d+$/',
+            $rows[0]['screenshot'],
+            'Screenshot field must contain only numeric values'
+        );
     }
 }
