@@ -65,6 +65,7 @@ echo "=== Auto-shutdown check at $(date) ==="
 SSH_SESSIONS=$(check_ssh_sessions)
 if [[ "$SSH_SESSIONS" -gt 0 ]]; then
   echo "Active SSH sessions detected ($SSH_SESSIONS); will not shut down."
+  wall Would shut down the system, but you’re logged in. Please shut it down when you’re done.
   exit 0
 fi
 
