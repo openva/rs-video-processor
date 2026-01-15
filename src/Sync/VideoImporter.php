@@ -125,7 +125,7 @@ class VideoImporter
                     isset($record['video_url']) ? substr((string) $record['video_url'], 0, 120) : 'NULL',
                     isset($record['title']) ? substr((string) $record['title'], 0, 120) : ''
                 ),
-                5
+                2
             );
             return null;
         }
