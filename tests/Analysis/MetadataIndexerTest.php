@@ -35,11 +35,11 @@ class MetadataIndexerTest extends TestCase
         $indexer = new MetadataIndexer($pdo);
         $indexer->index(42, $metadata);
 
+        // Only speakers are indexed (as 'legislator' type)
+        // Agenda items are not indexed because video_index only allows 'bill' and 'legislator' types
         $rows = $pdo->query('SELECT type, raw_text FROM video_index ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
-        $this->assertCount(2, $rows);
-        $this->assertSame('agenda', $rows[0]['type']);
-        $this->assertSame('HB 100', $rows[0]['raw_text']);
-        $this->assertSame('speaker', $rows[1]['type']);
-        $this->assertSame('Delegate Example', $rows[1]['raw_text']);
+        $this->assertCount(1, $rows);
+        $this->assertSame('legislator', $rows[0]['type']);
+        $this->assertSame('Delegate Example', $rows[0]['raw_text']);
     }
 }
