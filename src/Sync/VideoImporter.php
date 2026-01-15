@@ -45,7 +45,7 @@ class VideoImporter
         foreach ($records as $record) {
             $payload = $this->buildPayload($record);
             if ($payload === null) {
-                $this->logger?->put('Skipping record with insufficient metadata for insertion', 4);
+                $this->logger?->put('Skipping record with insufficient metadata for insertion', 2);
                 continue;
             }
 
