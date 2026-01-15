@@ -18,7 +18,8 @@ class HouseScraper implements VideoSourceScraperInterface
         private HttpClientInterface $client,
         private string $baseUrl = self::DEFAULT_BASE,
         private array $listingParams = [],
-        private ?Log $logger = null
+        private ?Log $logger = null,
+        private ?int $maxRecords = null
     ) {
     }
 
@@ -40,6 +41,10 @@ class HouseScraper implements VideoSourceScraperInterface
             $detailUrl = $this->buildDetailUrl($event);
             $detailHtml = $this->client->get($detailUrl);
             $videos[] = $this->parseDetailPage($event, $detailUrl, $detailHtml);
+
+            if ($this->maxRecords !== null && count($videos) >= $this->maxRecords) {
+                break;
+            }
         }
 
         if ($this->logger) {

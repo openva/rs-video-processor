@@ -39,7 +39,7 @@ $http = new RateLimitedHttpClient(
         'timeout' => 60,
         'connect_timeout' => 10,
         'headers' => [
-            'User-Agent' => 'rs-video-processor (+https://richmondsunlight.com/)',
+            'User-Agent' => 'RS-Video-Processor (+https://richmondsunlight.com/)',
         ],
     ])),
     1.0,
@@ -47,27 +47,42 @@ $http = new RateLimitedHttpClient(
     5.0
 );
 
-$records = [];
+// Always scrape new records (limit to 50 per source since new videos are at the top)
+$houseScraper = new HouseScraper($http, logger: $logger, maxRecords: 50);
+$senateScraper = new SenateScraper($http, logger: $logger, maxRecords: 50);
+$newRecords = array_merge(
+    $houseScraper->scrape(),
+    $senateScraper->scrape()
+);
+$logger?->put(sprintf('Scraped %d new records', count($newRecords)), 3);
+
+// Load cached records if they exist
+$cachedRecords = [];
 if (file_exists($snapshotPath)) {
     $loaded = json_decode(file_get_contents($snapshotPath), true);
     if (is_array($loaded)) {
-        $records = $loaded;
-        $logger?->put(sprintf('Loaded %d scraped records from snapshot %s', count($records), $snapshotPath), 3);
+        $cachedRecords = $loaded;
+        $logger?->put(sprintf('Loaded %d cached records from snapshot %s', count($cachedRecords), $snapshotPath), 3);
     }
 }
 
-if (empty($records)) {
-    $houseScraper = new HouseScraper($http, logger: $logger);
-    $senateScraper = new SenateScraper($http, logger: $logger);
-    $records = array_merge(
-        $houseScraper->scrape(),
-        $senateScraper->scrape()
-    );
-    file_put_contents($snapshotPath, json_encode($records, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
-    $logger?->put(sprintf('Total scraped records: %d (snapshot saved to %s)', count($records), $snapshotPath), 3);
-} else {
-    $logger?->put(sprintf('Skipping scrape; using existing snapshot %s', $snapshotPath), 3);
+// Merge and deduplicate: new records take precedence over cached
+$recordsById = [];
+// First, add cached records
+foreach ($cachedRecords as $record) {
+    $key = ($record['chamber'] ?? 'unknown') . '|' . ($record['content_id'] ?? $record['clip_id'] ?? $record['video_id'] ?? uniqid());
+    $recordsById[$key] = $record;
 }
+// Then, add/overwrite with new records (they take precedence)
+foreach ($newRecords as $record) {
+    $key = ($record['chamber'] ?? 'unknown') . '|' . ($record['content_id'] ?? $record['clip_id'] ?? $record['video_id'] ?? uniqid());
+    $recordsById[$key] = $record;
+}
+$records = array_values($recordsById);
+
+// Save merged records back to snapshot
+file_put_contents($snapshotPath, json_encode($records, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+$logger?->put(sprintf('Total records after merge: %d (snapshot saved to %s)', count($records), $snapshotPath), 3);
 
 $before = count($records);
 $records = array_values(array_filter($records, [VideoFilter::class, 'shouldKeep']));
