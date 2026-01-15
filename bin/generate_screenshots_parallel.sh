@@ -1,0 +1,43 @@
+#!/bin/bash
+
+# Parallel screenshot generation worker launcher
+# Launches multiple workers to process screenshot jobs from SQS queue in parallel
+
+set -e
+
+# Configuration
+WORKERS=${1:-4}           # Number of parallel workers (default: 4)
+LIMIT=${2:-5}             # Jobs per worker per iteration (default: 5)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+echo "Starting $WORKERS parallel screenshot workers (limit: $LIMIT jobs each)"
+echo "Press Ctrl+C to stop all workers"
+
+# Array to store background process IDs
+pids=()
+
+# Trap Ctrl+C to kill all workers
+cleanup() {
+    echo ""
+    echo "Stopping all workers..."
+    for pid in "${pids[@]}"; do
+        kill "$pid" 2>/dev/null || true
+    done
+    exit 0
+}
+trap cleanup SIGINT SIGTERM
+
+# Launch workers
+for i in $(seq 1 "$WORKERS"); do
+    echo "Launching worker $i..."
+    php "$SCRIPT_DIR/generate_screenshots.php" --limit="$LIMIT" &
+    pids+=($!)
+done
+
+# Wait for all workers to complete
+echo "All workers started. Waiting for completion..."
+for pid in "${pids[@]}"; do
+    wait "$pid"
+done
+
+echo "All screenshot workers completed."
