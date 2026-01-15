@@ -83,7 +83,7 @@ class BillDetectionProcessorTest extends TestCase
         $processor->process($job);
 
         $row = $pdo->query('SELECT screenshot, raw_text, type FROM video_index')->fetch(PDO::FETCH_ASSOC);
-        $this->assertSame('00000.jpg', $row['screenshot']);
+        $this->assertSame('00000', $row['screenshot']);
         $this->assertSame('HB1234', $row['raw_text']);
         $this->assertSame('bill', $row['type']);
     }
