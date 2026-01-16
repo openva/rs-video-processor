@@ -84,6 +84,9 @@ fi
 
 echo "No SSH sessions and no pending work detected."
 echo "Initiating shutdown..."
+if command -v php >/dev/null 2>&1; then
+  php -r "require '${APP_DIR}/includes/settings.inc.php'; require '${APP_DIR}/includes/class.Log.php'; (new Log())->put('Auto-shutdown initiated (no pending work, no active SSH).', 3);"
+fi
 
 # Give a brief grace period for any last-minute connections
 sleep 10
