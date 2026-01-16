@@ -32,7 +32,16 @@ class VideoDownloadProcessor
 
     public function process(VideoDownloadJob $job): void
     {
-        $this->logger?->put(sprintf('Processing video #%d (%s)', $job->id, $job->remoteUrl), 3);
+        $this->logger?->put(
+            sprintf(
+                'Processing %s video #%d (%s) for %s',
+                $job->chamber,
+                $job->id,
+                $job->remoteUrl,
+                $job->date
+            ),
+            3
+        );
 
         $localVideo = $this->downloadVideo($job);
         $captionPath = $this->downloadCaptions($job);
