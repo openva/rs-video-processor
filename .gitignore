@@ -6,3 +6,4 @@ bin/__pycache__/
 logs/site.log
 tests/fixtures/*.mp4
 storage/pipeline/*.json
+/storage/scraper

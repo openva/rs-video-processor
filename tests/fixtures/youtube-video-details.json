@@ -1,0 +1,124 @@
+{
+  "kind": "youtube#videoListResponse",
+  "etag": "test-etag-details",
+  "pageInfo": {
+    "totalResults": 3,
+    "resultsPerPage": 3
+  },
+  "items": [
+    {
+      "kind": "youtube#video",
+      "etag": "detail1-etag",
+      "id": "dQw4w9WgXcQ",
+      "snippet": {
+        "publishedAt": "2026-01-15T14:30:00Z",
+        "channelId": "UC0fC9dFvlYA0OTmz2xBWZ4g",
+        "title": "Finance Committee - January 15, 2026 - Budget Hearing",
+        "description": "Meeting of the Senate Finance Committee to discuss the state budget for fiscal year 2027.",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/default.jpg",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+            "width": 480,
+            "height": 360
+          }
+        },
+        "channelTitle": "Senate of Virginia",
+        "categoryId": "25"
+      },
+      "contentDetails": {
+        "duration": "PT1H23M45S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "true",
+        "licensedContent": false,
+        "projection": "rectangular"
+      }
+    },
+    {
+      "kind": "youtube#video",
+      "etag": "detail2-etag",
+      "id": "abc123def456",
+      "snippet": {
+        "publishedAt": "2026-01-14T10:00:00Z",
+        "channelId": "UC0fC9dFvlYA0OTmz2xBWZ4g",
+        "title": "Senate Floor Session - 1/14/26",
+        "description": "Full session of the Virginia Senate floor proceedings for January 14, 2026.",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/abc123def456/default.jpg",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i.ytimg.com/vi/abc123def456/mqdefault.jpg",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i.ytimg.com/vi/abc123def456/hqdefault.jpg",
+            "width": 480,
+            "height": 360
+          }
+        },
+        "channelTitle": "Senate of Virginia",
+        "categoryId": "25"
+      },
+      "contentDetails": {
+        "duration": "PT2H15M30S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "true",
+        "licensedContent": false,
+        "projection": "rectangular"
+      }
+    },
+    {
+      "kind": "youtube#video",
+      "etag": "detail3-etag",
+      "id": "xyz789ghi012",
+      "snippet": {
+        "publishedAt": "2026-01-13T15:45:00Z",
+        "channelId": "UC0fC9dFvlYA0OTmz2xBWZ4g",
+        "title": "Commerce and Labor - Subcommittee on Workers' Rights - Meeting",
+        "description": "Subcommittee meeting to discuss workers' rights legislation.",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/xyz789ghi012/default.jpg",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i.ytimg.com/vi/xyz789ghi012/mqdefault.jpg",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i.ytimg.com/vi/xyz789ghi012/hqdefault.jpg",
+            "width": 480,
+            "height": 360
+          }
+        },
+        "channelTitle": "Senate of Virginia",
+        "categoryId": "25"
+      },
+      "contentDetails": {
+        "duration": "PT45M12S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "true",
+        "licensedContent": false,
+        "projection": "rectangular"
+      }
+    }
+  ]
+}

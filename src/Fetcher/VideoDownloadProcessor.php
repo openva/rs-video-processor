@@ -73,7 +73,9 @@ class VideoDownloadProcessor
             throw new \RuntimeException('Download directory does not exist: ' . $this->downloadDir);
         }
 
-        if ($this->isGranicusUrl($job->remoteUrl)) {
+        if ($this->isYouTubeUrl($job->remoteUrl)) {
+            $this->downloadViaYtDlp($job->remoteUrl, $localPath);
+        } elseif ($this->isGranicusUrl($job->remoteUrl)) {
             $this->downloadViaHttp($job->remoteUrl, $localPath);
         } elseif (str_ends_with($job->remoteUrl, '.m3u8')) {
             $this->downloadViaFfmpeg($job->remoteUrl, $localPath);
@@ -145,6 +147,37 @@ class VideoDownloadProcessor
         }
     }
 
+    protected function downloadViaYtDlp(string $url, string $destination): void
+    {
+        // Verify yt-dlp is available
+        exec('which yt-dlp 2>/dev/null', $output, $status);
+        if ($status !== 0) {
+            throw new \RuntimeException('yt-dlp is not installed or not in PATH. Install: pip install yt-dlp');
+        }
+
+        // Remove the destination file extension to let yt-dlp add it
+        $destinationBase = preg_replace('/\.mp4$/', '', $destination);
+
+        $cmd = sprintf(
+            'yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" ' .
+            '--merge-output-format mp4 --write-auto-sub --sub-lang en ' .
+            '--convert-subs vtt -o %s %s 2>&1',
+            escapeshellarg($destinationBase . '.%(ext)s'),
+            escapeshellarg($url)
+        );
+
+        $this->runCommand($cmd, sprintf('Failed to download YouTube video via yt-dlp from %s', $url));
+
+        // Verify file was created
+        if (!file_exists($destination) || filesize($destination) === 0) {
+            throw new \RuntimeException(sprintf(
+                'yt-dlp download did not create file at %s (source: %s)',
+                $destination,
+                $url
+            ));
+        }
+    }
+
     protected function downloadCaptions(VideoDownloadJob $job): ?string
     {
         // If metadata already contains caption text (e.g., from House ccItems), prefer that.
@@ -162,6 +195,14 @@ class VideoDownloadProcessor
             $response = $this->http->get($captionUrl, ['sink' => $target]);
             if ($response->getStatusCode() < 400) {
                 return $target;
+            }
+        }
+
+        // For YouTube videos, check if yt-dlp downloaded captions automatically
+        if (isset($metadata['youtube_id']) || (isset($metadata['source']) && $metadata['source'] === 'senate-youtube')) {
+            $vttPath = $this->downloadDir . '/' . $job->chamber . '-' . $job->id . '.en.vtt';
+            if (file_exists($vttPath)) {
+                return $vttPath;
             }
         }
 
@@ -198,6 +239,12 @@ class VideoDownloadProcessor
         if ($status !== 0) {
             throw new \RuntimeException($errorMessage);
         }
+    }
+
+    private function isYouTubeUrl(string $url): bool
+    {
+        $normalized = strtolower($url);
+        return str_contains($normalized, 'youtube.com') || str_contains($normalized, 'youtu.be');
     }
 
     private function isGranicusUrl(string $url): bool
