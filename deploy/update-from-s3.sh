@@ -86,3 +86,6 @@ if [[ -x "${APP_DIR}/deploy/deploy.sh" ]]; then
 fi
 
 echo "Update complete (now running: ${REMOTE_ETAG})."
+if command -v php >/dev/null 2>&1; then
+  php -r "require '${APP_DIR}/includes/settings.inc.php'; require '${APP_DIR}/includes/class.Log.php'; (new Log())->put('Update complete (now running: ${REMOTE_ETAG}).', 3);"
+fi
