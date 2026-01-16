@@ -756,289 +756,289 @@ class CommitteeDirectoryTest extends TestCase
                 'chamber' => 'senate',
                 'parent_id' => 16
             ],
-        ];
+                ];
 
-        $insert = $pdo->prepare('INSERT INTO committees (id, name, shortname, chamber, parent_id) VALUES (:id, :name, :shortname, :chamber, :parent_id)');
-        foreach ($committeeFixtures as $fixture) {
-            $insert->execute($fixture);
-        }
+                $insert = $pdo->prepare('INSERT INTO committees (id, name, shortname, chamber, parent_id) VALUES (:id, :name, :shortname, :chamber, :parent_id)');
+                foreach ($committeeFixtures as $fixture) {
+                    $insert->execute($fixture);
+                }
 
-        $directory = new CommitteeDirectory($pdo);
+                $directory = new CommitteeDirectory($pdo);
 
-        $matchCases = [
-            [
+                $matchCases = [
+                [
                 'input' => 'Appropriations',
                 'chamber' => 'house',
                 'type' => 'committee',
                 'expected' => 2,
-            ],
-            [
+                ],
+                [
                 'input' => 'General Laws and Technology',
                 'chamber' => 'senate',
                 'type' => 'committee',
                 'expected' => 20,
-            ],
-            [
+                ],
+                [
                 'input' => 'Education and Health: Public Education',
                 'chamber' => 'senate',
                 'type' => 'subcommittee',
                 'expected' => 82,
-            ],
-            [
+                ],
+                [
                 'input' => 'Education and Health',
                 'chamber' => 'senate',
                 'type' => 'committee',
                 'expected' => 18,
-            ],
-            [
+                ],
+                [
                 'input' => 'Education and Health: Health',
                 'chamber' => 'senate',
                 'type' => 'subcommittee',
                 'expected' => 79,
-            ],
-            [
+                ],
+                [
                 'input' => 'Transportation',
                 'chamber' => 'senate',
                 'type' => 'committee',
                 'expected' => 25,
-            ],
-            [
+                ],
+                [
                 'input' => 'SFAC: Health and Human Resources',
                 'chamber' => 'senate',
                 'type' => 'subcommittee',
                 'expected' => 88,
-            ],
-            [
+                ],
+                [
                 'input' => 'Privileges and Elections',
                 'chamber' => 'senate',
                 'type' => 'committee',
                 'expected' => 22,
-            ],
-            [
+                ],
+                [
                 'input' => 'Local Government',
                 'chamber' => 'senate',
                 'type' => 'committee',
                 'expected' => 21,
-            ],
-            [
+                ],
+                [
                 'input' => 'SFAC: Public Safety & Claims Subcommittee',
                 'chamber' => 'senate',
                 'type' => 'subcommittee',
                 'expected' => 84,
-            ],
-            [
+                ],
+                [
                 'input' => 'SFAC: Education Subcommittee',
                 'chamber' => 'senate',
                 'type' => 'subcommittee',
                 'expected' => 86,
-            ],
-            [
+                ],
+                [
                 'input' => 'Finance and Appropriations',
                 'chamber' => 'senate',
                 'type' => 'committee',
                 'expected' => 19,
-            ],
-            [
+                ],
+                [
                 'input' => 'SFAC: Health and Human Resources Oversight Joint Subco',
                 'chamber' => 'senate',
                 'type' => 'subcommittee',
                 'expected' => 88,
-            ],
-            [
+                ],
+                [
                 'input' => 'Rehabilitation and Social Services',
                 'chamber' => 'senate',
                 'type' => 'committee',
                 'expected' => 23,
-            ],
-            [
+                ],
+                [
                 'input' => 'Courts of Justice',
                 'chamber' => 'senate',
                 'type' => 'committee',
                 'expected' => 17,
-            ],
-            [
+                ],
+                [
                 'input' => 'Commerce and Labor',
                 'chamber' => 'senate',
                 'type' => 'committee',
                 'expected' => 16,
-            ],
-            [
+                ],
+                [
                 'input' => 'SFAC: Resources',
                 'chamber' => 'senate',
                 'type' => 'subcommittee',
                 'expected' => 85,
-            ],
-            [
+                ],
+                [
                 'input' => 'Health and Human Services',
                 'chamber' => 'house',
                 'type' => 'committee',
                 'expected' => 107,
-            ],
-            [
+                ],
+                [
                 'input' => 'Transportation',
                 'chamber' => 'house',
                 'type' => 'committee',
                 'expected' => 14,
-            ],
-            [
+                ],
+                [
                 'input' => 'General Laws',
                 'chamber' => 'house',
                 'type' => 'committee',
                 'expected' => 8,
-            ],
-            [
+                ],
+                [
                 'input' => 'CCT Subcommittee #2',
                 'chamber' => 'house',
                 'type' => 'subcommittee',
                 'expected' => 41,
-            ],
-            [
+                ],
+                [
                 'input' => 'CCT Subcommittee #1',
                 'chamber' => 'house',
                 'type' => 'subcommittee',
                 'expected' => 40,
-            ],
-            [
+                ],
+                [
                 'input' => 'Agriculture Subcommittee',
                 'chamber' => 'house',
                 'type' => 'subcommittee',
                 'expected' => 26,
-            ],
-            [
+                ],
+                [
                 'input' => 'Education',
                 'chamber' => 'house',
                 'type' => 'committee',
                 'expected' => 6,
-            ],
-            [
+                ],
+                [
                 'input' => 'Chesapeake Subcomittee',
                 'chamber' => 'house',
                 'type' => 'subcommittee',
                 'expected' => 28,
-            ],
-            [
+                ],
+                [
                 'input' => 'Agriculture, Chesapeake and Natural Resources',
                 'chamber' => 'house',
                 'type' => 'committee',
                 'expected' => 1,
-            ],
-            [
+                ],
+                [
                 'input' => 'Highway Safety and Policy Subcommittee',
                 'chamber' => 'house',
                 'type' => 'subcommittee',
                 'expected' => null,
-            ],
-            [
+                ],
+                [
                 'input' => 'Compensation and Retirement Subcommittee',
                 'chamber' => 'house',
                 'type' => 'subcommittee',
                 'expected' => 76,
-            ],
-            [
+                ],
+                [
                 'input' => 'Transportation and Public Safety Subcommittee',
                 'chamber' => 'house',
                 'type' => 'subcommittee',
                 'expected' => 37,
-            ],
-            [
+                ],
+                [
                 'input' => 'Civil Subcommittee',
                 'chamber' => 'house',
                 'type' => 'subcommittee',
                 'expected' => 43,
-            ],
-            [
+                ],
+                [
                 'input' => 'Commerce, Agriculture and Natural Resources Sub',
                 'chamber' => 'house',
                 'type' => 'subcommittee',
                 'expected' => 30,
-            ],
-            [
+                ],
+                [
                 'input' => 'Criminal Subcommittee',
                 'chamber' => 'house',
                 'type' => 'subcommittee',
                 'expected' => 78,
-            ],
-            [
+                ],
+                [
                 'input' => 'Public Safety Subcommittee',
                 'chamber' => 'house',
                 'type' => 'subcommittee',
                 'expected' => 36,
-            ],
-            [
+                ],
+                [
                 'input' => 'Labor and Commerce Subcommittee #2',
                 'chamber' => 'house',
                 'type' => 'subcommittee',
                 'expected' => 39,
-            ],
-            [
+                ],
+                [
                 'input' => 'Natural Resources Subcommittee',
                 'chamber' => 'house',
                 'type' => 'subcommittee',
                 'expected' => 27,
-            ],
-            [
+                ],
+                [
                 'input' => 'Housing-Consumer Protection Subcommittee',
                 'chamber' => 'house',
                 'type' => 'subcommittee',
                 'expected' => null,
-            ],
-            [
+                ],
+                [
                 'input' => 'Professions-Occupations and Administrative Process Subcommittee',
                 'chamber' => 'house',
                 'type' => 'subcommittee',
                 'expected' => 56,
-            ],
-            [
+                ],
+                [
                 'input' => 'Labor and Commerce',
                 'chamber' => 'house',
                 'type' => 'committee',
                 'expected' => 3,
-            ],
-            [
+                ],
+                [
                 'input' => 'Appropriations',
                 'chamber' => 'house',
                 'type' => 'committee',
                 'expected' => 2,
-            ],
-            [
+                ],
+                [
                 'input' => 'Public Safety',
                 'chamber' => 'house',
                 'type' => 'committee',
                 'expected' => 10,
-            ],
-            [
+                ],
+                [
                 'input' => 'Counties Cities and Towns',
                 'chamber' => 'house',
                 'type' => 'committee',
                 'expected' => 4,
-            ],
-            [
+                ],
+                [
                 'input' => 'Privileges And Elections',
                 'chamber' => 'house',
                 'type' => 'committee',
                 'expected' => 11,
-            ],
-        ];
+                ],
+                ];
 
-        $failures = [];
-        foreach ($matchCases as $case) {
-            $matched = $directory->matchId($case['input'], $case['chamber'], $case['type']);
-            $message = sprintf(
-                'Failed matching "%s" (%s/%s). Expected %s, got %s.',
-                $case['input'],
-                $case['chamber'],
-                $case['type'],
-                var_export($case['expected'], true),
-                var_export($matched, true)
-            );
-            try {
-                $this->assertSame($case['expected'], $matched, $message);
-            } catch (AssertionFailedError $error) {
-                $failures[] = $message;
-            }
-        }
-        if (!empty($failures)) {
-            $this->fail(implode("\n", $failures));
-        }
+                $failures = [];
+                foreach ($matchCases as $case) {
+                    $matched = $directory->matchId($case['input'], $case['chamber'], $case['type']);
+                    $message = sprintf(
+                        'Failed matching "%s" (%s/%s). Expected %s, got %s.',
+                        $case['input'],
+                        $case['chamber'],
+                        $case['type'],
+                        var_export($case['expected'], true),
+                        var_export($matched, true)
+                    );
+                    try {
+                        $this->assertSame($case['expected'], $matched, $message);
+                    } catch (AssertionFailedError $error) {
+                        $failures[] = $message;
+                    }
+                }
+                if (!empty($failures)) {
+                    $this->fail(implode("\n", $failures));
+                }
     }
 }
