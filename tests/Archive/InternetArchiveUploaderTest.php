@@ -39,6 +39,13 @@ class InternetArchiveUploaderTest extends TestCase
             },
             function (string $url) use ($fixture) {
                 return $fixture;
+            },
+            function (string $identifier) use ($fixture) {
+                return [
+                    'files' => [
+                        ['name' => basename($fixture), 'size' => 1234],
+                    ],
+                ];
             }
         );
 
@@ -46,7 +53,7 @@ class InternetArchiveUploaderTest extends TestCase
         $metadata = ['title' => 'Test Video'];
         $result = $uploader->upload($job, $metadata);
 
-        $this->assertSame('https://archive.org/details/rs-house-20250101-test-video', $result);
+        $this->assertSame('https://archive.org/download/rs-house-20250101-test-video/' . basename($fixture), $result);
         $this->assertNotEmpty($commandLog);
     }
 

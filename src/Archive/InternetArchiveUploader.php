@@ -3,14 +3,23 @@
 namespace RichmondSunlight\VideoProcessor\Archive;
 
 use Log;
+use GuzzleHttp\Client;
 use RuntimeException;
 
 class InternetArchiveUploader
 {
     private $commandRunner;
     private $downloader;
+    private $metadataFetcher;
+    private Client $http;
 
-    public function __construct(private ?Log $logger = null, ?callable $commandRunner = null, ?callable $downloader = null)
+    public function __construct(
+        private ?Log $logger = null,
+        ?callable $commandRunner = null,
+        ?callable $downloader = null,
+        ?callable $metadataFetcher = null,
+        ?Client $http = null
+    )
     {
         $this->commandRunner = $commandRunner ?? function (string $command, array &$output): int {
             exec($command, $output, $status);
@@ -27,6 +36,8 @@ class InternetArchiveUploader
             }
             return $tempWithExt;
         };
+        $this->metadataFetcher = $metadataFetcher;
+        $this->http = $http ?? new Client(['timeout' => 30]);
     }
 
     public function upload(ArchiveJob $job, array $metadata): ?string
@@ -59,7 +70,17 @@ class InternetArchiveUploader
             return null;
         }
 
-        return sprintf('https://archive.org/details/%s', $identifier);
+        $mp4Url = $this->resolveMp4Url($identifier, basename($videoPath));
+        if (!$mp4Url) {
+            $detailsUrl = sprintf('https://archive.org/details/%s', $identifier);
+            $this->logger?->put(
+                'Unable to resolve Archive.org MP4 URL for file #' . $job->fileId . '; storing details URL.',
+                5
+            );
+            return $detailsUrl;
+        }
+
+        return $mp4Url;
     }
 
     private function ensureConfigExists(): bool
@@ -82,6 +103,74 @@ class InternetArchiveUploader
             $parts[] = escapeshellarg($captionPath);
         }
         return implode(' ', $parts) . ' 2>&1';
+    }
+
+    private function resolveMp4Url(string $identifier, string $preferredFilename, int $attempts = 5, int $delaySeconds = 2): ?string
+    {
+        for ($i = 0; $i < $attempts; $i++) {
+            $metadata = $this->fetchMetadata($identifier);
+            if (is_array($metadata)) {
+                $file = $this->selectMp4File($metadata['files'] ?? [], $preferredFilename);
+                if ($file) {
+                    return $this->buildDownloadUrl($identifier, $file['name']);
+                }
+            }
+            if ($i < $attempts - 1) {
+                sleep($delaySeconds);
+            }
+        }
+
+        return null;
+    }
+
+    private function fetchMetadata(string $identifier): ?array
+    {
+        if ($this->metadataFetcher) {
+            return ($this->metadataFetcher)($identifier);
+        }
+
+        $url = sprintf('https://archive.org/metadata/%s', rawurlencode($identifier));
+        $response = $this->http->get($url);
+        if ($response->getStatusCode() >= 400) {
+            return null;
+        }
+        $data = json_decode((string) $response->getBody(), true);
+        return is_array($data) ? $data : null;
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $files
+     * @return array<string,mixed>|null
+     */
+    private function selectMp4File(array $files, string $preferredFilename): ?array
+    {
+        $preferred = null;
+        $fallback = null;
+        $fallbackSize = 0;
+
+        foreach ($files as $file) {
+            $name = $file['name'] ?? '';
+            if (!is_string($name) || $name === '' || !str_ends_with(strtolower($name), '.mp4')) {
+                continue;
+            }
+            if ($name === $preferredFilename) {
+                $preferred = $file;
+                break;
+            }
+            $size = isset($file['size']) ? (int) $file['size'] : 0;
+            if ($size >= $fallbackSize) {
+                $fallbackSize = $size;
+                $fallback = $file;
+            }
+        }
+
+        return $preferred ?? $fallback;
+    }
+
+    private function buildDownloadUrl(string $identifier, string $filename): string
+    {
+        $encoded = str_replace('%2F', '/', rawurlencode($filename));
+        return sprintf('https://archive.org/download/%s/%s', rawurlencode($identifier), $encoded);
     }
 
     private function writeTempFile(string $contents, string $prefix, string $extension = ''): string
