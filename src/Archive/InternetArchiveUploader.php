@@ -19,8 +19,7 @@ class InternetArchiveUploader
         ?callable $downloader = null,
         ?callable $metadataFetcher = null,
         ?Client $http = null
-    )
-    {
+    ) {
         $this->commandRunner = $commandRunner ?? function (string $command, array &$output): int {
             exec($command, $output, $status);
             return $status;
