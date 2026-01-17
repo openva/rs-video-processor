@@ -31,11 +31,11 @@ class VideoImporter
             'INSERT INTO files (
                 chamber, committee_id, title, description, type, length, date, sponsor,
                 width, height, fps, capture_rate, capture_directory, path,
-                author_name, license, date_created, date_modified, video_index_cache
+                author_name, license, date_created, date_modified, video_index_cache, raw_metadata
             ) VALUES (
                 :chamber, :committee_id, :title, :description, :type, :length, :date, :sponsor,
                 :width, :height, :fps, :capture_rate, :capture_directory, :path,
-                :author_name, :license, :date_created, :date_modified, :video_index_cache
+                :author_name, :license, :date_created, :date_modified, :video_index_cache, :raw_metadata
             )'
         );
 
@@ -144,6 +144,10 @@ class VideoImporter
             $title = sprintf('%s Session', $chamberName);
         }
 
+        // Build raw metadata (basic info only, excludes agenda and speakers)
+        $rawMetadata = $record;
+        unset($rawMetadata['agenda'], $rawMetadata['speakers']);
+
         return [
             'chamber' => $chamber,
             'committee_id' => $committeeId,
@@ -164,6 +168,7 @@ class VideoImporter
             'date_created' => $now->format('Y-m-d H:i:s'),
             'date_modified' => $now->format('Y-m-d H:i:s'),
             'video_index_cache' => json_encode($record, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+            'raw_metadata' => json_encode($rawMetadata, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
         ];
     }
 
