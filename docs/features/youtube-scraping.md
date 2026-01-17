@@ -62,31 +62,33 @@ which yt-dlp
 yt-dlp --version
 ```
 
-### 1b. Chrome Installation (Automatic)
+### 1b. Configure YouTube Cookies (Required)
 
-**Chrome is installed automatically** when you run `deploy/deploy.sh`. The deployment script:
-- Installs Google Chrome
-- Initializes Chrome's cookie database by visiting YouTube
-- Refreshes cookies on each deployment
+**YouTube requires authentication cookies to bypass bot detection.** You must export cookies from your local browser and upload them to the server.
 
-**No manual configuration needed!** The system is pre-configured to use Chrome in `settings-default.inc.php`.
+#### Export Cookies from Your Browser
 
-If you need to manually install Chrome:
+1. **Install the "Get cookies.txt LOCALLY" extension:**
+   - **Chrome:** https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc
+   - **Firefox:** https://addons.mozilla.org/en-US/firefox/addon/cookies-txt/
 
-```bash
-# Install Chrome on Ubuntu
-cd /tmp
-wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-sudo apt install ./google-chrome-stable_current_amd64.deb
-sudo apt-get install -f
+2. **Export cookies:**
+   - Visit https://youtube.com and ensure you're logged in
+   - Click the extension icon
+   - Click "Export" to download `cookies.txt`
 
-# Initialize Chrome cookies
-google-chrome --headless --disable-gpu --disable-software-rasterizer --no-sandbox \
-  --user-data-dir=/home/ubuntu/.config/google-chrome \
-  --dump-dom https://www.youtube.com/ > /dev/null 2>&1
-```
+3. **Upload to server:**
+   ```bash
+   scp cookies.txt ubuntu@your-server:/home/ubuntu/youtube-cookies.txt
+   ```
 
-**Important:** YouTube detects automated downloads. Chrome cookies bypass bot detection without requiring you to manually export cookies.
+4. **Verify the file exists:**
+   ```bash
+   ssh ubuntu@your-server
+   ls -lh /home/ubuntu/youtube-cookies.txt
+   ```
+
+**Important:** Cookies typically last for several months before expiring. The system will automatically detect when cookies expire and log a critical error.
 
 ### 2. Obtain YouTube API Key
 
@@ -114,6 +116,69 @@ google-chrome --headless --disable-gpu --disable-software-rasterizer --no-sandbo
 1. Open `includes/settings.inc.php`
 2. Add: `define('YOUTUBE_API_KEY', 'YOUR_KEY_HERE');`
 3. Never commit the key to version control
+
+## Cookie Maintenance
+
+### When Cookies Expire
+
+YouTube cookies typically last **several months** before expiring. When they expire:
+
+1. **Automatic Detection:**
+   - The system detects "Sign in to confirm you're not a bot" errors
+   - Logs a CRITICAL error (severity 7) with clear instructions
+   - Throws `YouTubeCookiesExpiredException`
+   - Stops all YouTube download attempts
+
+2. **You'll See in Logs:**
+   ```
+   CRITICAL: YouTube cookies have expired or are invalid.
+   Export fresh cookies from your browser using "Get cookies.txt LOCALLY" extension
+   and upload to /home/ubuntu/youtube-cookies.txt
+   ```
+
+3. **Impact:**
+   - YouTube videos won't download until cookies are refreshed
+   - House and Senate Granicus videos continue processing normally
+   - No data loss or corruption
+
+### Refreshing Cookies
+
+**Quick Process:**
+```bash
+# 1. On your local machine: Export cookies using browser extension
+# 2. Upload to server
+scp cookies.txt ubuntu@your-server:/home/ubuntu/youtube-cookies.txt
+
+# 3. Optional: Restart video processor if currently running
+ssh ubuntu@your-server
+sudo systemctl restart video-pipeline.service
+```
+
+**Verification:**
+```bash
+# Check file exists and is recent
+ssh ubuntu@your-server
+ls -lh /home/ubuntu/youtube-cookies.txt
+
+# Should show file size around 10-50 KB
+# Date should be recent (today)
+```
+
+### Monitoring
+
+**Check logs for cookie expiration:**
+```bash
+# View recent critical errors
+grep "CRITICAL.*YouTube cookies" /var/log/video-processor.log
+
+# Monitor for YouTubeCookiesExpiredException
+grep "YouTubeCookiesExpiredException" /var/log/video-processor.log
+```
+
+**Set up alerts (optional):**
+- Monitor logs for severity 7 errors
+- Alert when `YouTubeCookiesExpiredException` appears
+- Reminder to refresh cookies every 2-3 months
 
 ## Usage
 
@@ -213,28 +278,38 @@ php bin/fetch_videos.php --limit=1
 ERROR: Sign in to confirm you're not a bot. Use --cookies-from-browser or --cookies
 ```
 
-**Cause:** YouTube is blocking automated downloads without authentication.
+**Cause:** YouTube cookies have expired or are missing.
 
-**Solution:**
+**What Happens:**
+- The system detects this error automatically
+- Logs a **CRITICAL** error at severity level 7
+- Throws `YouTubeCookiesExpiredException`
+- Halts further YouTube download attempts
+- Granicus videos continue processing normally
 
-1. Install Chrome or Firefox on the server:
-```bash
-sudo apt-get install firefox
-```
+**Solution - Refresh Cookies:**
 
-2. Open the browser and visit youtube.com (must be done as the user running the video processor)
-```bash
-# If running as ubuntu user
-sudo -u ubuntu firefox https://youtube.com
-```
+1. **Export fresh cookies from your local browser:**
+   - Install "Get cookies.txt LOCALLY" extension (see Setup section above)
+   - Visit https://youtube.com while logged in
+   - Click extension icon → Export
+   - Save as `cookies.txt`
 
-3. The system will auto-detect the browser and use its cookies
+2. **Upload to server:**
+   ```bash
+   scp cookies.txt ubuntu@your-server:/home/ubuntu/youtube-cookies.txt
+   ```
 
-4. Alternatively, specify the browser in settings:
-```php
-# In includes/settings.inc.php
-define('YTDLP_COOKIES_BROWSER', 'firefox');
-```
+3. **Restart the video processor:**
+   ```bash
+   ssh ubuntu@your-server
+   sudo systemctl restart video-pipeline.service
+   ```
+
+**Prevention:**
+- Cookies typically last several months
+- Check logs regularly for severity 7 errors
+- Consider setting up monitoring alerts for `YouTubeCookiesExpiredException`
 
 ### No YouTube videos found
 
@@ -260,14 +335,14 @@ If consistently hitting limits, consider:
 - Reducing scrape frequency
 - Requesting quota increase from Google
 
-### No browser cookies available
+### Cookies file not found
 
 **Symptom:**
 ```
-WARNING: No browser found for cookies. YouTube downloads may fail with bot detection.
+YouTube cookies file not found at: /home/ubuntu/youtube-cookies.txt
 ```
 
-**Solution:** Install Chrome or Firefox and visit YouTube (see bot detection section above)
+**Solution:** Export and upload cookies file (see Setup section above)
 
 ## Disabling YouTube Scraper
 

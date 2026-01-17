@@ -55,33 +55,9 @@ sudo apt-get install -y \
   internetarchive \
   composer
 
-# Install Google Chrome (required for yt-dlp YouTube cookie extraction)
-if ! command -v google-chrome &> /dev/null; then
-  echo "Installing Google Chrome for YouTube cookie support..."
-  cd /tmp
-  wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-  sudo apt install -y ./google-chrome-stable_current_amd64.deb || true
-  sudo apt-get install -f -y
-  rm -f google-chrome-stable_current_amd64.deb
-  cd -
-
-  # Initialize Chrome's cookie database by visiting YouTube
-  # This creates the necessary cookie files that yt-dlp will read
-  echo "Initializing Chrome cookie database..."
-  google-chrome --headless --disable-gpu --disable-software-rasterizer --no-sandbox \
-    --user-data-dir=/home/ubuntu/.config/google-chrome \
-    --dump-dom https://www.youtube.com/ > /dev/null 2>&1 || true
-
-  echo "Chrome installed and initialized for YouTube downloads."
-else
-  echo "Chrome already installed."
-
-  # Refresh Chrome cookies periodically by visiting YouTube again
-  echo "Refreshing Chrome cookies..."
-  google-chrome --headless --disable-gpu --disable-software-rasterizer --no-sandbox \
-    --user-data-dir=/home/ubuntu/.config/google-chrome \
-    --dump-dom https://www.youtube.com/ > /dev/null 2>&1 || true
-fi
+# YouTube downloads require cookies file at /home/ubuntu/youtube-cookies.txt
+# Export from your browser using "Get cookies.txt LOCALLY" extension
+# Instructions: https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp
 
 # Install the AWS CLI
 if ! command -v aws &> /dev/null; then
