@@ -18,10 +18,24 @@ fi
 
 # Check for active SSH sessions
 check_ssh_sessions() {
-  # Count users logged in via SSH (pts terminals)
-  local ssh_count
-  ssh_count=$(who | grep -c 'pts/' || true)
-  echo "$ssh_count"
+  # Count users logged in via multiple methods for reliability
+  local who_count pts_count users_count max_count
+
+  # Method 1: who command (shows all logged-in users)
+  who_count=$(who | wc -l)
+
+  # Method 2: pts terminals specifically
+  pts_count=$(who | grep -c 'pts/' || true)
+
+  # Method 3: users command
+  users_count=$(users | wc -w)
+
+  # Use the maximum count from all methods for safety
+  max_count=$who_count
+  [[ $pts_count -gt $max_count ]] && max_count=$pts_count
+  [[ $users_count -gt $max_count ]] && max_count=$users_count
+
+  echo "$max_count"
 }
 
 # Check if there's pending work in the database
@@ -62,10 +76,15 @@ check_pending_work() {
 echo "=== Auto-shutdown check at $(date) ==="
 
 # Check SSH sessions first
+echo "Checking for active users..."
+who
+echo "---"
 SSH_SESSIONS=$(check_ssh_sessions)
+echo "Detected $SSH_SESSIONS active session(s)"
+
 if [[ "$SSH_SESSIONS" -gt 0 ]]; then
   echo "Active SSH sessions detected ($SSH_SESSIONS); will not shut down."
-  wall Would shut down the system, but you’re logged in. Please shut it down when you’re done.
+  echo "Video processor has finished, but not shutting down because you're logged in. Please shut down when you're done: sudo shutdown -h now" | wall
   exit 0
 fi
 
@@ -95,8 +114,10 @@ sleep 10
 SSH_SESSIONS=$(check_ssh_sessions)
 if [[ "$SSH_SESSIONS" -gt 0 ]]; then
   echo "SSH session connected during grace period; aborting shutdown."
+  echo "Video processor has finished, but not shutting down because you're logged in. Please shut down when you're done: sudo shutdown -h now" | wall
   exit 0
 fi
 
-# Shut down the instance in 2 minutes
-sudo shutdown -h 2m
+# Shut down the instance
+echo "Proceeding with shutdown now."
+sudo shutdown -h now
