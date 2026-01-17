@@ -10,6 +10,7 @@ use RichmondSunlight\VideoProcessor\Scraper\House\HouseScraper;
 use RichmondSunlight\VideoProcessor\Scraper\Http\GuzzleHttpClient;
 use RichmondSunlight\VideoProcessor\Scraper\Http\RateLimitedHttpClient;
 use RichmondSunlight\VideoProcessor\Scraper\Senate\SenateScraper;
+use RichmondSunlight\VideoProcessor\Scraper\Senate\SenateYouTubeScraper;
 use RichmondSunlight\VideoProcessor\Sync\ExistingFilesRepository;
 use RichmondSunlight\VideoProcessor\Sync\MissingVideoFilter;
 use RichmondSunlight\VideoProcessor\Sync\VideoFilter;
@@ -50,11 +51,13 @@ $http = new RateLimitedHttpClient(
 // Always scrape new records (limit to 50 per source since new videos are at the top)
 $houseScraper = new HouseScraper($http, logger: $logger, maxRecords: 50);
 $senateScraper = new SenateScraper($http, logger: $logger, maxRecords: 50);
+$senateYouTubeScraper = new SenateYouTubeScraper($http, YOUTUBE_API_KEY ?? '', logger: $logger, maxRecords: 50);
 $newRecords = array_merge(
     $houseScraper->scrape(),
-    $senateScraper->scrape()
+    $senateScraper->scrape(),
+    $senateYouTubeScraper->scrape()
 );
-$logger?->put(sprintf('Scraped %d new records', count($newRecords)), 3);
+$logger?->put(sprintf('Scraped %d new records from 3 sources', count($newRecords)), 3);
 
 // Load cached records if they exist
 $cachedRecords = [];
