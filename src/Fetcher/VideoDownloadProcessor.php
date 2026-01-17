@@ -181,7 +181,7 @@ class VideoDownloadProcessor
         $cmd = sprintf(
             'yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" ' .
             '--merge-output-format mp4 --write-auto-sub --sub-lang en ' .
-            '--convert-subs vtt %s -o %s %s 2>&1',
+            '--convert-subs vtt --no-abort-on-error --ignore-errors %s -o %s %s 2>&1',
             $cookiesArg,
             escapeshellarg($destinationBase . '.%(ext)s'),
             escapeshellarg($url)
