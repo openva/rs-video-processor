@@ -160,3 +160,15 @@ wait
 * Run `deploy/deploy.sh`
 * Configure the Archive.org setup on the server with `ia configure`
 * Recommended: Set up a CloudWatch alarm to shut down the instance if it's idle (it could get expensive fast)
+
+---
+
+## Documentation
+
+Detailed feature documentation is available in [`docs/features/`](docs/features/):
+
+- **[YouTube Scraping](docs/features/youtube-scraping.md)** - Setup and usage of the YouTube video harvester for Virginia Senate videos
+- **[Raw Text Resolution](docs/features/raw-text-resolution.md)** - OCR text matching to database references (legislators and bills)
+- **[Database Migrations](sql/README.md)** - SQL schema changes and migration guide
+
+For LLM development assistance, see [`llm-instructions.md`](llm-instructions.md).
