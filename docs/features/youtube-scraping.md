@@ -62,40 +62,31 @@ which yt-dlp
 yt-dlp --version
 ```
 
-### 1b. Configure Browser Cookies (CRITICAL)
+### 1b. Chrome Installation (Automatic)
 
-YouTube detects automated downloads and requires authentication. yt-dlp needs browser cookies to bypass bot detection.
+**Chrome is installed automatically** when you run `deploy/deploy.sh`. The deployment script:
+- Installs Google Chrome
+- Initializes Chrome's cookie database by visiting YouTube
+- Refreshes cookies on each deployment
 
-**Option 1: Auto-detection (Recommended for servers)**
+**No manual configuration needed!** The system is pre-configured to use Chrome in `settings-default.inc.php`.
 
-Install Chrome or Firefox on the server and visit YouTube while logged in:
+If you need to manually install Chrome:
 
 ```bash
 # Install Chrome on Ubuntu
+cd /tmp
 wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-sudo dpkg -i google-chrome-stable_current_amd64.deb
+sudo apt install ./google-chrome-stable_current_amd64.deb
 sudo apt-get install -f
 
-# Or install Firefox
-sudo apt-get install firefox
-
-# Then open the browser and visit youtube.com
-# The system will auto-detect the browser and use its cookies
+# Initialize Chrome cookies
+google-chrome --headless --disable-gpu --disable-software-rasterizer --no-sandbox \
+  --user-data-dir=/home/ubuntu/.config/google-chrome \
+  --dump-dom https://www.youtube.com/ > /dev/null 2>&1
 ```
 
-**Option 2: Specify browser in settings**
-
-In `includes/settings.inc.php`:
-```php
-define('YTDLP_COOKIES_BROWSER', 'chrome');  // or 'firefox', 'edge', 'safari', etc.
-```
-
-**Important:** The browser must:
-- Be installed on the server
-- Have been used to visit youtube.com at least once
-- Have valid YouTube cookies (preferably while logged in)
-
-Without cookies, all YouTube downloads will fail with "Sign in to confirm you're not a bot" errors.
+**Important:** YouTube detects automated downloads. Chrome cookies bypass bot detection without requiring you to manually export cookies.
 
 ### 2. Obtain YouTube API Key
 

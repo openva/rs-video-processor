@@ -164,21 +164,31 @@ class VideoDownloadProcessor
         $destinationBase = preg_replace('/\.mp4$/', '', $destination);
 
         // Use browser cookies to avoid bot detection
-        // Try Chrome first, fall back to Firefox, or use no cookies if neither available
         $cookiesArg = '';
-        if (defined('YTDLP_COOKIES_BROWSER') && YTDLP_COOKIES_BROWSER !== '') {
-            $cookiesArg = '--cookies-from-browser ' . YTDLP_COOKIES_BROWSER;
-        } else {
-            // Auto-detect available browser
-            exec('which google-chrome chromium-browser chrome 2>/dev/null', $chromeCheck, $chromeStatus);
+
+        // Option 1: Use cookies file if specified
+        if (defined('YTDLP_COOKIES_FILE') && YTDLP_COOKIES_FILE !== '' && file_exists(YTDLP_COOKIES_FILE)) {
+            $cookiesArg = '--cookies ' . escapeshellarg(YTDLP_COOKIES_FILE);
+            $this->logger?->put('Using cookies from file: ' . YTDLP_COOKIES_FILE, 3);
+        }
+        // Option 2: Use specified browser
+        elseif (defined('YTDLP_COOKIES_BROWSER') && YTDLP_COOKIES_BROWSER !== '') {
+            $cookiesArg = '--cookies-from-browser ' . escapeshellarg(YTDLP_COOKIES_BROWSER);
+            $this->logger?->put('Using cookies from browser: ' . YTDLP_COOKIES_BROWSER, 3);
+        }
+        // Option 3: Auto-detect available browser
+        else {
+            exec('which google-chrome 2>/dev/null', $chromeCheck, $chromeStatus);
             exec('which firefox 2>/dev/null', $firefoxCheck, $firefoxStatus);
 
-            if ($chromeStatus === 0) {
+            if ($chromeStatus === 0 && !empty($chromeCheck)) {
                 $cookiesArg = '--cookies-from-browser chrome';
-            } elseif ($firefoxStatus === 0) {
+                $this->logger?->put('Auto-detected Chrome for cookies', 3);
+            } elseif ($firefoxStatus === 0 && !empty($firefoxCheck)) {
                 $cookiesArg = '--cookies-from-browser firefox';
+                $this->logger?->put('Auto-detected Firefox for cookies', 3);
             } else {
-                $this->logger?->put('WARNING: No browser found for cookies. YouTube downloads may fail with bot detection.', 4);
+                $this->logger?->put('WARNING: No browser found for cookies. YouTube downloads will likely fail with bot detection. Install Chrome/Firefox or provide YTDLP_COOKIES_FILE.', 5);
             }
         }
 
