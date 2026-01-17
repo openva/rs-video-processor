@@ -12,9 +12,10 @@ Richmond Sunlight’s standalone pipeline for finding Virginia General Assembly 
 
 The worker stack mirrors the main `richmondsunlight.com` repo: PHP 8.x, Composer-managed dependencies (vendor dir lives under `includes/`), and the shared `Log`/`Database` helpers. Core modules:
 
-* **Scraper** (`bin/scrape.php`) — collects House/Senate metadata (floor + committee) and persists JSON snapshots under `storage/scraper/`.
+* **Scraper** (`bin/scrape.php`) — collects House/Senate metadata (floor + committee) from Granicus and YouTube, and persists JSON snapshots under `storage/scraper/`.
 * **Sync + fetchers** (`bin/fetch_videos.php`, `bin/generate_screenshots.php`) — reconcile scraped data against the `files` table, download MP4s to S3, and create screenshot manifests for downstream analysis.
 * **Analysis workers** (`bin/generate_transcripts.php`, `bin/detect_bills.php`, `bin/detect_speakers.php`) — populate `video_transcript` and `video_index` by parsing captions, OCRing chyrons, and mapping speakers. Each script understands both an enqueue mode (for the lightweight control plane) and a worker mode (for the GPU instance). Speaker detection uses AWS Transcribe for floor videos (House and Senate floor sessions) but skips diarization for committee videos due to cost constraints.
+* **Raw text resolution** (`bin/resolve_raw_text.php`) — resolves OCR-extracted text in `video_index` to database references using fuzzy matching for legislators and strict validation for bills. Runs after speaker/bill detection to link raw text entries to `people.id` and `bills.id`.
 * **Archival** (`bin/upload_archive.php`) — pushes S3-hosted assets and captions to the Internet Archive and updates `files.path` with the IA URL.
 
 Job orchestration is handled via `JobDispatcher`. In production the dispatcher speaks to the FIFO queue `rs-video-harvester.fifo` (SQS); in Docker/tests it falls back to an in-memory queue so the full pipeline can run locally without AWS credentials.
@@ -80,10 +81,11 @@ That script ensures the container is running, verifies dependencies, and launche
 
 ## Key CLI entry points
 
-* `bin/scrape.php` — gather fresh metadata from the public House/Senate sources.
+* `bin/scrape.php` — gather fresh metadata from the public House/Senate sources (Granicus and YouTube).
 * `bin/fetch_videos.php --limit=N` — download any missing videos to S3 (`video.richmondsunlight.com`).
 * `bin/generate_screenshots.php --enqueue|--limit=N` — enqueue screenshot jobs (control plane) or run worker mode (analysis box).
 * `bin/generate_transcripts.php`, `bin/detect_bills.php`, `bin/detect_speakers.php` — same enqueue/worker pattern for analysis.
+* `bin/resolve_raw_text.php --file-id=N|--limit=N|--dry-run` — resolve OCR text to database references (legislators, bills).
 * `bin/upload_archive.php --limit=N` — upload S3-hosted files + captions to the Internet Archive, updating the `files` table.
 
 All scripts bootstrap via `bin/bootstrap.php`, which wires up the shared `Log`, PDO connection, and `JobDispatcher`. Use the `--enqueue` flag when running on the lightweight instance so work is pushed to SQS; omit it on the worker to poll/process jobs directly.

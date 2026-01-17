@@ -40,8 +40,12 @@ php bin/detect_bills.php
 echo "=== Step 6: Detecting speakers ==="
 php bin/detect_speakers.php
 
-# Step 7: Archive to Internet Archive
-echo "=== Step 7: Archiving videos ==="
+# Step 7: Resolve raw text to database references
+echo "=== Step 7: Resolving raw text ==="
+php bin/resolve_raw_text.php
+
+# Step 8: Archive to Internet Archive
+echo "=== Step 8: Archiving videos ==="
 php bin/upload_archive.php
 
 echo "Pipeline complete at $(date)"

@@ -1,0 +1,185 @@
+<?php
+
+namespace RichmondSunlight\VideoProcessor\Resolution\FuzzyMatcher;
+
+/**
+ * Handles fuzzy matching of legislator names with OCR error correction.
+ */
+class NameMatcher
+{
+    private SimilarityCalculator $similarity;
+
+    public function __construct(?SimilarityCalculator $similarity = null)
+    {
+        $this->similarity = $similarity ?? new SimilarityCalculator();
+    }
+
+    /**
+     * Extract clean name from raw text, removing titles, parties, districts, etc.
+     *
+     * @return array{cleaned: string, tokens: array<int, string>, prefix: ?string, party: ?string, district: ?string}
+     */
+    public function extractLegislatorName(string $rawText): array
+    {
+        $original = $rawText;
+
+        // Extract and remove prefix
+        $prefix = null;
+        $prefixes = ['Sen\.', 'Del\.', 'Delegate', 'Senator', 'Chair', 'Vice Chair', 'Rep\.', 'Representative'];
+        foreach ($prefixes as $p) {
+            if (preg_match('/^(' . $p . ')\s+/i', $rawText, $matches)) {
+                $prefix = $matches[1];
+                $rawText = preg_replace('/^' . $p . '\s+/i', '', $rawText);
+                break;
+            }
+        }
+
+        // Extract and remove party indicator and district
+        $party = null;
+        $district = null;
+
+        // Handle (R-6), (D-42), etc.
+        if (preg_match('/\(([RDI])-(\d+)\)/i', $rawText, $matches)) {
+            $party = strtoupper($matches[1]);
+            $district = $matches[2];
+            $rawText = preg_replace('/\(([RDI])-\d+\)/i', '', $rawText);
+        }
+        // Handle (R), (D), (I)
+        elseif (preg_match('/\(([RDI])\)/i', $rawText, $matches)) {
+            $party = strtoupper($matches[1]);
+            $rawText = preg_replace('/\(([RDI])\)/i', '', $rawText);
+        }
+
+        // Handle "District 42"
+        if (preg_match('/District\s+(\d+)/i', $rawText, $matches)) {
+            $district = $matches[1];
+            $rawText = preg_replace('/District\s+\d+/i', '', $rawText);
+        }
+
+        // Remove location indicators
+        $rawText = preg_replace('/\s+of\s+[A-Z][a-z]+/i', '', $rawText);
+        $rawText = preg_replace('/-\s*[A-Z][a-z]+$/i', '', $rawText);
+
+        // Clean up whitespace and punctuation
+        $rawText = preg_replace('/[,\(\)]+/', ' ', $rawText);
+        $rawText = trim(preg_replace('/\s+/', ' ', $rawText));
+
+        $tokens = array_filter(explode(' ', $rawText), fn($t) => strlen($t) > 0);
+
+        return [
+            'cleaned' => $rawText,
+            'tokens' => array_values($tokens),
+            'prefix' => $prefix,
+            'party' => $party,
+            'district' => $district,
+        ];
+    }
+
+    /**
+     * Pivot comma-separated name ("Lastname, Firstname" → "Firstname Lastname").
+     */
+    public function pivotCommaName(string $name): string
+    {
+        $parts = array_map('trim', explode(',', $name, 2));
+        if (count($parts) === 2 && $parts[0] !== '' && $parts[1] !== '') {
+            return $parts[1] . ' ' . $parts[0];
+        }
+        return $name;
+    }
+
+    /**
+     * Generate OCR error variations for a name.
+     *
+     * @return array<int, string>
+     */
+    public function generateOcrVariations(string $name, int $maxVariations = 10): array
+    {
+        $variations = [$name];
+
+        // Common OCR substitutions
+        $substitutions = [
+            '0' => ['O', 'o'],
+            'O' => ['0'],
+            'o' => ['0'],
+            '1' => ['l', 'I', 'i'],
+            'l' => ['1', 'I'],
+            'I' => ['1', 'l'],
+            '5' => ['S', 's'],
+            'S' => ['5'],
+            '8' => ['B'],
+            'B' => ['8'],
+            '6' => ['G'],
+            'G' => ['6'],
+        ];
+
+        // Generate single-character substitutions
+        for ($i = 0; $i < strlen($name) && count($variations) < $maxVariations; $i++) {
+            $char = $name[$i];
+            if (isset($substitutions[$char])) {
+                foreach ($substitutions[$char] as $replacement) {
+                    $variant = substr_replace($name, $replacement, $i, 1);
+                    if (!in_array($variant, $variations)) {
+                        $variations[] = $variant;
+                        if (count($variations) >= $maxVariations) {
+                            break 2;
+                        }
+                    }
+                }
+            }
+        }
+
+        return $variations;
+    }
+
+    /**
+     * Calculate match score for a candidate name against cleaned text.
+     *
+     * @param string $rawTextCleaned Cleaned raw text from OCR
+     * @param string $candidateName Candidate name from database (may be comma-formatted)
+     * @param array<int, string> $rawTokens Tokens from cleaned raw text
+     * @return float Score from 0.0 to 100.0
+     */
+    public function calculateNameScore(
+        string $rawTextCleaned,
+        string $candidateName,
+        array $rawTokens
+    ): float {
+        $candidate = $this->pivotCommaName($candidateName);
+
+        // 1. Exact match (case-insensitive)
+        if (strcasecmp($rawTextCleaned, $candidate) === 0) {
+            return 100.0;
+        }
+
+        // 2. Generate OCR variations and check for matches
+        $variations = $this->generateOcrVariations($rawTextCleaned);
+        foreach ($variations as $variant) {
+            if (strcasecmp($variant, $candidate) === 0) {
+                return 95.0; // Very high confidence for OCR variation match
+            }
+        }
+
+        // 3. Fuzzy matching
+        $combined = $this->similarity->combinedSimilarity(
+            $rawTextCleaned,
+            $candidate,
+            0.3, // Levenshtein weight
+            0.5, // Jaro-Winkler weight
+            0.2  // Token set weight
+        );
+
+        // 4. Token matching bonus
+        $candidateTokens = explode(' ', $candidate);
+        $tokenScore = $this->similarity->tokenSetRatio($rawTokens, $candidateTokens);
+
+        // Weighted average: 70% combined similarity, 30% token matching
+        $score = ($combined * 0.7 + $tokenScore * 0.3) * 100;
+
+        // 5. Soundex bonus for phonetically similar names
+        if ($this->similarity->soundexSimilarity($rawTextCleaned, $candidate)) {
+            $score *= 1.1; // 10% boost
+        }
+
+        return min($score, 100.0);
+    }
+}
