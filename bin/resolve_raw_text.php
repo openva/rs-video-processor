@@ -44,8 +44,8 @@ if ($type !== null && !in_array($type, ['legislator', 'bill'])) {
 
 // Connect to database
 try {
-    $db = new Database(PDO_DSN, PDO_USERNAME, PDO_PASSWORD);
-    $pdo = $db->getConnection();
+    $db = new Database();
+    $pdo = $db->connect();
 } catch (Exception $e) {
     fwrite(STDERR, "Database connection error: " . $e->getMessage() . "\n");
     exit(1);
