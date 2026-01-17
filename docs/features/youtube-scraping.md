@@ -49,7 +49,7 @@ YouTube video downloads require yt-dlp:
 # macOS (Homebrew)
 brew install yt-dlp
 
-# pip (Python)
+# Ubuntu/Debian
 pip install yt-dlp
 
 # Or download binary from:
@@ -61,6 +61,41 @@ Verify installation:
 which yt-dlp
 yt-dlp --version
 ```
+
+### 1b. Configure Browser Cookies (CRITICAL)
+
+YouTube detects automated downloads and requires authentication. yt-dlp needs browser cookies to bypass bot detection.
+
+**Option 1: Auto-detection (Recommended for servers)**
+
+Install Chrome or Firefox on the server and visit YouTube while logged in:
+
+```bash
+# Install Chrome on Ubuntu
+wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+sudo dpkg -i google-chrome-stable_current_amd64.deb
+sudo apt-get install -f
+
+# Or install Firefox
+sudo apt-get install firefox
+
+# Then open the browser and visit youtube.com
+# The system will auto-detect the browser and use its cookies
+```
+
+**Option 2: Specify browser in settings**
+
+In `includes/settings.inc.php`:
+```php
+define('YTDLP_COOKIES_BROWSER', 'chrome');  // or 'firefox', 'edge', 'safari', etc.
+```
+
+**Important:** The browser must:
+- Be installed on the server
+- Have been used to visit youtube.com at least once
+- Have valid YouTube cookies (preferably while logged in)
+
+Without cookies, all YouTube downloads will fail with "Sign in to confirm you're not a bot" errors.
 
 ### 2. Obtain YouTube API Key
 
@@ -180,6 +215,36 @@ php bin/fetch_videos.php --limit=1
 
 ## Troubleshooting
 
+### Bot detection error ("Sign in to confirm you're not a bot")
+
+**Symptom:**
+```
+ERROR: Sign in to confirm you're not a bot. Use --cookies-from-browser or --cookies
+```
+
+**Cause:** YouTube is blocking automated downloads without authentication.
+
+**Solution:**
+
+1. Install Chrome or Firefox on the server:
+```bash
+sudo apt-get install firefox
+```
+
+2. Open the browser and visit youtube.com (must be done as the user running the video processor)
+```bash
+# If running as ubuntu user
+sudo -u ubuntu firefox https://youtube.com
+```
+
+3. The system will auto-detect the browser and use its cookies
+
+4. Alternatively, specify the browser in settings:
+```php
+# In includes/settings.inc.php
+define('YTDLP_COOKIES_BROWSER', 'firefox');
+```
+
 ### No YouTube videos found
 
 Check API key configuration:
@@ -203,6 +268,15 @@ Monitor quota at: https://console.cloud.google.com/
 If consistently hitting limits, consider:
 - Reducing scrape frequency
 - Requesting quota increase from Google
+
+### No browser cookies available
+
+**Symptom:**
+```
+WARNING: No browser found for cookies. YouTube downloads may fail with bot detection.
+```
+
+**Solution:** Install Chrome or Firefox and visit YouTube (see bot detection section above)
 
 ## Disabling YouTube Scraper
 

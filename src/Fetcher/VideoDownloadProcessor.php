@@ -163,10 +163,30 @@ class VideoDownloadProcessor
         // Remove the destination file extension to let yt-dlp add it
         $destinationBase = preg_replace('/\.mp4$/', '', $destination);
 
+        // Use browser cookies to avoid bot detection
+        // Try Chrome first, fall back to Firefox, or use no cookies if neither available
+        $cookiesArg = '';
+        if (defined('YTDLP_COOKIES_BROWSER') && YTDLP_COOKIES_BROWSER !== '') {
+            $cookiesArg = '--cookies-from-browser ' . YTDLP_COOKIES_BROWSER;
+        } else {
+            // Auto-detect available browser
+            exec('which google-chrome chromium-browser chrome 2>/dev/null', $chromeCheck, $chromeStatus);
+            exec('which firefox 2>/dev/null', $firefoxCheck, $firefoxStatus);
+
+            if ($chromeStatus === 0) {
+                $cookiesArg = '--cookies-from-browser chrome';
+            } elseif ($firefoxStatus === 0) {
+                $cookiesArg = '--cookies-from-browser firefox';
+            } else {
+                $this->logger?->put('WARNING: No browser found for cookies. YouTube downloads may fail with bot detection.', 4);
+            }
+        }
+
         $cmd = sprintf(
             'yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" ' .
             '--merge-output-format mp4 --write-auto-sub --sub-lang en ' .
-            '--convert-subs vtt -o %s %s 2>&1',
+            '--convert-subs vtt %s -o %s %s 2>&1',
+            $cookiesArg,
             escapeshellarg($destinationBase . '.%(ext)s'),
             escapeshellarg($url)
         );
