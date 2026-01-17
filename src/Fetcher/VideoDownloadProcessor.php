@@ -155,6 +155,11 @@ class VideoDownloadProcessor
             throw new \RuntimeException('yt-dlp is not installed or not in PATH. Install: pip install yt-dlp');
         }
 
+        // Check yt-dlp version for debugging
+        exec('yt-dlp --version 2>&1', $versionOutput, $versionStatus);
+        $version = $versionStatus === 0 ? trim($versionOutput[0] ?? 'unknown') : 'unknown';
+        $this->logger?->put("Using yt-dlp version: {$version}", 3);
+
         // Remove the destination file extension to let yt-dlp add it
         $destinationBase = preg_replace('/\.mp4$/', '', $destination);
 
@@ -166,6 +171,7 @@ class VideoDownloadProcessor
             escapeshellarg($url)
         );
 
+        $this->logger?->put("Running yt-dlp command: {$cmd}", 3);
         $this->runCommand($cmd, sprintf('Failed to download YouTube video via yt-dlp from %s', $url));
 
         // Verify file was created
@@ -237,7 +243,10 @@ class VideoDownloadProcessor
     {
         exec($cmd, $output, $status);
         if ($status !== 0) {
-            throw new \RuntimeException($errorMessage);
+            $outputStr = implode("\n", $output);
+            throw new \RuntimeException(
+                $errorMessage . "\nCommand output:\n" . $outputStr
+            );
         }
     }
 
