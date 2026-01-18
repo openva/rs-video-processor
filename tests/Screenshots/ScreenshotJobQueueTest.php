@@ -18,6 +18,7 @@ class ScreenshotJobQueueTest extends TestCase
             title TEXT,
             date TEXT,
             path TEXT,
+            html TEXT,
             capture_directory TEXT,
             date_created TEXT
         )');

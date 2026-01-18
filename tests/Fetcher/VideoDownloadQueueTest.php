@@ -18,6 +18,7 @@ class VideoDownloadQueueTest extends TestCase
             title TEXT,
             date TEXT,
             path TEXT,
+            html TEXT,
             video_index_cache TEXT,
             date_created TEXT
         )');

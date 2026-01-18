@@ -26,6 +26,7 @@ class ScreenshotGeneratorTest extends TestCase
             title TEXT,
             date TEXT,
             path TEXT,
+            html TEXT,
             capture_directory TEXT,
             capture_rate INTEGER,
             date_created TEXT,

@@ -15,6 +15,7 @@ class SpeakerJobQueueTest extends TestCase
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             chamber TEXT,
             path TEXT,
+            html TEXT,
             capture_directory TEXT,
             video_index_cache TEXT,
             date_created TEXT

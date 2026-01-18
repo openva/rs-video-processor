@@ -30,11 +30,11 @@ class VideoImporter
         $insert = $this->pdo->prepare(
             'INSERT INTO files (
                 chamber, committee_id, title, description, type, length, date, sponsor,
-                width, height, fps, capture_rate, capture_directory, path,
+                width, height, fps, capture_rate, capture_directory, path, html,
                 author_name, license, date_created, date_modified, video_index_cache, raw_metadata
             ) VALUES (
                 :chamber, :committee_id, :title, :description, :type, :length, :date, :sponsor,
-                :width, :height, :fps, :capture_rate, :capture_directory, :path,
+                :width, :height, :fps, :capture_rate, :capture_directory, :path, :html,
                 :author_name, :license, :date_created, :date_modified, :video_index_cache, :raw_metadata
             )'
         );
@@ -163,6 +163,7 @@ class VideoImporter
             'capture_rate' => $record['capture_rate'] ?? null,
             'capture_directory' => $record['capture_directory'] ?? null,
             'path' => $record['video_url'] ?? null,
+            'html' => null,  // Will be populated by VideoDownloadProcessor on failure
             'author_name' => $record['speaker'] ?? null,
             'license' => $record['license'] ?? 'public-domain',
             'date_created' => $now->format('Y-m-d H:i:s'),

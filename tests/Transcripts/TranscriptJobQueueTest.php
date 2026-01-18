@@ -16,6 +16,7 @@ class TranscriptJobQueueTest extends TestCase
             chamber TEXT,
             title TEXT,
             path TEXT,
+            html TEXT,
             webvtt TEXT,
             srt TEXT,
             date_created TEXT

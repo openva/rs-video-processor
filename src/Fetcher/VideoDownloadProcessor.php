@@ -43,23 +43,74 @@ class VideoDownloadProcessor
             3
         );
 
-        $localVideo = $this->downloadVideo($job);
-        $captionPath = $this->downloadCaptions($job);
+        try {
+            $localVideo = $this->downloadVideo($job);
+            $captionPath = $this->downloadCaptions($job);
 
-        $meta = $this->metadataExtractor->extract($localVideo);
-        $s3Key = $this->buildS3Key($job);
-        $s3Url = $this->storage->upload($localVideo, $s3Key);
+            $meta = $this->metadataExtractor->extract($localVideo);
+            $s3Key = $this->buildS3Key($job);
+            $s3Url = $this->storage->upload($localVideo, $s3Key);
 
-        $captionContents = $captionPath && is_readable($captionPath)
-            ? file_get_contents($captionPath)
-            : null;
+            $captionContents = $captionPath && is_readable($captionPath)
+                ? file_get_contents($captionPath)
+                : null;
 
-        $this->updateDatabase($job, $s3Url, $s3Key, $meta, $captionContents);
-        $this->metadataIndexer?->index($job->id, $job->metadata);
+            $this->updateDatabase($job, $s3Url, $s3Key, $meta, $captionContents);
+            $this->metadataIndexer?->index($job->id, $job->metadata);
 
-        @unlink($localVideo);
-        if ($captionPath) {
-            @unlink($captionPath);
+            @unlink($localVideo);
+            if ($captionPath) {
+                @unlink($captionPath);
+            }
+        } catch (\Throwable $e) {
+            // Check if this is a YouTube video that we can provide a fallback for
+            if ($this->isYouTubeUrl($job->remoteUrl)) {
+                $youtubeId = $this->extractYouTubeId($job);
+
+                if ($youtubeId !== null) {
+                    // Determine if this is a permanent failure or transient error
+                    $isPermanentFailure = $this->isPermanentFailure($e);
+
+                    if ($isPermanentFailure) {
+                        $this->logger?->put(
+                            sprintf(
+                                'YouTube download failed permanently for video #%d: %s. Creating embed fallback for video ID: %s',
+                                $job->id,
+                                $e->getMessage(),
+                                $youtubeId
+                            ),
+                            5
+                        );
+
+                        // Generate and save embed HTML as fallback
+                        $errorReason = $this->getErrorReason($e);
+                        $embedHtml = $this->generateYouTubeEmbedHtml($youtubeId, $errorReason);
+                        $this->updateDatabaseWithFallbackHtml($job, $embedHtml);
+
+                        // Index metadata even though download failed
+                        $this->metadataIndexer?->index($job->id, $job->metadata);
+
+                        $this->logger?->put(
+                            sprintf('Saved YouTube embed fallback HTML for video #%d', $job->id),
+                            3
+                        );
+
+                        return; // Success - fallback saved
+                    }
+                } else {
+                    $this->logger?->put(
+                        sprintf(
+                            'Could not extract YouTube ID from video #%d (%s), cannot create embed fallback',
+                            $job->id,
+                            $job->remoteUrl
+                        ),
+                        4
+                    );
+                }
+            }
+
+            // Re-throw for non-YouTube videos, transient errors, or when no YouTube ID available
+            throw $e;
         }
     }
 
@@ -291,5 +342,166 @@ class VideoDownloadProcessor
     {
         $normalized = strtolower($url);
         return str_contains($normalized, 'granicus.com') && str_contains($normalized, '.mp4');
+    }
+
+    /**
+     * Extract YouTube video ID from job metadata or URL.
+     */
+    private function extractYouTubeId(VideoDownloadJob $job): ?string
+    {
+        // First, check if metadata already has the YouTube ID (most reliable)
+        if (!empty($job->metadata['youtube_id'])) {
+            return $job->metadata['youtube_id'];
+        }
+
+        // Second, try to extract from embed_url in metadata
+        if (!empty($job->metadata['embed_url'])) {
+            if (preg_match('#youtube\.com/embed/([a-zA-Z0-9_-]+)#', $job->metadata['embed_url'], $matches)) {
+                return $matches[1];
+            }
+        }
+
+        // Finally, parse the remote URL directly
+        $url = $job->remoteUrl;
+
+        // Pattern 1: youtube.com/watch?v=ID
+        if (preg_match('#[?&]v=([a-zA-Z0-9_-]+)#', $url, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 2: youtu.be/ID
+        if (preg_match('#youtu\.be/([a-zA-Z0-9_-]+)#', $url, $matches)) {
+            return $matches[1];
+        }
+
+        // Pattern 3: youtube.com/embed/ID
+        if (preg_match('#youtube\.com/embed/([a-zA-Z0-9_-]+)#', $url, $matches)) {
+            return $matches[1];
+        }
+
+        return null;
+    }
+
+    /**
+     * Generate YouTube embed HTML as fallback when download fails.
+     */
+    private function generateYouTubeEmbedHtml(string $youtubeId, string $errorReason = ''): string
+    {
+        $embedUrl = 'https://www.youtube-nocookie.com/embed/' . htmlspecialchars($youtubeId, ENT_QUOTES, 'UTF-8');
+        $errorAttr = $errorReason ? ' data-fallback-reason="' . htmlspecialchars($errorReason, ENT_QUOTES, 'UTF-8') . '"' : '';
+
+        return <<<HTML
+<!-- YouTube embed fallback: video download failed, displaying YouTube player instead -->
+<div class="video-embed-container" style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%;">
+    <iframe
+        src="{$embedUrl}"
+        style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"
+        frameborder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowfullscreen{$errorAttr}>
+    </iframe>
+</div>
+HTML;
+    }
+
+    /**
+     * Update database with fallback embed HTML when video download fails.
+     * This marks the record as processed (preventing retry) but with embedded player instead of downloaded file.
+     */
+    private function updateDatabaseWithFallbackHtml(VideoDownloadJob $job, string $html): void
+    {
+        $sql = 'UPDATE files SET html = :html, date_modified = CURRENT_TIMESTAMP WHERE id = :id';
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([
+            ':html' => $html,
+            ':id' => $job->id,
+        ]);
+    }
+
+    /**
+     * Determine if an exception represents a permanent failure (use fallback)
+     * vs transient error (should retry).
+     */
+    private function isPermanentFailure(\Throwable $e): bool
+    {
+        // YouTubeCookiesExpiredException is permanent until cookies are refreshed
+        if ($e instanceof YouTubeCookiesExpiredException) {
+            return true;
+        }
+
+        $message = $e->getMessage();
+
+        // Permanent failures (use fallback):
+        $permanentIndicators = [
+            'Sign in to confirm',           // Bot detection
+            'Video unavailable',             // Deleted/private video
+            'This video is private',         // Privacy restriction
+            'This video has been removed',   // Deleted
+            'HTTP Error 403',                // Forbidden
+            'HTTP Error 404',                // Not found
+            'This video is no longer available', // Removed
+            'file is too small',             // Download produced invalid file
+        ];
+
+        foreach ($permanentIndicators as $indicator) {
+            if (stripos($message, $indicator) !== false) {
+                return true;
+            }
+        }
+
+        // Transient failures (should retry):
+        $transientIndicators = [
+            'timeout',
+            'timed out',
+            'Connection refused',
+            'Connection reset',
+            'Network is unreachable',
+            'Could not resolve host',
+            'SSL',
+            'certificate',
+        ];
+
+        foreach ($transientIndicators as $indicator) {
+            if (stripos($message, $indicator) !== false) {
+                return false;
+            }
+        }
+
+        // Default to permanent for unknown errors (prevents infinite retry loops)
+        return true;
+    }
+
+    /**
+     * Extract a brief, user-friendly error reason from an exception.
+     */
+    private function getErrorReason(\Throwable $e): string
+    {
+        if ($e instanceof YouTubeCookiesExpiredException) {
+            return 'Authentication required';
+        }
+
+        $message = $e->getMessage();
+
+        if (stripos($message, 'Sign in to confirm') !== false) {
+            return 'Bot detection';
+        }
+        if (stripos($message, 'Video unavailable') !== false || stripos($message, 'removed') !== false) {
+            return 'Video unavailable';
+        }
+        if (stripos($message, 'private') !== false) {
+            return 'Private video';
+        }
+        if (stripos($message, '403') !== false) {
+            return 'Access forbidden';
+        }
+        if (stripos($message, '404') !== false) {
+            return 'Video not found';
+        }
+        if (stripos($message, 'too small') !== false) {
+            return 'Invalid download';
+        }
+
+        return 'Download failed';
     }
 }

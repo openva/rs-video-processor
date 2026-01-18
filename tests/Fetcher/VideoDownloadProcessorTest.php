@@ -132,6 +132,7 @@ class VideoDownloadProcessorTest extends TestCase
             chamber TEXT,
             committee_id INTEGER,
             path TEXT,
+            html TEXT,
             capture_directory TEXT,
             length TEXT,
             width INTEGER,

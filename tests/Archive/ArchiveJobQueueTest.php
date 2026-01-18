@@ -18,6 +18,7 @@ class ArchiveJobQueueTest extends TestCase
             title TEXT,
             date TEXT,
             path TEXT,
+            html TEXT,
             webvtt TEXT,
             srt TEXT,
             capture_directory TEXT,

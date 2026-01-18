@@ -30,6 +30,7 @@ class VideoImporterTest extends TestCase
             capture_rate INTEGER,
             capture_directory TEXT,
             path TEXT,
+            html TEXT,
             author_name TEXT,
             license TEXT,
             date_created TEXT,
