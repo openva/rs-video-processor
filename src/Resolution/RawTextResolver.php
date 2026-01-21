@@ -181,9 +181,16 @@ class RawTextResolver
     private function loadFileMetadata(int $fileId): ?array
     {
         $stmt = $this->pdo->prepare('
-            SELECT id, session_id, chamber, video_index_cache
-            FROM files
-            WHERE id = :id
+            SELECT
+                f.id,
+                f.chamber,
+                f.video_index_cache,
+                f.date,
+                s.id AS session_id
+            FROM files f
+            LEFT JOIN sessions s ON f.date >= s.date_start
+                AND (s.date_end IS NULL OR f.date <= s.date_end)
+            WHERE f.id = :id
         ');
 
         $stmt->execute([':id' => $fileId]);
