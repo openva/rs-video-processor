@@ -88,7 +88,7 @@ if [[ "$SSH_SESSIONS" -gt 0 ]]; then
   exit 0
 fi
 
-# Check for pending work
+# Check for pending work (for logging only - no longer blocks shutdown)
 echo "Checking for pending work..."
 PENDING_WORK=$(check_pending_work)
 
@@ -96,12 +96,13 @@ PENDING_WORK=$(check_pending_work)
 PENDING_COUNT=$(echo "$PENDING_WORK" | tail -1)
 
 if [[ "$PENDING_COUNT" -gt 0 ]]; then
-  echo "Pending work detected; will not shut down."
+  echo "Pending work detected ($PENDING_COUNT items), but proceeding with shutdown anyway (time limit reached)."
   echo "$PENDING_WORK" | head -n -1  # Show the breakdown
-  exit 0
+else
+  echo "No pending work detected."
 fi
 
-echo "No SSH sessions and no pending work detected."
+echo "No SSH sessions detected."
 echo "Initiating shutdown..."
 if command -v php >/dev/null 2>&1; then
   php -r "require '${APP_DIR}/includes/settings.inc.php'; require '${APP_DIR}/includes/class.Log.php'; (new Log())->put('Auto-shutdown initiated (no pending work, no active SSH).', 3);"
