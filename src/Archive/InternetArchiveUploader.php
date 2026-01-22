@@ -104,21 +104,47 @@ class InternetArchiveUploader
         return implode(' ', $parts) . ' 2>&1';
     }
 
-    private function resolveMp4Url(string $identifier, string $preferredFilename, int $attempts = 5, int $delaySeconds = 2): ?string
+    private function resolveMp4Url(string $identifier, string $preferredFilename, int $attempts = 10, int $delaySeconds = 3): ?string
     {
         for ($i = 0; $i < $attempts; $i++) {
             $metadata = $this->fetchMetadata($identifier);
-            if (is_array($metadata)) {
-                $file = $this->selectMp4File($metadata['files'] ?? [], $preferredFilename);
+            if (is_array($metadata) && !empty($metadata)) {
+                $files = $metadata['files'] ?? [];
+                $this->logger?->put(
+                    sprintf(
+                        'Archive.org metadata for %s (attempt %d/%d): %d files found, looking for %s',
+                        $identifier,
+                        $i + 1,
+                        $attempts,
+                        count($files),
+                        $preferredFilename
+                    ),
+                    4
+                );
+
+                $file = $this->selectMp4File($files, $preferredFilename);
                 if ($file) {
+                    $this->logger?->put(
+                        sprintf('Successfully resolved MP4 URL for %s on attempt %d', $identifier, $i + 1),
+                        3
+                    );
                     return $this->buildDownloadUrl($identifier, $file['name']);
                 }
+            } else {
+                $this->logger?->put(
+                    sprintf('Archive.org metadata for %s (attempt %d/%d): item still processing (empty metadata)', $identifier, $i + 1, $attempts),
+                    4
+                );
             }
             if ($i < $attempts - 1) {
                 sleep($delaySeconds);
             }
         }
 
+        $this->logger?->put(
+            sprintf('Failed to resolve MP4 URL for %s after %d attempts over %d seconds. Will use repair script later.', $identifier, $attempts, $attempts * $delaySeconds),
+            4
+        );
         return null;
     }
 
@@ -128,13 +154,25 @@ class InternetArchiveUploader
             return ($this->metadataFetcher)($identifier);
         }
 
-        $url = sprintf('https://archive.org/metadata/%s', rawurlencode($identifier));
-        $response = $this->http->get($url);
-        if ($response->getStatusCode() >= 400) {
+        try {
+            $url = sprintf('https://archive.org/metadata/%s', rawurlencode($identifier));
+            $response = $this->http->get($url);
+            if ($response->getStatusCode() >= 400) {
+                $this->logger?->put(
+                    sprintf('Archive.org metadata API returned status %d for %s', $response->getStatusCode(), $identifier),
+                    5
+                );
+                return null;
+            }
+            $data = json_decode((string) $response->getBody(), true);
+            return is_array($data) ? $data : null;
+        } catch (\Exception $e) {
+            $this->logger?->put(
+                sprintf('Failed to fetch Archive.org metadata for %s: %s', $identifier, $e->getMessage()),
+                5
+            );
             return null;
         }
-        $data = json_decode((string) $response->getBody(), true);
-        return is_array($data) ? $data : null;
     }
 
     /**
@@ -146,12 +184,14 @@ class InternetArchiveUploader
         $preferred = null;
         $fallback = null;
         $fallbackSize = 0;
+        $mp4Files = [];
 
         foreach ($files as $file) {
             $name = $file['name'] ?? '';
             if (!is_string($name) || $name === '' || !str_ends_with(strtolower($name), '.mp4')) {
                 continue;
             }
+            $mp4Files[] = $name;
             if ($name === $preferredFilename) {
                 $preferred = $file;
                 break;
@@ -161,6 +201,10 @@ class InternetArchiveUploader
                 $fallbackSize = $size;
                 $fallback = $file;
             }
+        }
+
+        if (!empty($mp4Files)) {
+            $this->logger?->put('MP4 files found in Archive.org metadata: ' . implode(', ', $mp4Files), 4);
         }
 
         return $preferred ?? $fallback;
