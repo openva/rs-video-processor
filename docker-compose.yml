@@ -3,15 +3,42 @@ services:
     build:
       context: deploy/
       dockerfile: Dockerfile
-    working_dir: /root/video-processor
-    command: tail -f /dev/null
+    container_name: rs_video_processor
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_NAME: richmondsunlight
+      DB_USER: ricsun
+      DB_PASS: password
     volumes:
       - type: bind
         source: .
         target: /root/video-processor/
     networks:
       - rs_video_network
-    container_name: rs_video_processor
+    working_dir: /root/video-processor
+    command: tail -f /dev/null
+
+  db:
+    build:
+      context: deploy/
+      dockerfile: MySQL.Dockerfile
+    container_name: rs_video_processor_db
+    volumes:
+      - db_data:/var/lib/mariadb/
+    networks:
+      - rs_video_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      start_period: 30s
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
 networks:
   rs_video_network:
+
+volumes:
+  db_data:

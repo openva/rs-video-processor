@@ -30,11 +30,11 @@ define('LIS_FTP_USERNAME', '');
 define('LIS_FTP_PASSWORD', '');
 
 # The DSN to connect to MySQL.
-define('PDO_DSN', '');
-define('PDO_SERVER', '');
-define('PDO_USERNAME', '');
-define('PDO_PASSWORD', '');
-define('MYSQL_DATABASE', '');
+define('PDO_DSN', 'mysql:host=db;dbname=richmondsunlight');
+define('PDO_SERVER', 'db');
+define('PDO_USERNAME', 'ricsun');
+define('PDO_PASSWORD', 'password');
+define('MYSQL_DATABASE', 'richmondsunlight');
 
 # The API URL.
 define('API_URL', 'https://api.richmondsunlight.com/');

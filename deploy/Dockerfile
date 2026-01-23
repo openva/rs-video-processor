@@ -16,10 +16,11 @@ RUN apt-get update &&  apt-get install -y zip \
     libpng-dev \
     libjpeg62-turbo-dev \
     libfreetype6-dev \
+    mariadb-client \
     && rm -rf /var/lib/apt/lists/*
 
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install gd
+    && docker-php-ext-install gd pdo pdo_mysql
 
 # Allow git to operate on the bind-mounted repo path in CI.
 RUN git config --global --add safe.directory /root/video-processor
