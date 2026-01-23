@@ -9,6 +9,11 @@ class IdentifierBuilder
         $date = str_replace('-', '', $job->date);
         $titleSlug = preg_replace('/[^a-z0-9]+/i', '-', strtolower($job->title));
         $titleSlug = trim($titleSlug, '-');
+
+        if ($titleSlug === '') {
+            return sprintf('rs-%s-%s', strtolower($job->chamber), $date);
+        }
+
         return sprintf('rs-%s-%s-%s', strtolower($job->chamber), $date, $titleSlug);
     }
 }
