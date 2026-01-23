@@ -48,7 +48,7 @@ Usage:
   php bin/repair.php --stage=NAME [options]
 
 Required:
-  --stage=NAME    Stage to repair (screenshots, transcripts, metadata, duplicates)
+  --stage=NAME    Stage to repair (screenshots, transcripts, metadata, bills, speakers, duplicates)
 
 Options:
   --limit=N       Maximum number of records to process (default: 10)
@@ -61,12 +61,16 @@ Stages:
   screenshots   Re-generate screenshots for videos missing capture_directory
   transcripts   Re-generate transcripts for videos missing transcript data
   metadata      Re-extract video metadata (length, dimensions, fps) from S3 videos
+  bills         Run bill detection for videos with screenshots but missing bill data
+  speakers      Run speaker detection for videos missing speaker data
   duplicates    Remove duplicate video records (keeps most complete copy)
 
 Examples:
   php bin/repair.php --stage=screenshots --limit=5
   php bin/repair.php --stage=transcripts --id=12345 --reset
   php bin/repair.php --stage=metadata --dry-run
+  php bin/repair.php --stage=bills --limit=20
+  php bin/repair.php --stage=speakers --id=12345 --reset
   php bin/repair.php --stage=duplicates --dry-run
   php bin/repair.php --stage=duplicates --limit=100
 
@@ -74,7 +78,7 @@ HELP;
     exit($help ? 0 : 1);
 }
 
-$validStages = ['screenshots', 'transcripts', 'metadata', 'duplicates'];
+$validStages = ['screenshots', 'transcripts', 'metadata', 'bills', 'speakers', 'duplicates'];
 if (!in_array($stage, $validStages, true)) {
     echo "Unknown stage: $stage\n";
     echo "Valid stages: " . implode(', ', $validStages) . "\n";
@@ -104,6 +108,14 @@ switch ($stage) {
 
     case 'metadata':
         repairMetadata($pdo, $log, $limit, $specificId, $dryRun);
+        break;
+
+    case 'bills':
+        repairBills($pdo, $limit, $specificId, $reset, $dryRun);
+        break;
+
+    case 'speakers':
+        repairSpeakers($pdo, $limit, $specificId, $reset, $dryRun);
         break;
 
     case 'duplicates':
@@ -470,4 +482,146 @@ function removeDuplicates(
     } else {
         echo sprintf("Removed %d duplicate record(s).\n", $totalRemoved);
     }
+}
+
+function repairBills(
+    PDO $pdo,
+    int $limit,
+    ?int $specificId,
+    bool $reset,
+    bool $dryRun
+): void {
+    if ($specificId !== null) {
+        $sql = "SELECT f.id, f.title FROM files f WHERE f.id = :id";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([':id' => $specificId]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (empty($rows)) {
+            echo "File #$specificId not found.\n";
+            return;
+        }
+
+        if ($reset) {
+            if ($dryRun) {
+                echo "[DRY-RUN] Would delete bill detection data for file #$specificId\n";
+            } else {
+                $pdo->prepare("DELETE FROM video_index WHERE file_id = :id AND type = 'bill'")
+                    ->execute([':id' => $specificId]);
+                echo "Reset bill detection data for file #$specificId\n";
+            }
+        }
+
+        if ($dryRun) {
+            echo "[DRY-RUN] Would run: php bin/detect_bills.php 1\n";
+            return;
+        }
+
+        echo "Running bill detection for file #$specificId...\n";
+        passthru('php ' . escapeshellarg(__DIR__ . '/detect_bills.php') . ' 1', $exitCode);
+        exit($exitCode);
+    }
+
+    // Query for videos needing bill detection
+    $sql = "SELECT f.id, f.title
+        FROM files f
+        WHERE f.capture_directory IS NOT NULL AND f.capture_directory != ''
+        AND (f.capture_directory LIKE '/%' OR f.capture_directory LIKE 'https://%')
+        AND NOT EXISTS (SELECT 1 FROM video_index vi WHERE vi.file_id = f.id AND vi.type = 'bill')
+        ORDER BY f.date_created DESC
+        LIMIT :limit";
+    $stmt = $pdo->prepare($sql);
+    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $stmt->execute();
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    if (empty($rows)) {
+        echo "No videos found needing bill detection repair.\n";
+        return;
+    }
+
+    echo sprintf("Found %d video(s) for bill detection repair.\n", count($rows));
+
+    if ($dryRun) {
+        foreach ($rows as $row) {
+            echo sprintf("  [DRY-RUN] Would process file #%d: %s\n", $row['id'], $row['title'] ?? 'Untitled');
+        }
+        echo "\n[DRY-RUN] Would run: php bin/detect_bills.php $limit\n";
+        return;
+    }
+
+    echo "Running bill detection...\n";
+    passthru('php ' . escapeshellarg(__DIR__ . '/detect_bills.php') . ' ' . escapeshellarg((string)$limit), $exitCode);
+    exit($exitCode);
+}
+
+function repairSpeakers(
+    PDO $pdo,
+    int $limit,
+    ?int $specificId,
+    bool $reset,
+    bool $dryRun
+): void {
+    if ($specificId !== null) {
+        $sql = "SELECT f.id, f.title FROM files f WHERE f.id = :id";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([':id' => $specificId]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (empty($rows)) {
+            echo "File #$specificId not found.\n";
+            return;
+        }
+
+        if ($reset) {
+            if ($dryRun) {
+                echo "[DRY-RUN] Would delete speaker detection data for file #$specificId\n";
+            } else {
+                $pdo->prepare("DELETE FROM video_index WHERE file_id = :id AND type = 'legislator'")
+                    ->execute([':id' => $specificId]);
+                echo "Reset speaker detection data for file #$specificId\n";
+            }
+        }
+
+        if ($dryRun) {
+            echo "[DRY-RUN] Would run: php bin/detect_speakers.php 1\n";
+            return;
+        }
+
+        echo "Running speaker detection for file #$specificId...\n";
+        passthru('php ' . escapeshellarg(__DIR__ . '/detect_speakers.php') . ' 1', $exitCode);
+        exit($exitCode);
+    }
+
+    // Query for videos needing speaker detection
+    $sql = "SELECT f.id, f.title
+        FROM files f
+        WHERE (f.path LIKE 'https://video.richmondsunlight.com/%'
+          OR f.path LIKE 'https://archive.org/%')
+        AND NOT EXISTS (SELECT 1 FROM video_index vi WHERE vi.file_id = f.id AND vi.type = 'legislator')
+        ORDER BY f.date_created DESC
+        LIMIT :limit";
+    $stmt = $pdo->prepare($sql);
+    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $stmt->execute();
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    if (empty($rows)) {
+        echo "No videos found needing speaker detection repair.\n";
+        return;
+    }
+
+    echo sprintf("Found %d video(s) for speaker detection repair.\n", count($rows));
+
+    if ($dryRun) {
+        foreach ($rows as $row) {
+            echo sprintf("  [DRY-RUN] Would process file #%d: %s\n", $row['id'], $row['title'] ?? 'Untitled');
+        }
+        echo "\n[DRY-RUN] Would run: php bin/detect_speakers.php $limit\n";
+        return;
+    }
+
+    echo "Running speaker detection...\n";
+    passthru('php ' . escapeshellarg(__DIR__ . '/detect_speakers.php') . ' ' . escapeshellarg((string)$limit), $exitCode);
+    exit($exitCode);
 }
