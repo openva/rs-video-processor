@@ -18,7 +18,5 @@ rm -Rf richmondsunlight.com
 rm -rf includes/vendor
 composer install --no-interaction --prefer-dist
 
-# Move over the settings file.
-if [[ ! -f includes/settings.inc.php ]]; then
-    cp deploy/settings-docker.inc.php includes/settings.inc.php
-fi
+# Move over the settings file (always overwrite with Docker settings).
+cp deploy/settings-docker.inc.php includes/settings.inc.php
