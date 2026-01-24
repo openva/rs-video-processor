@@ -61,9 +61,10 @@ $stages = [
     ],
     'screenshots' => [
         'label' => 'Pending Screenshots',
-        'description' => 'Videos on S3 but screenshots not generated',
+        'description' => 'Videos with playable URLs but screenshots not generated',
         'query' => "SELECT id FROM files
-            WHERE path LIKE 'https://video.richmondsunlight.com/%'
+            WHERE (path LIKE 'https://video.richmondsunlight.com/%'
+              OR path LIKE 'https://archive.org/%')
             AND (capture_directory IS NULL OR capture_directory = ''
                  OR (capture_directory NOT LIKE '/%' AND capture_directory NOT LIKE 'https://%'))
             ORDER BY date_created DESC",
@@ -87,9 +88,10 @@ $stages = [
     ],
     'speakers' => [
         'label' => 'Pending Speaker Detection',
-        'description' => 'Videos on S3 but no speaker detection in video_index',
+        'description' => 'Videos with playable URLs but no speaker detection in video_index',
         'query' => "SELECT f.id FROM files f
-            WHERE f.path LIKE 'https://video.richmondsunlight.com/%'
+            WHERE (f.path LIKE 'https://video.richmondsunlight.com/%'
+              OR f.path LIKE 'https://archive.org/%')
             AND NOT EXISTS (SELECT 1 FROM video_index vi WHERE vi.file_id = f.id AND vi.type = 'legislator')
             ORDER BY f.date_created DESC",
     ],

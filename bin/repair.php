@@ -136,7 +136,8 @@ function repairScreenshots(
     } else {
         $sql = "SELECT id, chamber, committee_id, title, date, path, capture_directory
             FROM files
-            WHERE path LIKE 'https://video.richmondsunlight.com/%'
+            WHERE (path LIKE 'https://video.richmondsunlight.com/%'
+              OR path LIKE 'https://archive.org/%')
             AND (capture_directory IS NULL OR capture_directory = ''
                  OR (capture_directory NOT LIKE '/%' AND capture_directory NOT LIKE 'https://%'))
             ORDER BY date_created DESC
