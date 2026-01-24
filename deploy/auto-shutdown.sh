@@ -19,7 +19,7 @@ fi
 # Check for active SSH sessions
 check_ssh_sessions() {
   # Count users logged in via multiple methods for reliability
-  local who_count pts_count users_count max_count
+  local who_count pts_count users_count sshd_count max_count
 
   # Method 1: who command (shows all logged-in users)
   who_count=$(who | wc -l)
@@ -30,10 +30,15 @@ check_ssh_sessions() {
   # Method 3: users command
   users_count=$(users | wc -w)
 
+  # Method 4: Check for active sshd processes (most reliable)
+  # Look for sshd processes that have a pts associated (actual sessions, not just the daemon)
+  sshd_count=$(pgrep -a sshd | grep -c 'sshd:.*@pts' || true)
+
   # Use the maximum count from all methods for safety
   max_count=$who_count
   [[ $pts_count -gt $max_count ]] && max_count=$pts_count
   [[ $users_count -gt $max_count ]] && max_count=$users_count
+  [[ $sshd_count -gt $max_count ]] && max_count=$sshd_count
 
   echo "$max_count"
 }
