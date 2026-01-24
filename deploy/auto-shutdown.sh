@@ -126,4 +126,4 @@ fi
 
 # Shut down the instance
 echo "Proceeding with shutdown now."
-sudo shutdown -h now
+sudo shutdown -h +1
