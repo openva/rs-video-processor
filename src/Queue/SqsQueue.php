@@ -35,6 +35,7 @@ class SqsQueue implements QueueInterface
             'QueueUrl' => $this->queueUrl,
             'MaxNumberOfMessages' => max(1, min(10, $maxMessages)),
             'WaitTimeSeconds' => max(0, min(20, $waitTimeSeconds)),
+            'VisibilityTimeout' => 900, // 15 minutes for long-running OCR tasks
         ]);
 
         $messages = [];
@@ -62,10 +63,19 @@ class SqsQueue implements QueueInterface
         if ($receiptHandle === '') {
             throw new RuntimeException('Missing receipt handle for delete.');
         }
-        $this->client->deleteMessage([
-            'QueueUrl' => $this->queueUrl,
-            'ReceiptHandle' => $receiptHandle,
-        ]);
+        try {
+            $this->client->deleteMessage([
+                'QueueUrl' => $this->queueUrl,
+                'ReceiptHandle' => $receiptHandle,
+            ]);
+        } catch (\Aws\Sqs\Exception\SqsException $e) {
+            // If receipt handle expired, job already processed - log and continue
+            if (str_contains($e->getMessage(), 'receipt handle has expired')) {
+                $this->logger?->put('Receipt handle expired during delete (job already processed)', 4);
+                return;
+            }
+            throw $e;
+        }
     }
 
     private function isFifoQueue(): bool
