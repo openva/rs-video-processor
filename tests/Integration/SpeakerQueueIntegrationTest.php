@@ -12,7 +12,14 @@ class SpeakerQueueIntegrationTest extends TestCase
 {
     public function testDispatchAndReceiveSpeakerJob(): void
     {
-        $job = new SpeakerJob(9, 'senate', 'https://example.com/video.mp4', ['segments' => []]);
+        // Use realistic metadata structure with speakers data
+        $metadata = [
+            'speakers' => [
+                ['name' => 'John Doe', 'start_time' => '00:00:00'],
+                ['name' => 'Jane Smith', 'start_time' => '00:05:30'],
+            ],
+        ];
+        $job = new SpeakerJob(9, 'senate', 'https://example.com/video.mp4', $metadata);
         $mapper = new SpeakerJobPayloadMapper();
         $dispatcher = new JobDispatcher(new InMemoryQueue());
 
@@ -24,6 +31,7 @@ class SpeakerQueueIntegrationTest extends TestCase
         $this->assertSame($job->fileId, $restored->fileId);
         $this->assertSame($job->chamber, $restored->chamber);
         $this->assertSame($job->videoUrl, $restored->videoUrl);
-        $this->assertSame($job->metadata, $restored->metadata);
+        // Metadata should contain speakers data (only field that's preserved in SQS payload)
+        $this->assertSame($metadata, $restored->metadata);
     }
 }

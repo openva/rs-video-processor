@@ -12,7 +12,14 @@ class BillQueueIntegrationTest extends TestCase
 {
     public function testDispatchAndReceiveBillDetectionJob(): void
     {
-        $job = new BillDetectionJob(5, 'house', 3, 'floor', 'house/floor/20250101', 'https://example.com/manifest.json', ['agenda' => []]);
+        // Use realistic metadata structure with AgendaTree
+        $metadata = [
+            'AgendaTree' => [
+                ['text' => 'HB 1234', 'startTime' => '2025-01-10 10:00:00'],
+                ['text' => 'SB 5678', 'startTime' => '2025-01-10 11:00:00'],
+            ],
+        ];
+        $job = new BillDetectionJob(5, 'house', 3, 'floor', 'house/floor/20250101', 'https://example.com/manifest.json', $metadata);
         $mapper = new BillDetectionJobPayloadMapper();
         $dispatcher = new JobDispatcher(new InMemoryQueue());
 
@@ -26,5 +33,7 @@ class BillQueueIntegrationTest extends TestCase
         $this->assertSame($job->committeeId, $restored->committeeId);
         $this->assertSame($job->eventType, $restored->eventType);
         $this->assertSame($job->captureDirectory, $restored->captureDirectory);
+        // Metadata should contain AgendaTree (only field that's preserved in SQS payload)
+        $this->assertSame($metadata, $restored->metadata);
     }
 }
