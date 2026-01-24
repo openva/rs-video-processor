@@ -1,4 +1,4 @@
-FROM mariadb:10.5
+FROM mariadb:10.11
 
 # "When a container is started for the first time, a new database with the specified name
 # will be created and initialized with the provided configuration variables. Furthermore,
