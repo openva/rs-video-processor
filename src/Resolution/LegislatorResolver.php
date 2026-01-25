@@ -160,13 +160,12 @@ class LegislatorResolver
                 p.name,
                 p.name_formal,
                 t.party,
-                t.district
+                t.district_id AS district
             FROM people p
             INNER JOIN terms t ON p.id = t.person_id
-            WHERE t.session_id = :session_id
-            AND (t.date_ended IS NULL OR t.date_ended >= (
-                SELECT date_start FROM sessions WHERE id = :session_id
-            ))
+            INNER JOIN sessions s ON s.id = :session_id
+                AND t.date_started <= COALESCE(s.date_ended, CURDATE())
+                AND (t.date_ended IS NULL OR t.date_ended >= s.date_started)
         ');
 
         $stmt->execute([':session_id' => $sessionId]);
