@@ -191,6 +191,8 @@ class RawTextResolver
             LEFT JOIN sessions s ON f.date >= s.date_started
                 AND (s.date_ended IS NULL OR f.date <= s.date_ended)
             WHERE f.id = :id
+            ORDER BY s.date_started DESC
+            LIMIT 1
         ');
 
         $stmt->execute([':id' => $fileId]);
