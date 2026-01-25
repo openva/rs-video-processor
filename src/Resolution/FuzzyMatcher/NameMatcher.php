@@ -34,6 +34,19 @@ class NameMatcher
             }
         }
 
+        // Extract nickname from parentheses and use it preferentially
+        // E.g., "C. E. (Cliff) Hayes" → prefer "Cliff Hayes" over "C. E. Cliff Hayes"
+        if (preg_match('/\(([A-Za-z][A-Za-z\s\-]+)\)/', $rawText, $matches)) {
+            $nickname = trim($matches[1]);
+            // Check if this looks like a nickname (not a party indicator)
+            if (!preg_match('/^[RDI](-\d+)?$/i', $nickname)) {
+                // Remove everything before the parentheses (typically initials)
+                $rawText = preg_replace('/^[A-Z\.\s]+\([^)]+\)/', "($nickname)", $rawText);
+                // Now remove the parentheses
+                $rawText = str_replace("($nickname)", $nickname, $rawText);
+            }
+        }
+
         // Extract and remove party indicator and district
         $party = null;
         $district = null;
@@ -56,9 +69,10 @@ class NameMatcher
             $rawText = preg_replace('/District\s+\d+/i', '', $rawText);
         }
 
-        // Remove location indicators
+        // Remove location indicators (e.g., "Smith - Richmond")
+        // Require whitespace before dash to preserve hyphenated names (e.g., "Keys-Gamarra")
         $rawText = preg_replace('/\s+of\s+[A-Z][a-z]+/i', '', $rawText);
-        $rawText = preg_replace('/-\s*[A-Z][a-z]+$/i', '', $rawText);
+        $rawText = preg_replace('/\s+-\s*[A-Z][a-z]+$/i', '', $rawText);
 
         // Clean up whitespace and punctuation
         $rawText = preg_replace('/[,\(\)]+/', ' ', $rawText);
@@ -159,9 +173,33 @@ class NameMatcher
             }
         }
 
-        // 3. Last-name-only matching (e.g., "Delegate Watts" → "Watts")
+        // 3. Token sequence matching (e.g., "Mundon King" matches "Candice P. Mundon King")
+        $candidateTokens = array_filter(explode(' ', $candidate), fn($t) => strlen($t) > 0);
+
+        // Check if rawTokens is a contiguous sequence within candidateTokens
+        if (count($rawTokens) > 0 && count($rawTokens) < count($candidateTokens)) {
+            $rawCount = count($rawTokens);
+            $candCount = count($candidateTokens);
+
+            for ($i = 0; $i <= $candCount - $rawCount; $i++) {
+                $match = true;
+                for ($j = 0; $j < $rawCount; $j++) {
+                    if (strcasecmp($rawTokens[$j], $candidateTokens[$i + $j]) !== 0) {
+                        $match = false;
+                        break;
+                    }
+                }
+                if ($match) {
+                    // Exact contiguous match - very high confidence
+                    // Favor matches at the end (last name) over middle names
+                    $isAtEnd = ($i + $rawCount === $candCount);
+                    return $isAtEnd ? 95.0 : 92.0;
+                }
+            }
+        }
+
+        // 4. Last-name-only matching (e.g., "Delegate Watts" → "Watts")
         if (count($rawTokens) === 1) {
-            $candidateTokens = explode(' ', $candidate);
             if (count($candidateTokens) > 1) {
                 $lastName = end($candidateTokens);
                 // Check if the single token matches the candidate's last name
@@ -189,7 +227,7 @@ class NameMatcher
             }
         }
 
-        // 4. Fuzzy matching
+        // 5. Fuzzy matching
         $combined = $this->similarity->combinedSimilarity(
             $rawTextCleaned,
             $candidate,
@@ -198,14 +236,13 @@ class NameMatcher
             0.2  // Token set weight
         );
 
-        // 5. Token matching bonus
-        $candidateTokens = explode(' ', $candidate);
+        // 6. Token matching bonus
         $tokenScore = $this->similarity->tokenSetRatio($rawTokens, $candidateTokens);
 
         // Weighted average: 70% combined similarity, 30% token matching
         $score = ($combined * 0.7 + $tokenScore * 0.3) * 100;
 
-        // 6. Soundex bonus for phonetically similar names
+        // 7. Soundex bonus for phonetically similar names
         if ($this->similarity->soundexSimilarity($rawTextCleaned, $candidate)) {
             $score *= 1.1; // 10% boost
         }

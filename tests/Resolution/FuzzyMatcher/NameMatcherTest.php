@@ -183,4 +183,97 @@ class NameMatcherTest extends TestCase
 
         $this->assertLessThan(50.0, $score);
     }
+
+    public function testPreservesHyphenatedLastNames(): void
+    {
+        $result = $this->matcher->extractLegislatorName('Delegate Keys-Gamarra');
+
+        $this->assertSame('Keys-Gamarra', $result['cleaned']);
+        $this->assertSame(['Keys-Gamarra'], $result['tokens']);
+        $this->assertSame('Delegate', $result['prefix']);
+    }
+
+    public function testMatchesHyphenatedLastNameOnly(): void
+    {
+        $extracted = $this->matcher->extractLegislatorName('Delegate Keys-Gamarra');
+
+        // Should match against full name "Karrie Keys-Gamarra"
+        $score = $this->matcher->calculateNameScore(
+            $extracted['cleaned'],
+            'Karrie Keys-Gamarra',
+            $extracted['tokens']
+        );
+
+        $this->assertGreaterThanOrEqual(90.0, $score);
+    }
+
+    public function testRemovesLocationSuffixWithSpace(): void
+    {
+        $result = $this->matcher->extractLegislatorName('Bob Smith - Richmond');
+
+        $this->assertSame('Bob Smith', $result['cleaned']);
+        $this->assertStringNotContainsString('Richmond', $result['cleaned']);
+    }
+
+    public function testMatchesTokenSequenceAtEnd(): void
+    {
+        $extracted = $this->matcher->extractLegislatorName('Delegate Mundon King');
+
+        // Should match "Candice P. Mundon King" (last 2 tokens match)
+        $score = $this->matcher->calculateNameScore(
+            $extracted['cleaned'],
+            'Candice P. Mundon King',
+            $extracted['tokens']
+        );
+
+        $this->assertGreaterThanOrEqual(95.0, $score);
+    }
+
+    public function testMatchesTokenSequenceInMiddle(): void
+    {
+        // "John Smith" appears in middle of "Dr. John Smith Jr."
+        $score = $this->matcher->calculateNameScore(
+            'John Smith',
+            'Dr. John Smith Jr.',
+            ['John', 'Smith']
+        );
+
+        $this->assertGreaterThanOrEqual(92.0, $score);
+    }
+
+    public function testTokenSequenceMatchIsCaseSensitive(): void
+    {
+        $score = $this->matcher->calculateNameScore(
+            'MUNDON KING',
+            'Candice P. Mundon King',
+            ['MUNDON', 'KING']
+        );
+
+        // Should still match despite case difference
+        $this->assertGreaterThanOrEqual(95.0, $score);
+    }
+
+    public function testExtractsNicknameFromParentheses(): void
+    {
+        $result = $this->matcher->extractLegislatorName('Del. C. E. (Cliff) Hayes');
+
+        // Should use "Cliff Hayes" instead of "C. E. Cliff Hayes"
+        $this->assertSame('Cliff Hayes', $result['cleaned']);
+        $this->assertSame(['Cliff', 'Hayes'], $result['tokens']);
+        $this->assertSame('Del.', $result['prefix']);
+    }
+
+    public function testNicknameMatchesDatabase(): void
+    {
+        $extracted = $this->matcher->extractLegislatorName('Del. C. E. (Cliff) Hayes');
+
+        // Should match "Hayes, Cliff" (comma-formatted)
+        $score = $this->matcher->calculateNameScore(
+            $extracted['cleaned'],
+            'Hayes, Cliff',
+            $extracted['tokens']
+        );
+
+        $this->assertGreaterThanOrEqual(90.0, $score);
+    }
 }
