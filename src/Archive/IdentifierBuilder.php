@@ -14,6 +14,18 @@ class IdentifierBuilder
             return sprintf('rs-%s-%s', strtolower($job->chamber), $date);
         }
 
-        return sprintf('rs-%s-%s-%s', strtolower($job->chamber), $date, $titleSlug);
+        // Internet Archive requires identifiers to be max 80 chars
+        // Format: rs-{chamber}-{date}-{title}
+        // Reserve space for prefix: "rs-senate-20201207-" = 19 chars (worst case)
+        // Leaves 61 chars for title slug
+        $prefix = sprintf('rs-%s-%s-', strtolower($job->chamber), $date);
+        $maxTitleLength = 80 - strlen($prefix);
+
+        if (strlen($titleSlug) > $maxTitleLength) {
+            $titleSlug = substr($titleSlug, 0, $maxTitleLength);
+            $titleSlug = rtrim($titleSlug, '-');
+        }
+
+        return $prefix . $titleSlug;
     }
 }
