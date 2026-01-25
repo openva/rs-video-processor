@@ -174,7 +174,7 @@ class NameMatcher
         }
 
         // 3. Token sequence matching (e.g., "Mundon King" matches "Candice P. Mundon King")
-        $candidateTokens = array_filter(explode(' ', $candidate), fn($t) => strlen($t) > 0);
+        $candidateTokens = array_values(array_filter(explode(' ', $candidate), fn($t) => strlen($t) > 0));
 
         // Check if rawTokens is a contiguous sequence within candidateTokens
         if (count($rawTokens) > 0 && count($rawTokens) < count($candidateTokens)) {
