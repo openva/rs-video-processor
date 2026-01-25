@@ -188,8 +188,8 @@ class RawTextResolver
                 f.date,
                 s.id AS session_id
             FROM files f
-            LEFT JOIN sessions s ON f.date >= s.date_start
-                AND (s.date_end IS NULL OR f.date <= s.date_end)
+            LEFT JOIN sessions s ON f.date >= s.date_started
+                AND (s.date_ended IS NULL OR f.date <= s.date_ended)
             WHERE f.id = :id
         ');
 
