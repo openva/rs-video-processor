@@ -67,19 +67,20 @@ class BillResolver
         if ($exactMatch) {
             $confidence = 100.0;
 
-            // Validate against context
+            // Validate against context for confidence boosting
             $inAgenda = $this->contextAnalyzer->inAgenda((int)$parsed['number'], $meetingContext['agenda_bills']);
             $inAdjacentFrames = !empty($temporalContext) &&
                 $this->contextAnalyzer->inAdjacentFrames($exactMatch['id'], $temporalContext);
 
-            // High confidence if in agenda or adjacent frames
+            // Confidence levels based on validation
             if ($inAgenda) {
                 $confidence = 100.0;
             } elseif ($inAdjacentFrames) {
                 $confidence = 95.0;
             } else {
-                // Exact match but not in agenda - be cautious
-                $confidence = 85.0;
+                // Exact bill number match should still be accepted with high confidence
+                // Bill numbers are unique per session, so an exact match is reliable
+                $confidence = 92.0;
             }
 
             if ($confidence >= $confidenceThreshold) {
