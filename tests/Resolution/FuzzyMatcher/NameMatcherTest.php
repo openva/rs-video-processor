@@ -127,4 +127,60 @@ class NameMatcherTest extends TestCase
         $this->assertStringContainsString('Bob', $result['cleaned']);
         $this->assertStringContainsString('Smith', $result['cleaned']);
     }
+
+    public function testMatchesLastNameOnly(): void
+    {
+        // Extract "Delegate Watts" → "Watts"
+        $extracted = $this->matcher->extractLegislatorName('Delegate Watts');
+
+        // Should match against "Vivian Watts"
+        $score = $this->matcher->calculateNameScore(
+            $extracted['cleaned'],
+            'Vivian Watts',
+            $extracted['tokens']
+        );
+
+        $this->assertGreaterThanOrEqual(90.0, $score);
+    }
+
+    public function testMatchesLastNameOnlyWithSenatorPrefix(): void
+    {
+        // Extract "Senator Smith" → "Smith"
+        $extracted = $this->matcher->extractLegislatorName('Senator Smith');
+
+        // Should match against "Robert T. Smith"
+        $score = $this->matcher->calculateNameScore(
+            $extracted['cleaned'],
+            'Robert T. Smith',
+            $extracted['tokens']
+        );
+
+        $this->assertGreaterThanOrEqual(90.0, $score);
+    }
+
+    public function testMatchesLastNameWithOcrError(): void
+    {
+        // "Watts" with OCR error (5 instead of S)
+        $score = $this->matcher->calculateNameScore(
+            'Watt5',
+            'Vivian Watts',
+            ['Watt5']
+        );
+
+        $this->assertGreaterThanOrEqual(85.0, $score);
+    }
+
+    public function testLastNameOnlyDoesNotMatchDifferentLastName(): void
+    {
+        $extracted = $this->matcher->extractLegislatorName('Delegate Smith');
+
+        // Should NOT match "John Doe"
+        $score = $this->matcher->calculateNameScore(
+            $extracted['cleaned'],
+            'John Doe',
+            $extracted['tokens']
+        );
+
+        $this->assertLessThan(50.0, $score);
+    }
 }

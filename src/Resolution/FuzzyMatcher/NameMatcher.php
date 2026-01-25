@@ -159,7 +159,37 @@ class NameMatcher
             }
         }
 
-        // 3. Fuzzy matching
+        // 3. Last-name-only matching (e.g., "Delegate Watts" → "Watts")
+        if (count($rawTokens) === 1) {
+            $candidateTokens = explode(' ', $candidate);
+            if (count($candidateTokens) > 1) {
+                $lastName = end($candidateTokens);
+                // Check if the single token matches the candidate's last name
+                if (strcasecmp($rawTokens[0], $lastName) === 0) {
+                    return 90.0; // High confidence for last name match
+                }
+                // Check OCR variations of the last name
+                $lastNameVariations = $this->generateOcrVariations($rawTokens[0]);
+                foreach ($lastNameVariations as $variant) {
+                    if (strcasecmp($variant, $lastName) === 0) {
+                        return 85.0; // High confidence for OCR-corrected last name match
+                    }
+                }
+                // Fuzzy match against just the last name
+                $lastNameSimilarity = $this->similarity->combinedSimilarity(
+                    $rawTokens[0],
+                    $lastName,
+                    0.3,
+                    0.5,
+                    0.2
+                );
+                if ($lastNameSimilarity > 0.85) {
+                    return $lastNameSimilarity * 80.0; // Score up to 80 for fuzzy last name match
+                }
+            }
+        }
+
+        // 4. Fuzzy matching
         $combined = $this->similarity->combinedSimilarity(
             $rawTextCleaned,
             $candidate,
@@ -168,14 +198,14 @@ class NameMatcher
             0.2  // Token set weight
         );
 
-        // 4. Token matching bonus
+        // 5. Token matching bonus
         $candidateTokens = explode(' ', $candidate);
         $tokenScore = $this->similarity->tokenSetRatio($rawTokens, $candidateTokens);
 
         // Weighted average: 70% combined similarity, 30% token matching
         $score = ($combined * 0.7 + $tokenScore * 0.3) * 100;
 
-        // 5. Soundex bonus for phonetically similar names
+        // 6. Soundex bonus for phonetically similar names
         if ($this->similarity->soundexSimilarity($rawTextCleaned, $candidate)) {
             $score *= 1.1; // 10% boost
         }
