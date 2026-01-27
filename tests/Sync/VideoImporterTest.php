@@ -72,7 +72,7 @@ class VideoImporterTest extends TestCase
         $this->assertSame('House Appropriations', $rows[0]['title']);
         $this->assertSame('2025-01-31', $rows[0]['date']);
         $this->assertSame('00:55:00', $rows[0]['length']);
-        $this->assertSame('Appropriations', $rows[0]['sponsor']);
+        $this->assertNull($rows[0]['sponsor']);  // sponsor field is no longer populated
         $this->assertNotEmpty($rows[0]['video_index_cache']);
     }
 

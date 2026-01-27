@@ -156,7 +156,7 @@ class VideoImporter
             'type' => 'video',
             'length' => $duration !== null ? $this->formatDuration($duration) : null,
             'date' => $date,
-            'sponsor' => $committeeName,
+            'sponsor' => null,  // Legacy field - no longer used
             'width' => $record['width'] ?? null,
             'height' => $record['height'] ?? null,
             'fps' => $record['fps'] ?? null,
