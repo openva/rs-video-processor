@@ -96,7 +96,7 @@ class RawTextResolver
                         $result['id'],
                         $result['confidence']
                     ),
-                    4
+                    2
                 );
 
                 // Update database
@@ -114,7 +114,7 @@ class RawTextResolver
                         substr($entry['raw_text'], 0, 50),
                         $entry['screenshot']
                     ),
-                    5
+                    2
                 );
             }
         }
@@ -127,7 +127,7 @@ class RawTextResolver
                 $stats['total'],
                 $stats['total'] > 0 ? ($stats['resolved'] / $stats['total'] * 100) : 0
             ),
-            3
+            4
         );
 
         return $stats;
@@ -165,7 +165,7 @@ class RawTextResolver
             } catch (\Exception $e) {
                 $this->logger?->put(
                     sprintf('Error processing file_id=%d: %s', $fileId, $e->getMessage()),
-                    1
+                    5
                 );
             }
         }
