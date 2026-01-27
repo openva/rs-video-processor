@@ -9,7 +9,7 @@ class MetadataBuilder
         $metadata = [
             'title' => $this->buildTitle($job),
             'mediatype' => 'movies',
-            'collection' => 'opensource_movies',
+            'collection' => 'virginiageneralassembly',
             'subject' => $this->buildSubjects($job),
             'description' => $this->buildDescription($job),
             'date' => $job->date,

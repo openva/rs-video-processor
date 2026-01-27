@@ -39,7 +39,7 @@ class ArchiveJobProcessorTest extends TestCase
                 return [
                     'title' => $job->title,
                     'mediatype' => 'movies',
-                    'collection' => 'opensource_movies',
+                    'collection' => 'virginiageneralassembly',
                 ];
             }
         };
