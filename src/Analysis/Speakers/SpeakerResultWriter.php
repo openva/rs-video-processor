@@ -60,13 +60,13 @@ class SpeakerResultWriter
      * Convert timestamp to screenshot number (screenshots are generated at 1 FPS).
      *
      * @param float $timestamp Timestamp in seconds
-     * @return string Screenshot number with leading zeros (e.g., "00102")
+     * @return string Screenshot number with leading zeros (e.g., "00000102")
      */
     private function timestampToScreenshotNumber(float $timestamp): string
     {
-        // Screenshots are 1 per second, numbered starting from 00001
-        // Round to nearest second and add 1 (since screenshots start at 00001, not 00000)
+        // Screenshots are 1 per second, numbered starting from 00000001
+        // Round to nearest second and add 1 (since screenshots start at 00000001, not 00000000)
         $second = max(1, (int) round($timestamp) + 1);
-        return sprintf('%05d', $second);
+        return sprintf('%08d', $second);
     }
 }

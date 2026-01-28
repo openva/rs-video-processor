@@ -27,7 +27,7 @@ class BillDetectionProcessorTest extends TestCase
 
         $loader = $this->createMock(ScreenshotManifestLoader::class);
         $loader->method('load')->willReturn([
-            ['timestamp' => 0, 'full' => 'https://video.richmondsunlight.com/senate/floor/20250101/screenshots/full/00000.jpg', 'thumb' => null]
+            ['timestamp' => 0, 'full' => 'https://video.richmondsunlight.com/senate/floor/20250101/00000000.jpg', 'thumb' => null]
         ]);
 
         $fetcher = $this->createMock(ScreenshotFetcher::class);
@@ -76,14 +76,14 @@ class BillDetectionProcessorTest extends TestCase
             'senate',
             null,
             'floor',
-            'https://video.richmondsunlight.com/senate/floor/20250101/screenshots/full/',
-            'https://video.richmondsunlight.com/senate/floor/20250101/screenshots/manifest.json',
+            'https://video.richmondsunlight.com/senate/floor/20250101/',
+            'https://video.richmondsunlight.com/senate/floor/20250101/manifest.json',
             null
         );
         $processor->process($job);
 
         $row = $pdo->query('SELECT screenshot, raw_text, type FROM video_index')->fetch(PDO::FETCH_ASSOC);
-        $this->assertSame('00000', $row['screenshot']);
+        $this->assertSame('00000000', $row['screenshot']);
         $this->assertSame('HB1234', $row['raw_text']);
         $this->assertSame('bill', $row['type']);
     }

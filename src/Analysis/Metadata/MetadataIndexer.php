@@ -77,7 +77,7 @@ class MetadataIndexer
      * Convert HH:MM:SS time string to screenshot number (screenshots are 1 FPS).
      *
      * @param string $timeString Time in HH:MM:SS format
-     * @return string Screenshot number with leading zeros (e.g., "00102")
+     * @return string Screenshot number with leading zeros (e.g., "00000102")
      */
     private function timeStringToScreenshotNumber(string $timeString): string
     {
@@ -85,8 +85,8 @@ class MetadataIndexer
         [$h, $m, $s] = array_pad(explode(':', $timeString), 3, 0);
         $totalSeconds = ((int) $h) * 3600 + ((int) $m) * 60 + (int) $s;
 
-        // Screenshots are 1 per second, numbered starting from 00001
+        // Screenshots are 1 per second, numbered starting from 00000001
         $screenshotNumber = max(1, $totalSeconds + 1);
-        return sprintf('%05d', $screenshotNumber);
+        return sprintf('%08d', $screenshotNumber);
     }
 }

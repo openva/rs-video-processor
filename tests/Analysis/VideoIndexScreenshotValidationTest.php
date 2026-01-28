@@ -11,7 +11,7 @@ use RichmondSunlight\VideoProcessor\Analysis\Metadata\MetadataIndexer;
 /**
  * Test that video_index.screenshot only contains numeric values.
  *
- * The screenshot column should only contain screenshot numbers like "00102",
+ * The screenshot column should only contain screenshot numbers like "00000102",
  * never text like "bill-HB1537" or "speaker-jones".
  */
 class VideoIndexScreenshotValidationTest extends TestCase
@@ -43,7 +43,7 @@ class VideoIndexScreenshotValidationTest extends TestCase
             fileId: 1,
             timestamp: 102,
             bills: ['HB 1234', 'SB 5678'],
-            screenshotFilename: '00102.jpg'
+            screenshotFilename: '00000102.jpg'
         );
 
         $results = $this->pdo->query('SELECT screenshot FROM video_index')->fetchAll(PDO::FETCH_COLUMN);
@@ -55,7 +55,7 @@ class VideoIndexScreenshotValidationTest extends TestCase
                 $screenshot,
                 "Screenshot value '$screenshot' should be purely numeric"
             );
-            $this->assertSame('00102', $screenshot);
+            $this->assertSame('00000102', $screenshot);
         }
     }
 
@@ -81,11 +81,11 @@ class VideoIndexScreenshotValidationTest extends TestCase
             );
         }
 
-        // Verify specific values (screenshots are 1 FPS, starting at 00001)
-        // 45.2 seconds -> screenshot 00046
-        // 102.8 seconds -> screenshot 00103
-        $this->assertSame('00046', $results[0]);
-        $this->assertSame('00104', $results[1]);
+        // Verify specific values (screenshots are 1 FPS, starting at 00000001)
+        // 45.2 seconds -> screenshot 00000046
+        // 102.8 seconds -> screenshot 00000104
+        $this->assertSame('00000046', $results[0]);
+        $this->assertSame('00000104', $results[1]);
     }
 
     public function testMetadataIndexerUsesNumericScreenshot(): void
@@ -113,10 +113,10 @@ class VideoIndexScreenshotValidationTest extends TestCase
         }
 
         // Verify specific values
-        // 00:01:42 = 102 seconds -> screenshot 00103
-        // 00:05:30 = 330 seconds -> screenshot 00331
-        $this->assertSame('00103', $results[0]);
-        $this->assertSame('00331', $results[1]);
+        // 00:01:42 = 102 seconds -> screenshot 00000103
+        // 00:05:30 = 330 seconds -> screenshot 00000331
+        $this->assertSame('00000103', $results[0]);
+        $this->assertSame('00000331', $results[1]);
     }
 
     public function testNoTextualScreenshotValues(): void
@@ -127,7 +127,7 @@ class VideoIndexScreenshotValidationTest extends TestCase
         $metadataIndexer = new MetadataIndexer($this->pdo);
 
         // Add various records
-        $billWriter->record(1, 50, ['HB 100'], '00050.jpg');
+        $billWriter->record(1, 50, ['HB 100'], '00000050.jpg');
 
         $speakerWriter->write(1, [
             ['name' => 'Test Speaker', 'start' => 75.0, 'legislator_id' => null],

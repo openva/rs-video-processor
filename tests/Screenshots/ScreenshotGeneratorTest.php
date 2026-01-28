@@ -63,7 +63,7 @@ class ScreenshotGeneratorTest extends TestCase
 
         $file = $pdo->query('SELECT capture_directory, capture_rate FROM files WHERE id = 1')->fetch(PDO::FETCH_ASSOC);
         $this->assertNotEmpty($file['capture_directory']);
-        $this->assertStringContainsString('/screenshots/', $file['capture_directory']);
+        $this->assertStringNotContainsString('/screenshots/', $file['capture_directory']);
         $this->assertStringStartsWith('/', $file['capture_directory']);
         $this->assertStringEndsWith('/', $file['capture_directory']);
         $this->assertSame(60, (int) $file['capture_rate']);

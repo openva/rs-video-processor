@@ -61,9 +61,11 @@ class ScreenshotGenerator
             $thumbImage = $thumbDir . '/' . $basename;
             $timestamp = $index;
 
-            $fullUrl = $this->storage->upload($fullImage, $prefix . '/full/' . $basename);
+            $fullUrl = $this->storage->upload($fullImage, $prefix . '/' . $basename);
+            // Thumbnail filename: change "00002796.jpg" to "00002796-thumbnail.jpg"
+            $thumbBasename = preg_replace('/\.jpg$/', '-thumbnail.jpg', $basename);
             $thumbUrl = file_exists($thumbImage)
-                ? $this->storage->upload($thumbImage, $prefix . '/thumb/' . $basename)
+                ? $this->storage->upload($thumbImage, $prefix . '/' . $thumbBasename)
                 : null;
 
             $manifest[] = [
@@ -111,7 +113,7 @@ class ScreenshotGenerator
             $filter .= ',scale=' . $width . ':-1';
         }
         $cmd = sprintf(
-            'ffmpeg -y -loglevel error -i %s -vf %s %s/%%05d.jpg',
+            'ffmpeg -y -loglevel error -i %s -vf %s %s/%%08d.jpg',
             escapeshellarg($video),
             escapeshellarg($filter),
             escapeshellarg($outputDir)
@@ -125,9 +127,9 @@ class ScreenshotGenerator
         $videoKey = $job->captureDirectory ?? $job->videoKey();
         if ($videoKey) {
             $videoKey = preg_replace('/\.mp4$/', '', $videoKey);
-            return $videoKey . '/screenshots';
+            return $videoKey;
         }
-        return $this->keyBuilder->build($job->chamber, $job->date, $shortname) . '/screenshots';
+        return $this->keyBuilder->build($job->chamber, $job->date, $shortname);
     }
 
     private function updateDatabase(ScreenshotJob $job, string $prefix, string $manifestUrl): void

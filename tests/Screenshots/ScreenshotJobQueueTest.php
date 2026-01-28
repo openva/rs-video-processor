@@ -54,7 +54,7 @@ class ScreenshotJobQueueTest extends TestCase
             ':title' => 'Committee',
             ':date' => '2025-02-02',
             ':path' => 'https://video.richmondsunlight.com/house/committee/20250202.mp4',
-            ':capture_directory' => 'https://video.richmondsunlight.com/house/committee/20250202/screenshots/full/',
+            ':capture_directory' => 'https://video.richmondsunlight.com/house/committee/20250202/',
             ':created' => '2025-02-02 12:00:00',
         ]);
 
