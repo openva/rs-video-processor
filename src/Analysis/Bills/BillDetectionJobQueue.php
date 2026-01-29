@@ -23,7 +23,7 @@ class BillDetectionJobQueue
                 SELECT 1 FROM video_index vi
                 WHERE vi.file_id = f.id AND vi.type = 'bill'
               )
-            ORDER BY f.date_created DESC
+            ORDER BY f.date DESC
             LIMIT :limit";
 
         $driver = $this->pdo->getAttribute(\PDO::ATTR_DRIVER_NAME);

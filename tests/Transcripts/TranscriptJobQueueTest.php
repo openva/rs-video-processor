@@ -19,6 +19,7 @@ class TranscriptJobQueueTest extends TestCase
             html TEXT,
             webvtt TEXT,
             srt TEXT,
+            date TEXT,
             date_created TEXT
         )');
         $pdo->exec('CREATE TABLE video_transcript (
@@ -29,7 +30,7 @@ class TranscriptJobQueueTest extends TestCase
             time_end TEXT
         )');
 
-        $pdo->prepare('INSERT INTO files (chamber, title, path, webvtt, srt, date_created) VALUES ("house", "Test", :path, "", "", "2025-01-01")')->execute([
+        $pdo->prepare('INSERT INTO files (chamber, title, path, webvtt, srt, date, date_created) VALUES ("house", "Test", :path, "", "", "20250101", "2025-01-01")')->execute([
             ':path' => 'https://video.richmondsunlight.com/house/floor/20250101.mp4',
         ]);
 

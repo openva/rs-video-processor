@@ -21,7 +21,7 @@ class ArchiveJobQueue
             LEFT JOIN committees c ON f.committee_id = c.id
             WHERE f.path LIKE 'https://video.richmondsunlight.com/%'
               AND (f.webvtt IS NOT NULL OR f.srt IS NOT NULL)
-            ORDER BY f.date_created DESC
+            ORDER BY f.date DESC
             LIMIT :limit";
 
         $driver = $this->pdo->getAttribute(\PDO::ATTR_DRIVER_NAME);

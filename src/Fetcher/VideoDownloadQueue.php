@@ -28,7 +28,7 @@ class VideoDownloadQueue
               AND (html IS NULL OR html = '')
               AND video_index_cache IS NOT NULL
               AND video_index_cache LIKE '{%'
-            ORDER BY date_created DESC
+            ORDER BY date DESC
             LIMIT :limit";
 
         // Add row locking for MySQL/PostgreSQL to prevent race conditions in parallel workers

@@ -19,7 +19,7 @@ class TranscriptJobQueue
             FROM files f
             WHERE f.path LIKE 'https://video.richmondsunlight.com/%'
               AND NOT EXISTS (SELECT 1 FROM video_transcript vt WHERE vt.file_id = f.id)
-            ORDER BY f.date_created DESC
+            ORDER BY f.date DESC
             LIMIT :limit";
 
         $driver = $this->pdo->getAttribute(\PDO::ATTR_DRIVER_NAME);

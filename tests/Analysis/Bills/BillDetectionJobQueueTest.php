@@ -17,6 +17,7 @@ class BillDetectionJobQueueTest extends TestCase
             committee_id INTEGER,
             capture_directory TEXT,
             video_index_cache TEXT,
+            date TEXT,
             date_created TEXT
         )');
         $pdo->exec('CREATE TABLE video_index (
@@ -24,7 +25,7 @@ class BillDetectionJobQueueTest extends TestCase
             file_id INTEGER,
             type TEXT
         )');
-        $pdo->prepare('INSERT INTO files (chamber, committee_id, capture_directory, video_index_cache, date_created) VALUES ("house", 123, :dir, :cache, "2025-01-01")')
+        $pdo->prepare('INSERT INTO files (chamber, committee_id, capture_directory, video_index_cache, date, date_created) VALUES ("house", 123, :dir, :cache, "20250101", "2025-01-01")')
             ->execute([
                 ':dir' => 'https://video.richmondsunlight.com/house/floor/20250101/',
                 ':cache' => json_encode(['AgendaTree' => []]),

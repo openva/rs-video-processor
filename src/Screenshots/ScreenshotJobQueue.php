@@ -20,7 +20,7 @@ class ScreenshotJobQueue
             WHERE path LIKE 'https://video.richmondsunlight.com/%'
               AND (capture_directory IS NULL OR capture_directory = ''
                    OR (capture_directory NOT LIKE '/%' AND capture_directory NOT LIKE 'https://%'))
-            ORDER BY date_created DESC
+            ORDER BY date DESC
             LIMIT :limit";
 
         $driver = $this->pdo->getAttribute(\PDO::ATTR_DRIVER_NAME);
