@@ -15,7 +15,7 @@ class JobDispatcherTest extends TestCase
         $queue = new InMemoryQueue();
         $logger = new class extends Log {
             public array $messages = [];
-            public function put($message, $level)
+            public function put($message, $level = 3)
             {
                 $this->messages[] = [$message, $level];
                 return true;

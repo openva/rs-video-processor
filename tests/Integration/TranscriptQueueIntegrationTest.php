@@ -79,7 +79,7 @@ class TranscriptQueueIntegrationTest extends TestCase
 }
 class NullLogger extends Log
 {
-    public function put($message, $level)
+    public function put($message, $level = 3)
     {
         return true;
     }
