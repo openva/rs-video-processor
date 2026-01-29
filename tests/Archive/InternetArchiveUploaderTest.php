@@ -87,7 +87,7 @@ class TestLogger extends \Log
 {
     public array $entries = [];
 
-    public function put($message, $level)
+    public function put($message, $level = 3)
     {
         $this->entries[] = ['level' => $level, 'message' => $message];
         return true;
