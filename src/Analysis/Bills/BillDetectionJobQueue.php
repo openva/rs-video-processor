@@ -87,8 +87,10 @@ class BillDetectionJobQueue
             return $base . '/manifest.json';
         }
 
-        // Handle new format: directory path like /senate/floor/20250111/screenshots/
-        $path = trim($captureDirectory, '/');
+        // Handle new format: directory path like /senate/floor/20250111/
+        // Strip legacy /video/ prefix if present
+        $path = preg_replace('#^/video/#', '/', $captureDirectory);
+        $path = trim($path, '/');
         if (str_ends_with($path, '/full')) {
             $path = substr($path, 0, -strlen('/full'));
         }
