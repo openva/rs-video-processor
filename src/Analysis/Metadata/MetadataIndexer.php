@@ -35,20 +35,27 @@ class MetadataIndexer
             return;
         }
 
-        // Find the earliest timestamp to use as video start (baseline)
-        $firstTimestamp = null;
+        // Detect if we have ISO timestamps (with dates) or HH:MM:SS times
+        $hasIsoTimestamps = false;
         foreach ($speakers as $speaker) {
-            if (empty($speaker['start_time'])) {
-                continue;
-            }
-            $ts = strtotime($speaker['start_time']);
-            if ($ts !== false && ($firstTimestamp === null || $ts < $firstTimestamp)) {
-                $firstTimestamp = $ts;
+            if (!empty($speaker['start_time']) && $this->isIsoTimestamp($speaker['start_time'])) {
+                $hasIsoTimestamps = true;
+                break;
             }
         }
 
-        if ($firstTimestamp === null) {
-            return; // No valid timestamps found
+        // For ISO timestamps, find the earliest to use as baseline (video start)
+        $firstTimestamp = null;
+        if ($hasIsoTimestamps) {
+            foreach ($speakers as $speaker) {
+                if (empty($speaker['start_time'])) {
+                    continue;
+                }
+                $ts = strtotime($speaker['start_time']);
+                if ($ts !== false && ($firstTimestamp === null || $ts < $firstTimestamp)) {
+                    $firstTimestamp = $ts;
+                }
+            }
         }
 
         $stmt = $this->pdo->prepare('INSERT INTO video_index (file_id, time, screenshot, raw_text, type, linked_id, ignored, date_created) VALUES (:file_id, :time, :shot, :raw, :type, NULL, "n", :created)');
@@ -56,8 +63,16 @@ class MetadataIndexer
             if (empty($speaker['start_time']) || empty($speaker['name'])) {
                 continue;
             }
-            $seconds = $this->convertToRelativeSeconds($speaker['start_time'], $firstTimestamp);
-            $time = $this->formatTime($seconds);
+
+            if ($hasIsoTimestamps && $firstTimestamp !== null) {
+                // Convert ISO timestamp to relative seconds
+                $seconds = $this->convertToRelativeSeconds($speaker['start_time'], $firstTimestamp);
+                $time = $this->formatTime($seconds);
+            } else {
+                // Already in HH:MM:SS format, parse to seconds
+                $seconds = $this->parseTimeToSeconds($speaker['start_time']);
+                $time = $this->formatTime($seconds);
+            }
 
             // Convert time to screenshot number
             $screenshotNumber = $this->secondsToScreenshotNumber($seconds);
@@ -71,6 +86,31 @@ class MetadataIndexer
                 ':created' => $now->format('Y-m-d H:i:s'),
             ]);
         }
+    }
+
+    /**
+     * Check if a timestamp string is an ISO timestamp (contains date).
+     *
+     * @param string $timestamp Timestamp string
+     * @return bool True if ISO timestamp, false if HH:MM:SS format
+     */
+    private function isIsoTimestamp(string $timestamp): bool
+    {
+        // ISO timestamps contain date separators like 'T', '-', or space between date and time
+        return (strpos($timestamp, 'T') !== false) ||
+               (preg_match('/\d{4}-\d{2}-\d{2}/', $timestamp) === 1);
+    }
+
+    /**
+     * Parse HH:MM:SS time string to total seconds.
+     *
+     * @param string $time Time in HH:MM:SS format
+     * @return int Total seconds
+     */
+    private function parseTimeToSeconds(string $time): int
+    {
+        [$h, $m, $s] = array_pad(explode(':', $time), 3, 0);
+        return ((int) $h) * 3600 + ((int) $m) * 60 + (int) $s;
     }
 
     /**
