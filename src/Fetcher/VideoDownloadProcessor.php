@@ -391,15 +391,12 @@ class VideoDownloadProcessor
         $errorAttr = $errorReason ? ' data-fallback-reason="' . htmlspecialchars($errorReason, ENT_QUOTES, 'UTF-8') . '"' : '';
 
         return <<<HTML
-<!-- YouTube embed fallback: video download failed, displaying YouTube player instead -->
-<div class="video-embed-container" style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%;">
     <iframe
         src="{$embedUrl}"
         frameborder="0"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
         allowfullscreen{$errorAttr}>
     </iframe>
-</div>
 HTML;
     }
 
