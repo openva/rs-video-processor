@@ -35,15 +35,32 @@ class MetadataIndexer
             return;
         }
 
+        // Find the earliest timestamp to use as video start (baseline)
+        $firstTimestamp = null;
+        foreach ($speakers as $speaker) {
+            if (empty($speaker['start_time'])) {
+                continue;
+            }
+            $ts = strtotime($speaker['start_time']);
+            if ($ts !== false && ($firstTimestamp === null || $ts < $firstTimestamp)) {
+                $firstTimestamp = $ts;
+            }
+        }
+
+        if ($firstTimestamp === null) {
+            return; // No valid timestamps found
+        }
+
         $stmt = $this->pdo->prepare('INSERT INTO video_index (file_id, time, screenshot, raw_text, type, linked_id, ignored, date_created) VALUES (:file_id, :time, :shot, :raw, :type, NULL, "n", :created)');
         foreach ($speakers as $speaker) {
             if (empty($speaker['start_time']) || empty($speaker['name'])) {
                 continue;
             }
-            $time = $this->formatIsoOrTime($speaker['start_time']);
+            $seconds = $this->convertToRelativeSeconds($speaker['start_time'], $firstTimestamp);
+            $time = $this->formatTime($seconds);
 
-            // Convert time string back to seconds to get screenshot number
-            $screenshotNumber = $this->timeStringToScreenshotNumber($time);
+            // Convert time to screenshot number
+            $screenshotNumber = $this->secondsToScreenshotNumber($seconds);
 
             $stmt->execute([
                 ':file_id' => $fileId,
@@ -56,17 +73,30 @@ class MetadataIndexer
         }
     }
 
-    private function formatIsoOrTime(string $value): string
+    /**
+     * Convert ISO timestamp to seconds relative to video start.
+     *
+     * @param string $timestamp ISO timestamp (e.g., "2025-01-31T13:05:00")
+     * @param int $baseTimestamp Unix timestamp to use as baseline (video start)
+     * @return int Seconds elapsed from baseline
+     */
+    private function convertToRelativeSeconds(string $timestamp, int $baseTimestamp): int
     {
-        // If this looks like an ISO timestamp, convert to HH:MM:SS relative time.
-        $ts = strtotime($value);
-        if ($ts !== false) {
-            $seconds = max((int) ($ts - strtotime(date('Y-m-d 00:00:00', $ts))), 0);
-        } else {
-            // Fallback: expect HH:MM:SS
-            [$h, $m, $s] = array_pad(explode(':', $value), 3, 0);
-            $seconds = ((int) $h) * 3600 + ((int) $m) * 60 + (int) $s;
+        $ts = strtotime($timestamp);
+        if ($ts === false) {
+            return 0;
         }
+        return max(0, $ts - $baseTimestamp);
+    }
+
+    /**
+     * Format seconds as HH:MM:SS.
+     *
+     * @param int $seconds Total seconds
+     * @return string Time in HH:MM:SS format
+     */
+    private function formatTime(int $seconds): string
+    {
         $hours = intdiv($seconds, 3600);
         $minutes = intdiv($seconds % 3600, 60);
         $secs = $seconds % 60;
@@ -74,19 +104,16 @@ class MetadataIndexer
     }
 
     /**
-     * Convert HH:MM:SS time string to screenshot number (screenshots are 1 FPS).
+     * Convert seconds to screenshot number (screenshots are 1 FPS).
      *
-     * @param string $timeString Time in HH:MM:SS format
+     * @param int $seconds Elapsed seconds from video start
      * @return string Screenshot number with leading zeros (e.g., "00000102")
      */
-    private function timeStringToScreenshotNumber(string $timeString): string
+    private function secondsToScreenshotNumber(int $seconds): string
     {
-        // Parse HH:MM:SS to get total seconds
-        [$h, $m, $s] = array_pad(explode(':', $timeString), 3, 0);
-        $totalSeconds = ((int) $h) * 3600 + ((int) $m) * 60 + (int) $s;
-
         // Screenshots are 1 per second, numbered starting from 00000001
-        $screenshotNumber = max(1, $totalSeconds + 1);
+        // Add 1 since screenshots start at 00000001, not 00000000
+        $screenshotNumber = max(1, $seconds + 1);
         return sprintf('%08d', $screenshotNumber);
     }
 }
