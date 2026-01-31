@@ -1,5 +1,6 @@
 #!/usr/bin/env php
 <?php
+
 /**
  * Diagnostic script to find video_index entries with incorrect times.
  *
@@ -48,14 +49,23 @@ foreach ($rows as $row) {
 echo "Affected files: " . count($byFile) . "\n\n";
 echo "Sample entries:\n";
 echo str_repeat('-', 120) . "\n";
-printf("%-8s %-10s %-12s %-10s %-20s %-10s %-12s\n",
-    'Index ID', 'File ID', 'Time', 'Screenshot', 'Name', 'Type', 'Date');
+printf(
+    "%-8s %-10s %-12s %-10s %-20s %-10s %-12s\n",
+    'Index ID',
+    'File ID',
+    'Time',
+    'Screenshot',
+    'Name',
+    'Type',
+    'Date'
+);
 echo str_repeat('-', 120) . "\n";
 
 $sampleCount = 0;
 foreach ($byFile as $fileId => $entries) {
     foreach ($entries as $entry) {
-        printf("%-8s %-10s %-12s %-10s %-20s %-10s %-12s\n",
+        printf(
+            "%-8s %-10s %-12s %-10s %-20s %-10s %-12s\n",
             $entry['id'],
             $entry['file_id'],
             $entry['time'],
