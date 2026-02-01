@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Shared helper functions for Archive.org URL repair.
  * Used by upload_archive.php, pipeline.php, and repair scripts.
