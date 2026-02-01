@@ -23,6 +23,23 @@ $pdo = $app->pdo ?? null;
 if (!$pdo) {
     throw new RuntimeException('Unable to connect to the database.');
 }
+
+// Before starting new work, check if any Archive.org videos from previous session finished processing
+$logger?->put('Checking for Archive.org videos from previous session...', 3);
+$checkSql = "SELECT COUNT(*) FROM files WHERE path LIKE 'https://archive.org/details/%'";
+$pendingFromPrevious = (int) $pdo->query($checkSql)->fetchColumn();
+
+if ($pendingFromPrevious > 0) {
+    $logger?->put(sprintf('Found %d video(s) from previous session with unresolved Archive.org URLs. Attempting to resolve...', $pendingFromPrevious), 3);
+    require_once __DIR__ . '/../bin/repair_archive_urls_helper.php';
+    $repaired = repairArchiveUrls($pdo, $logger, $stillPending);
+    if ($repaired > 0) {
+        $logger?->put(sprintf('Resolved %d Archive.org URL(s) from previous session', $repaired), 3);
+    }
+    if ($stillPending > 0) {
+        $logger?->put(sprintf('%d video(s) still processing on Archive.org', $stillPending), 4);
+    }
+}
 $pdoFactory = static function () {
     unset($GLOBALS['db_pdo'], $GLOBALS['db']);
     $db = new \Database();

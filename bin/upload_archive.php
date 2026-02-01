@@ -27,19 +27,55 @@ $queue = new ArchiveJobQueue($pdo);
 $processor = new ArchiveJobProcessor($queue, $metadataBuilder, $uploader, $pdo, $log);
 $processor->run($limit);
 
-// After uploads complete, automatically repair any unresolved URLs
-// Archive.org may still be processing videos, so check if any need repair
-$log?->put('Checking for Archive.org URLs that need repair...', 3);
-$repairCount = repairArchiveUrls($pdo, $log);
-if ($repairCount > 0) {
-    $log?->put("Repaired $repairCount Archive.org URL(s)", 3);
+// After uploads complete, wait for Archive.org to process videos and resolve URLs
+// Archive.org typically takes 5-30 minutes to process videos
+$log?->put('Waiting for Archive.org to process uploaded videos...', 3);
+$log?->put('This may take several minutes. Checking every 2 minutes for up to 30 minutes.', 3);
+
+$maxWaitMinutes = 30;
+$checkIntervalMinutes = 2;
+$maxAttempts = (int) ($maxWaitMinutes / $checkIntervalMinutes);
+$attemptNumber = 0;
+$allResolved = false;
+
+while ($attemptNumber < $maxAttempts && !$allResolved) {
+    if ($attemptNumber > 0) {
+        $log?->put(sprintf('Waiting %d minutes before next check...', $checkIntervalMinutes), 3);
+        sleep($checkIntervalMinutes * 60);
+    }
+
+    $attemptNumber++;
+    $log?->put(sprintf('Archive.org repair attempt %d/%d...', $attemptNumber, $maxAttempts), 3);
+
+    $repairCount = repairArchiveUrls($pdo, $log, $pendingCount);
+
+    if ($repairCount > 0) {
+        $log?->put("Resolved $repairCount Archive.org URL(s) on attempt $attemptNumber", 3);
+    }
+
+    if ($pendingCount === 0) {
+        $allResolved = true;
+        $log?->put('All Archive.org URLs resolved successfully!', 3);
+        break;
+    }
+
+    $log?->put(sprintf('Still waiting for %d video(s) to finish processing...', $pendingCount), 3);
+}
+
+if (!$allResolved && $pendingCount > 0) {
+    $log?->put(sprintf('Timeout after %d minutes. %d video(s) still processing. You may need to run bin/repair_archive_urls.php manually later.', $maxWaitMinutes, $pendingCount), 4);
 }
 
 /**
  * Repair Archive.org details URLs by resolving them to direct MP4 download URLs.
  * Returns the number of URLs successfully repaired.
+ *
+ * @param PDO $pdo Database connection
+ * @param Log|null $log Logger instance
+ * @param int &$pendingCount Output parameter: number of URLs still pending (not yet available)
+ * @return int Number of URLs successfully repaired
  */
-function repairArchiveUrls(\PDO $pdo, ?\Log $log): int
+function repairArchiveUrls(\PDO $pdo, ?\Log $log, int &$pendingCount = 0): int
 {
     $http = new \GuzzleHttp\Client(['timeout' => 20]);
 
@@ -51,11 +87,13 @@ function repairArchiveUrls(\PDO $pdo, ?\Log $log): int
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     if (empty($rows)) {
+        $pendingCount = 0;
         return 0;
     }
 
     $update = $pdo->prepare('UPDATE files SET path = :path WHERE id = :id');
     $updated = 0;
+    $pending = 0;
 
     foreach ($rows as $row) {
         $id = (int) $row['id'];
@@ -71,6 +109,7 @@ function repairArchiveUrls(\PDO $pdo, ?\Log $log): int
 
         if (!$file) {
             $log?->put("File #$id: MP4 not yet available for $identifier (still processing)", 4);
+            $pending++;
             continue;
         }
 
@@ -80,6 +119,7 @@ function repairArchiveUrls(\PDO $pdo, ?\Log $log): int
         $log?->put("File #$id: Resolved to $mp4Url", 3);
     }
 
+    $pendingCount = $pending;
     return $updated;
 }
 
