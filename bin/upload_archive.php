@@ -27,43 +27,19 @@ $queue = new ArchiveJobQueue($pdo);
 $processor = new ArchiveJobProcessor($queue, $metadataBuilder, $uploader, $pdo, $log);
 $processor->run($limit);
 
-// After uploads complete, wait for Archive.org to process videos and resolve URLs
-// Archive.org typically takes 5-30 minutes to process videos
-$log?->put('Waiting for Archive.org to process uploaded videos...', 3);
-$log?->put('This may take several minutes. Checking every 2 minutes for up to 30 minutes.', 3);
+// After uploads complete, check once for any videos that processed quickly
+// Videos that take longer will be caught at the start of the next processing session
+require_once __DIR__ . '/repair_archive_urls_helper.php';
 
-$maxWaitMinutes = 30;
-$checkIntervalMinutes = 2;
-$maxAttempts = (int) ($maxWaitMinutes / $checkIntervalMinutes);
-$attemptNumber = 0;
-$allResolved = false;
+$log?->put('Checking for Archive.org videos that finished processing...', 3);
+$repairCount = repairArchiveUrls($pdo, $log, $pendingCount);
 
-while ($attemptNumber < $maxAttempts && !$allResolved) {
-    if ($attemptNumber > 0) {
-        $log?->put(sprintf('Waiting %d minutes before next check...', $checkIntervalMinutes), 3);
-        sleep($checkIntervalMinutes * 60);
-    }
-
-    $attemptNumber++;
-    $log?->put(sprintf('Archive.org repair attempt %d/%d...', $attemptNumber, $maxAttempts), 3);
-
-    $repairCount = repairArchiveUrls($pdo, $log, $pendingCount);
-
-    if ($repairCount > 0) {
-        $log?->put("Resolved $repairCount Archive.org URL(s) on attempt $attemptNumber", 3);
-    }
-
-    if ($pendingCount === 0) {
-        $allResolved = true;
-        $log?->put('All Archive.org URLs resolved successfully!', 3);
-        break;
-    }
-
-    $log?->put(sprintf('Still waiting for %d video(s) to finish processing...', $pendingCount), 3);
+if ($repairCount > 0) {
+    $log?->put("Resolved $repairCount Archive.org URL(s) that finished processing quickly", 3);
 }
 
-if (!$allResolved && $pendingCount > 0) {
-    $log?->put(sprintf('Timeout after %d minutes. %d video(s) still processing. You may need to run bin/repair_archive_urls.php manually later.', $maxWaitMinutes, $pendingCount), 4);
+if ($pendingCount > 0) {
+    $log?->put(sprintf('%d video(s) still processing on Archive.org. These will be resolved at the start of the next processing session.', $pendingCount), 3);
 }
 
 /**
