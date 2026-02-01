@@ -104,9 +104,18 @@ class InternetArchiveUploader
         return implode(' ', $parts) . ' 2>&1';
     }
 
-    private function resolveMp4Url(string $identifier, string $preferredFilename, int $attempts = 10, int $delaySeconds = 3): ?string
+    private function resolveMp4Url(string $identifier, string $preferredFilename, int $attempts = 3, int $delaySeconds = 90): ?string
     {
         for ($i = 0; $i < $attempts; $i++) {
+            // Wait before checking (except first attempt)
+            if ($i > 0) {
+                $this->logger?->put(
+                    sprintf('Waiting %d seconds for Archive.org to process video...', $delaySeconds),
+                    4
+                );
+                sleep($delaySeconds);
+            }
+
             $metadata = $this->fetchMetadata($identifier);
             if (is_array($metadata) && !empty($metadata)) {
                 $files = $metadata['files'] ?? [];
@@ -136,13 +145,11 @@ class InternetArchiveUploader
                     4
                 );
             }
-            if ($i < $attempts - 1) {
-                sleep($delaySeconds);
-            }
         }
 
+        $totalWaitTime = ($attempts - 1) * $delaySeconds;
         $this->logger?->put(
-            sprintf('Failed to resolve MP4 URL for %s after %d attempts over %d seconds. Will use repair script later.', $identifier, $attempts, $attempts * $delaySeconds),
+            sprintf('Failed to resolve MP4 URL for %s after %d attempts over %d seconds. Video may still be processing. Will use repair script later.', $identifier, $attempts, $totalWaitTime),
             4
         );
         return null;
