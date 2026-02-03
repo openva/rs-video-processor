@@ -39,26 +39,34 @@ run_pipeline_pass() {
 
   # Step 3: Generate screenshots for videos that need them
   echo "=== Step 3: Generating screenshots ==="
+  php bin/generate_screenshots.php --enqueue
   php bin/generate_screenshots.php
 
   # Step 4: Generate transcripts
   echo "=== Step 4: Generating transcripts ==="
+  php bin/generate_transcripts.php --enqueue
   php bin/generate_transcripts.php
 
-  # Step 5: Detect bills from screenshots
-  echo "=== Step 5: Detecting bills ==="
+  # Step 5: Repair missing manifest.json files
+  echo "=== Step 5: Repairing missing manifests ==="
+  php bin/repair_manifests.php --limit=50
+
+  # Step 6: Detect bills from screenshots
+  echo "=== Step 6: Detecting bills ==="
+  php bin/detect_bills.php --enqueue
   php bin/detect_bills.php
 
-  # Step 6: Detect speakers
-  echo "=== Step 6: Detecting speakers ==="
+  # Step 7: Detect speakers
+  echo "=== Step 7: Detecting speakers ==="
+  php bin/detect_speakers.php --enqueue
   php bin/detect_speakers.php
 
-  # Step 7: Resolve raw text to database references
-  echo "=== Step 7: Resolving raw text ==="
+  # Step 8: Resolve raw text to database references
+  echo "=== Step 8: Resolving raw text ==="
   php bin/resolve_raw_text.php
 
-  # Step 8: Archive to Internet Archive
-  echo "=== Step 8: Archiving videos ==="
+  # Step 9: Archive to Internet Archive
+  echo "=== Step 9: Archiving videos ==="
   php bin/upload_archive.php
 
   echo "Pipeline pass #${pass_num} complete at $(date)"
