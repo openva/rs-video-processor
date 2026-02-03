@@ -93,6 +93,7 @@ class TranscriptQueueIntegrationTest extends TestCase
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             transcript TEXT,
             webvtt TEXT,
+            srt TEXT,
             date_modified TIMESTAMP
         )');
         $pdo->exec('INSERT INTO files (id) VALUES (1)');
