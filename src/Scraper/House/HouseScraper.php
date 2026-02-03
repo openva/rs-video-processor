@@ -117,9 +117,24 @@ class HouseScraper implements VideoSourceScraperInterface
         $title = $event['Title'] ?? $rootState['set_title'] ?? '';
         $description = $event['Description'] ?? $rootState['set_description'] ?? '';
         $scheduledStart = $event['ScheduledStart'] ?? $rootState['set_scheduledStart'] ?? null;
-        $isCommittee = !empty($event['CommitteeId']);
-        $committeeName = $isCommittee ? $title : null;
-        $eventType = $isCommittee ? (stripos($committeeName ?? '', 'subcommittee') !== false ? 'subcommittee' : 'committee') : 'floor';
+
+        // Determine event type using heuristics (API's CommitteeId is unreliable)
+        // Committee meetings have:
+        // - Title like "Education", "Agriculture", etc. (NOT "House Session")
+        // - Description contains "Committee Room"
+        $titleTrimmed = trim($title);
+        $isFloorSession = stripos($titleTrimmed, 'House Session') !== false ||
+                          stripos($titleTrimmed, 'Floor Session') !== false;
+        $isInCommitteeRoom = stripos($description, 'Committee Room') !== false;
+
+        $isCommittee = !$isFloorSession && $isInCommitteeRoom;
+        $committeeName = $isCommittee ? $titleTrimmed : null;
+
+        if ($isCommittee) {
+            $eventType = stripos($committeeName, 'subcommittee') !== false ? 'subcommittee' : 'committee';
+        } else {
+            $eventType = 'floor';
+        }
 
         return [
             'source' => 'house',
