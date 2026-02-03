@@ -15,9 +15,15 @@
 
 declare(strict_types=1);
 
-require __DIR__ . '/bootstrap.php';
+$app = require __DIR__ . '/bootstrap.php';
 
-$pdo = $app->pdo;
+$pdo = $app->pdo ?? null;
+
+if (!$pdo) {
+    echo "ERROR: Unable to connect to database\n";
+    echo "Make sure the database configuration is correct in includes/settings.inc.php\n";
+    exit(1);
+}
 
 echo "=== Video Index Time Diagnostic ===\n\n";
 
@@ -27,8 +33,7 @@ $sql = "SELECT vi.id, vi.file_id, vi.time, vi.screenshot, vi.raw_text, vi.type, 
         FROM video_index vi
         JOIN files f ON f.id = vi.file_id
         WHERE vi.time >= '05:00:00'
-        ORDER BY f.date DESC, vi.file_id, vi.time
-        LIMIT 100";
+        ORDER BY f.date DESC, vi.file_id, vi.time";
 
 $stmt = $pdo->query($sql);
 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -38,7 +43,8 @@ if (empty($rows)) {
     exit(0);
 }
 
-echo "Found " . count($rows) . " video_index entries with suspicious times (>= 05:00:00):\n\n";
+$totalEntries = count($rows);
+echo "Found " . number_format($totalEntries) . " video_index entries with suspicious times (>= 05:00:00)\n\n";
 
 // Group by file_id to show examples
 $byFile = [];
@@ -46,8 +52,10 @@ foreach ($rows as $row) {
     $byFile[$row['file_id']][] = $row;
 }
 
-echo "Affected files: " . count($byFile) . "\n\n";
-echo "Sample entries:\n";
+echo "Affected files: " . number_format(count($byFile)) . "\n";
+echo "Total affected entries: " . number_format($totalEntries) . "\n\n";
+
+echo "Sample entries (showing first 20):\n";
 echo str_repeat('-', 120) . "\n";
 printf(
     "%-8s %-10s %-12s %-10s %-20s %-10s %-12s\n",
@@ -75,7 +83,7 @@ foreach ($byFile as $fileId => $entries) {
             $entry['date']
         );
         $sampleCount++;
-        if ($sampleCount >= 10) {
+        if ($sampleCount >= 20) {
             break 2;
         }
     }
@@ -121,23 +129,26 @@ if ($line !== 'y' && $line !== 'Y') {
 
 // Delete entries for files with cache
 $deleteIds = array_keys($filesWithCache);
+echo "\nDeleting " . number_format(count($deleteIds)) . " file(s) worth of incorrect entries...\n";
+
 $deletePlaceholders = implode(',', array_fill(0, count($deleteIds), '?'));
 $deleteSql = "DELETE FROM video_index WHERE file_id IN ($deletePlaceholders) AND type = 'legislator'";
 $deleteStmt = $pdo->prepare($deleteSql);
 $deleteStmt->execute($deleteIds);
 $deletedCount = $deleteStmt->rowCount();
 
-echo "Deleted $deletedCount video_index entries.\n";
+echo "Deleted " . number_format($deletedCount) . " video_index entries. ✓\n";
 
 // Re-index using MetadataIndexer
-echo "Re-indexing metadata...\n";
+echo "\nRe-indexing metadata for " . number_format(count($deleteIds)) . " files...\n";
 
 use RichmondSunlight\VideoProcessor\Analysis\Metadata\MetadataIndexer;
 
 $indexer = new MetadataIndexer($pdo);
 $reindexed = 0;
+$totalFiles = count($deleteIds);
 
-foreach ($deleteIds as $fileId) {
+foreach ($deleteIds as $i => $fileId) {
     $stmt = $pdo->prepare("SELECT video_index_cache FROM files WHERE id = ?");
     $stmt->execute([$fileId]);
     $cache = $stmt->fetchColumn();
@@ -153,7 +164,12 @@ foreach ($deleteIds as $fileId) {
 
     $indexer->index($fileId, $metadata);
     $reindexed++;
+
+    // Show progress every 10 files or on last file
+    if ($reindexed % 10 === 0 || $reindexed === $totalFiles) {
+        echo "  Progress: $reindexed / $totalFiles files\r";
+    }
 }
 
-echo "Re-indexed $reindexed files. ✓\n";
+echo "\nRe-indexed " . number_format($reindexed) . " files. ✓\n";
 echo "\nDone!\n";
