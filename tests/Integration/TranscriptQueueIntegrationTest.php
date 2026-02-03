@@ -29,11 +29,17 @@ class TranscriptQueueIntegrationTest extends TestCase
             new NullLogger()
         );
 
+        $webvttContent = "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHello world";
+
+        // Store webvtt in database (simulating what happens in production)
+        $pdo->prepare('UPDATE files SET webvtt = :webvtt WHERE id = 1')
+            ->execute([':webvtt' => $webvttContent]);
+
         $job = new TranscriptJob(
             1,
             'house',
             'file://unused',
-            "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHello world",
+            $webvttContent,
             null,
             'Test'
         );
@@ -47,6 +53,22 @@ class TranscriptQueueIntegrationTest extends TestCase
         $this->assertCount(1, $messages);
 
         $receivedJob = $mapper->fromPayload($messages[0]->payload);
+
+        // Simulate worker fetching webvtt/srt from database (not in payload due to size)
+        $stmt = $pdo->prepare('SELECT webvtt, srt FROM files WHERE id = :id');
+        $stmt->execute([':id' => $receivedJob->fileId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row) {
+            $receivedJob = new TranscriptJob(
+                $receivedJob->fileId,
+                $receivedJob->chamber,
+                $receivedJob->videoUrl,
+                $row['webvtt'] ?? null,
+                $row['srt'] ?? null,
+                $receivedJob->title
+            );
+        }
+
         $processor->process($receivedJob);
         $dispatcher->acknowledge($messages[0]);
 
