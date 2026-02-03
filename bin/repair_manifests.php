@@ -85,7 +85,11 @@ $failed = 0;
 
 foreach ($files as $file) {
     $fileId = (int) $file['id'];
-    $captureDir = trim($file['capture_directory'], '/');
+
+    // Strip legacy /video/ prefix if present (matches BillDetectionJobQueue logic)
+    $captureDir = $file['capture_directory'];
+    $captureDir = preg_replace('#^/video/#', '/', $captureDir);
+    $captureDir = trim($captureDir, '/');
 
     // Build manifest URL
     $manifestKey = $captureDir . '/manifest.json';
