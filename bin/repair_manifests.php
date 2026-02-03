@@ -1,5 +1,6 @@
 #!/usr/bin/env php
 <?php
+
 /**
  * Repair missing manifest.json files for screenshot directories.
  *
@@ -128,7 +129,6 @@ foreach ($files as $file) {
 
         $repaired++;
         $log?->put(sprintf('File #%d: Created manifest with %d screenshots', $fileId, count($manifest)), 3);
-
     } catch (Exception $e) {
         $log?->put(sprintf('File #%d: Failed to repair manifest: %s', $fileId, $e->getMessage()), 6);
         $failed++;
