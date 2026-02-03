@@ -88,16 +88,22 @@ foreach ($files as $file) {
 
     $checked++;
 
-    // Apply committee detection heuristics (same logic as HouseScraper)
+    // Apply committee detection heuristics
     $title = isset($cache['title']) ? trim($cache['title']) : '';
     $description = $cache['description'] ?? '';
 
+    // Floor sessions are specifically labeled as such or have "Regular Session" in description
+    $hasRegularSessionInDesc = stripos($description, 'Regular Session') !== false;
     $isFloorSession = stripos($title, 'House Session') !== false ||
                       stripos($title, 'Senate Session') !== false ||
-                      stripos($title, 'Floor Session') !== false;
-    $isInCommitteeRoom = stripos($description, 'Committee Room') !== false;
+                      stripos($title, 'Floor Session') !== false ||
+                      $hasRegularSessionInDesc;
 
-    $isCommittee = !$isFloorSession && $isInCommitteeRoom;
+    // Committee meetings have "Committee" or "Subcommittee" in the title
+    $hasCommitteeInTitle = stripos($title, 'Committee') !== false ||
+                           stripos($title, 'Subcommittee') !== false;
+
+    $isCommittee = !$isFloorSession && $hasCommitteeInTitle;
 
     if ($isCommittee) {
         // Extract committee name from title

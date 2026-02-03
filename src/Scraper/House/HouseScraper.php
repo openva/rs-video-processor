@@ -119,15 +119,18 @@ class HouseScraper implements VideoSourceScraperInterface
         $scheduledStart = $event['ScheduledStart'] ?? $rootState['set_scheduledStart'] ?? null;
 
         // Determine event type using heuristics (API's CommitteeId is unreliable)
-        // Committee meetings have:
-        // - Title like "Education", "Agriculture", etc. (NOT "House Session")
-        // - Description contains "Committee Room"
+        // Floor sessions are specifically labeled "House Session" or "Floor Session"
+        // or have "Regular Session" in the description
+        // Committee meetings have "Committee" or "Subcommittee" in the title
         $titleTrimmed = trim($title);
+        $hasRegularSessionInDesc = stripos($description, 'Regular Session') !== false;
         $isFloorSession = stripos($titleTrimmed, 'House Session') !== false ||
-                          stripos($titleTrimmed, 'Floor Session') !== false;
-        $isInCommitteeRoom = stripos($description, 'Committee Room') !== false;
+                          stripos($titleTrimmed, 'Floor Session') !== false ||
+                          $hasRegularSessionInDesc;
+        $hasCommitteeInTitle = stripos($titleTrimmed, 'Committee') !== false ||
+                               stripos($titleTrimmed, 'Subcommittee') !== false;
 
-        $isCommittee = !$isFloorSession && $isInCommitteeRoom;
+        $isCommittee = !$isFloorSession && $hasCommitteeInTitle;
         $committeeName = $isCommittee ? $titleTrimmed : null;
 
         if ($isCommittee) {
