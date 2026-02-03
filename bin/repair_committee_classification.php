@@ -82,6 +82,8 @@ foreach ($files as $file) {
     // Parse cached metadata
     $cache = json_decode($file['video_index_cache'], true);
     if (!is_array($cache)) {
+        echo sprintf("File #%d: ERROR - Invalid or missing video_index_cache\n", $fileId);
+        $log?->put(sprintf('File #%d: Invalid or missing video_index_cache', $fileId), 5);
         $errors++;
         continue;
     }
