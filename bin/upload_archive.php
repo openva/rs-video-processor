@@ -32,6 +32,7 @@ $processor->run($limit);
 require_once __DIR__ . '/repair_archive_urls_helper.php';
 
 $log?->put('Checking for Archive.org videos that finished processing...', 3);
+$pendingCount = 0;
 $repairCount = repairArchiveUrls($pdo, $log, $pendingCount);
 
 if ($repairCount > 0) {

@@ -32,6 +32,7 @@ $pendingFromPrevious = (int) $pdo->query($checkSql)->fetchColumn();
 if ($pendingFromPrevious > 0) {
     $logger?->put(sprintf('Found %d video(s) from previous session with unresolved Archive.org URLs. Attempting to resolve...', $pendingFromPrevious), 3);
     require_once __DIR__ . '/../bin/repair_archive_urls_helper.php';
+    $stillPending = 0;
     $repaired = repairArchiveUrls($pdo, $logger, $stillPending);
     if ($repaired > 0) {
         $logger?->put(sprintf('Resolved %d Archive.org URL(s) from previous session', $repaired), 3);
