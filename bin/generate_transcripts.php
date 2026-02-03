@@ -7,6 +7,7 @@ use GuzzleHttp\Client;
 use RichmondSunlight\VideoProcessor\Queue\JobType;
 use RichmondSunlight\VideoProcessor\Transcripts\CaptionParser;
 use RichmondSunlight\VideoProcessor\Transcripts\OpenAITranscriber;
+use RichmondSunlight\VideoProcessor\Transcripts\TranscriptJob;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptJobQueue;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptJobPayloadMapper;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptProcessor;
@@ -82,6 +83,22 @@ foreach ($messages as $message) {
             continue;
         }
         $job = $mapper->fromPayload($message->payload);
+
+        // Fetch webvtt/srt from database (not included in payload due to size)
+        $stmt = $pdo->prepare('SELECT webvtt, srt FROM files WHERE id = :id');
+        $stmt->execute([':id' => $job->fileId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row) {
+            $job = new TranscriptJob(
+                $job->fileId,
+                $job->chamber,
+                $job->videoUrl,
+                $row['webvtt'] ?? null,
+                $row['srt'] ?? null,
+                $job->title
+            );
+        }
+
         $processor->process($job);
     } catch (Throwable $e) {
         $log->put('Transcript generation failed for file #' . $message->payload->fileId . ': ' . $e->getMessage(), 6);
