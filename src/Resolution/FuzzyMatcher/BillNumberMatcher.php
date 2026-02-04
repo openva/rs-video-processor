@@ -20,6 +20,9 @@ class BillNumberMatcher
         // SB567, SB 567, S.B. 567, Senate Bill 567
         // + Resolutions: HJR, SJR, HR, SR
 
+        // Pre-process: Fix common OCR errors in bill prefixes
+        $rawText = $this->correctPrefixOcrErrors($rawText);
+
         $patterns = [
             '/\b(HB|H\.B\.|House\s+Bill)\s*(\d{1,4})\b/i' => ['chamber' => 'house', 'type' => 'bill'],
             '/\b(SB|S\.B\.|Senate\s+Bill)\s*(\d{1,4})\b/i' => ['chamber' => 'senate', 'type' => 'bill'],
@@ -43,6 +46,42 @@ class BillNumberMatcher
         }
 
         return null;
+    }
+
+    /**
+     * Correct common OCR errors in bill prefixes.
+     * Handles: H8→HB, 1H→H, LH→H, S8→SB, etc.
+     */
+    private function correctPrefixOcrErrors(string $text): string
+    {
+        // Common OCR substitutions for bill prefixes
+        $substitutions = [
+            // "H8" → "HB" (8 confused with B)
+            '/\b([HL1I])\s*[8]\s*(\d)/i' => 'HB $2',
+            // "H3" → "HB" (3 confused with B)
+            '/\b([HL1I])\s*[3]\s*(\d)/i' => 'HB $2',
+            // "HE" → "HB" (E confused with B)
+            '/\b([HL1I])\s*[E]\s*(\d)/i' => 'HB $2',
+            // "S8" → "SB" (8 confused with B)
+            '/\b[5S]\s*[8]\s*(\d)/i' => 'SB $1',
+            // "SE" → "SB" (E confused with B)
+            '/\b[5S]\s*[E]\s*(\d)/i' => 'SB $1',
+            // "LHB" or "1HB" → "HB" (leading character before H)
+            '/\b[L1I]\s*H\s*B\s*(\d)/i' => 'HB $1',
+            // "LSB" or "1SB" → "SB"
+            '/\b[L1I]\s*S\s*B\s*(\d)/i' => 'SB $1',
+            // "HJ8" → "HJR", "SJ8" → "SJR"
+            '/\b([HS])\s*J\s*[8R]\s*(\d)/i' => '$1JR $2',
+            // "H 8" with space → "HB"
+            '/\b([HL1I])\s+[8]\s+(\d)/i' => 'HB $2',
+            '/\bS\s+[8]\s+(\d)/i' => 'SB $1',
+        ];
+
+        foreach ($substitutions as $pattern => $replacement) {
+            $text = preg_replace($pattern, $replacement, $text);
+        }
+
+        return $text;
     }
 
     /**

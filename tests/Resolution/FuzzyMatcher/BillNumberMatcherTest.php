@@ -159,4 +159,70 @@ class BillNumberMatcherTest extends TestCase
         $this->assertSame('house', $result['chamber']);
         $this->assertSame('123', $result['number']);
     }
+
+    public function testCorrectsPrefixOcrError_H8_to_HB(): void
+    {
+        // Real-world OCR error: "H8 2067" should match as "HB 2067"
+        $result = $this->matcher->parseBillNumber('H8 2067');
+
+        $this->assertNotNull($result);
+        $this->assertSame('house', $result['chamber']);
+        $this->assertSame('bill', $result['type']);
+        $this->assertSame('2067', $result['number']);
+    }
+
+    public function testCorrectsPrefixOcrError_LH8_to_HB(): void
+    {
+        // Real-world OCR error: "L H8 2067" should match as "HB 2067"
+        $result = $this->matcher->parseBillNumber('L H8 2067');
+
+        $this->assertNotNull($result);
+        $this->assertSame('house', $result['chamber']);
+        $this->assertSame('bill', $result['type']);
+        $this->assertSame('2067', $result['number']);
+    }
+
+    public function testCorrectsPrefixOcrError_1H8_to_HB(): void
+    {
+        // Real-world OCR error: "1 H8 2067" should match as "HB 2067"
+        $result = $this->matcher->parseBillNumber('1 H8 2067');
+
+        $this->assertNotNull($result);
+        $this->assertSame('house', $result['chamber']);
+        $this->assertSame('bill', $result['type']);
+        $this->assertSame('2067', $result['number']);
+    }
+
+    public function testCorrectsPrefixOcrError_S8_to_SB(): void
+    {
+        // OCR error: "S8 456" should match as "SB 456"
+        $result = $this->matcher->parseBillNumber('S8 456');
+
+        $this->assertNotNull($result);
+        $this->assertSame('senate', $result['chamber']);
+        $this->assertSame('bill', $result['type']);
+        $this->assertSame('456', $result['number']);
+    }
+
+    public function testCorrectsPrefixOcrError_1HB_to_HB(): void
+    {
+        // OCR error: "1HB 1234" should match as "HB 1234"
+        $result = $this->matcher->parseBillNumber('1HB 1234');
+
+        $this->assertNotNull($result);
+        $this->assertSame('house', $result['chamber']);
+        $this->assertSame('bill', $result['type']);
+        $this->assertSame('1234', $result['number']);
+    }
+
+    public function testCorrectsPrefixOcrError_HJ8_to_HJR(): void
+    {
+        // OCR error: "HJ8 42" should match as "HJR 42"
+        $result = $this->matcher->parseBillNumber('HJ8 42');
+
+        $this->assertNotNull($result);
+        $this->assertSame('house', $result['chamber']);
+        $this->assertSame('joint_resolution', $result['type']);
+        $this->assertSame('42', $result['number']);
+    }
 }
