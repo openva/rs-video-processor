@@ -82,7 +82,8 @@ class NameMatcher
         // Require whitespace before dash to preserve hyphenated names (e.g., "Keys-Gamarra")
         $rawText = preg_replace('/\s+-\s*[A-Z][a-z]+$/i', '', $rawText);
         // Remove multi-word location followed by number in parens (e.g., "James City (996)")
-        $rawText = preg_replace('/\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s*\(\d+\)/i', '', $rawText);
+        // Requires at least 2 capitalized words to avoid matching single last names
+        $rawText = preg_replace('/\s+[A-Z][a-z]+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s*\(\d+\)/i', '', $rawText);
         // Remove standalone numbers in parentheses that aren't part of party (e.g., "(996)")
         $rawText = preg_replace('/\s*\(\d+\)/', '', $rawText);
 
