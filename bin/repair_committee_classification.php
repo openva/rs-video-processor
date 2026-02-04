@@ -101,11 +101,12 @@ foreach ($files as $file) {
                       stripos($title, 'Floor Session') !== false ||
                       $hasRegularSessionInDesc;
 
-    // Committee meetings have "Committee" or "Subcommittee" in the title
+    // Committee meetings have "Committee" or "Subcommittee" in title or "Committee Room" in description
     $hasCommitteeInTitle = stripos($title, 'Committee') !== false ||
                            stripos($title, 'Subcommittee') !== false;
+    $hasCommitteeInDesc = stripos($description, 'Committee Room') !== false;
 
-    $isCommittee = !$isFloorSession && $hasCommitteeInTitle;
+    $isCommittee = !$isFloorSession && ($hasCommitteeInTitle || $hasCommitteeInDesc);
 
     if ($isCommittee) {
         // Extract committee name from title

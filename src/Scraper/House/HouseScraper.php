@@ -121,7 +121,7 @@ class HouseScraper implements VideoSourceScraperInterface
         // Determine event type using heuristics (API's CommitteeId is unreliable)
         // Floor sessions are specifically labeled "House Session" or "Floor Session"
         // or have "Regular Session" in the description
-        // Committee meetings have "Committee" or "Subcommittee" in the title
+        // Committee meetings have "Committee" or "Subcommittee" in title or "Committee Room" in description
         $titleTrimmed = trim($title);
         $hasRegularSessionInDesc = stripos($description, 'Regular Session') !== false;
         $isFloorSession = stripos($titleTrimmed, 'House Session') !== false ||
@@ -129,8 +129,9 @@ class HouseScraper implements VideoSourceScraperInterface
                           $hasRegularSessionInDesc;
         $hasCommitteeInTitle = stripos($titleTrimmed, 'Committee') !== false ||
                                stripos($titleTrimmed, 'Subcommittee') !== false;
+        $hasCommitteeInDesc = stripos($description, 'Committee Room') !== false;
 
-        $isCommittee = !$isFloorSession && $hasCommitteeInTitle;
+        $isCommittee = !$isFloorSession && ($hasCommitteeInTitle || $hasCommitteeInDesc);
         $committeeName = $isCommittee ? $titleTrimmed : null;
 
         if ($isCommittee) {
