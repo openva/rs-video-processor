@@ -276,4 +276,86 @@ class NameMatcherTest extends TestCase
 
         $this->assertGreaterThanOrEqual(90.0, $score);
     }
+
+    public function testExtractsNicknameWithFullFirstName(): void
+    {
+        // Real-world case: "Del. Thomas A. (Tom) Garrett"
+        $result = $this->matcher->extractLegislatorName('Del. Thomas A. (Tom) Garrett');
+
+        // Should extract "Tom Garrett" (using nickname instead of "Thomas")
+        $this->assertSame('Tom Garrett', $result['cleaned']);
+        $this->assertSame(['Tom', 'Garrett'], $result['tokens']);
+        $this->assertSame('Del.', $result['prefix']);
+    }
+
+    public function testNicknameWithFullFirstNameMatchesDatabase(): void
+    {
+        $extracted = $this->matcher->extractLegislatorName('Del. Thomas A. (Tom) Garrett');
+
+        // Should match "Garrett, Tom" or "Thomas A. Garrett"
+        $score = $this->matcher->calculateNameScore(
+            $extracted['cleaned'],
+            'Garrett, Thomas A.',
+            $extracted['tokens']
+        );
+
+        // Should get high score for token match
+        $this->assertGreaterThanOrEqual(75.0, $score);
+    }
+
+    public function testHandlesNewlinesInOcr(): void
+    {
+        // Real-world case: OCR with newline and location info
+        $result = $this->matcher->extractLegislatorName("Del. Brenda Pogge\nJames City (996)");
+
+        // Should normalize to single line and extract just the name
+        $this->assertStringNotContainsString("\n", $result['cleaned']);
+        $this->assertStringContainsString('Brenda', $result['cleaned']);
+        $this->assertStringContainsString('Pogge', $result['cleaned']);
+    }
+
+    public function testRemovesLocationAfterNewline(): void
+    {
+        $result = $this->matcher->extractLegislatorName("Del. Brenda Pogge\nJames City (996)");
+
+        // Location info should be removed
+        $this->assertStringNotContainsString('James City', $result['cleaned']);
+        $this->assertStringNotContainsString('996', $result['cleaned']);
+    }
+
+    public function testMatchesMiddleInitialName(): void
+    {
+        // Real-world case: "Del. Timothy P. Griffin"
+        $extracted = $this->matcher->extractLegislatorName('Del. Timothy P. Griffin');
+
+        $this->assertSame('Timothy P. Griffin', $extracted['cleaned']);
+        $this->assertSame(['Timothy', 'P.', 'Griffin'], $extracted['tokens']);
+
+        // Should match database entry
+        $score = $this->matcher->calculateNameScore(
+            $extracted['cleaned'],
+            'Griffin, Timothy P.',
+            $extracted['tokens']
+        );
+
+        $this->assertGreaterThanOrEqual(95.0, $score);
+    }
+
+    public function testMatchesThreePartLastName(): void
+    {
+        // Real-world case: "Del. Candi Mundon King"
+        $extracted = $this->matcher->extractLegislatorName('Del. Candi Mundon King');
+
+        $this->assertSame('Candi Mundon King', $extracted['cleaned']);
+        $this->assertSame(['Candi', 'Mundon', 'King'], $extracted['tokens']);
+
+        // Should match full name in database
+        $score = $this->matcher->calculateNameScore(
+            $extracted['cleaned'],
+            'Mundon King, Candi',
+            $extracted['tokens']
+        );
+
+        $this->assertGreaterThanOrEqual(95.0, $score);
+    }
 }

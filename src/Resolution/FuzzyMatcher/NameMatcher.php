@@ -23,6 +23,11 @@ class NameMatcher
     {
         $original = $rawText;
 
+        // Normalize whitespace: replace newlines, tabs, and multiple spaces with single space
+        $rawText = preg_replace('/[\r\n\t]+/', ' ', $rawText);
+        $rawText = preg_replace('/\s+/', ' ', $rawText);
+        $rawText = trim($rawText);
+
         // Extract and remove prefix
         $prefix = null;
         $prefixes = ['Sen\.', 'Del\.', 'Delegate', 'Senator', 'Chair', 'Vice Chair', 'Rep\.', 'Representative'];
@@ -35,15 +40,17 @@ class NameMatcher
         }
 
         // Extract nickname from parentheses and use it preferentially
-        // E.g., "C. E. (Cliff) Hayes" → prefer "Cliff Hayes" over "C. E. Cliff Hayes"
-        if (preg_match('/\(([A-Za-z][A-Za-z\s\-]+)\)/', $rawText, $matches)) {
+        // E.g., "Thomas A. (Tom) Garrett" → "Tom Garrett"
+        // E.g., "C. E. (Cliff) Hayes" → "Cliff Hayes"
+        if (preg_match('/\(([A-Za-z][A-Za-z\s\-]+)\)\s*(.*)$/i', $rawText, $matches)) {
             $nickname = trim($matches[1]);
-            // Check if this looks like a nickname (not a party indicator)
+            $afterNickname = trim($matches[2]);
+
+            // Check if this looks like a nickname (not a party indicator like "R" or "D-6")
             if (!preg_match('/^[RDI](-\d+)?$/i', $nickname)) {
-                // Remove everything before the parentheses (typically initials)
-                $rawText = preg_replace('/^[A-Z\.\s]+\([^)]+\)/', "($nickname)", $rawText);
-                // Now remove the parentheses
-                $rawText = str_replace("($nickname)", $nickname, $rawText);
+                // Replace everything before and including the nickname with just the nickname
+                // Keep everything after the nickname (usually the last name)
+                $rawText = $nickname . ($afterNickname ? ' ' . $afterNickname : '');
             }
         }
 
@@ -69,10 +76,15 @@ class NameMatcher
             $rawText = preg_replace('/District\s+\d+/i', '', $rawText);
         }
 
-        // Remove location indicators (e.g., "Smith - Richmond")
-        // Require whitespace before dash to preserve hyphenated names (e.g., "Keys-Gamarra")
+        // Remove location indicators and district numbers
+        // E.g., "Smith - Richmond", "Smith of Richmond", "Pogge James City (996)"
         $rawText = preg_replace('/\s+of\s+[A-Z][a-z]+/i', '', $rawText);
+        // Require whitespace before dash to preserve hyphenated names (e.g., "Keys-Gamarra")
         $rawText = preg_replace('/\s+-\s*[A-Z][a-z]+$/i', '', $rawText);
+        // Remove multi-word location followed by number in parens (e.g., "James City (996)")
+        $rawText = preg_replace('/\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s*\(\d+\)/i', '', $rawText);
+        // Remove standalone numbers in parentheses that aren't part of party (e.g., "(996)")
+        $rawText = preg_replace('/\s*\(\d+\)/', '', $rawText);
 
         // Clean up whitespace and punctuation
         $rawText = preg_replace('/[,\(\)]+/', ' ', $rawText);
