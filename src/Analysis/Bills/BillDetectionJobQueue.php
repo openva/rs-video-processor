@@ -19,6 +19,7 @@ class BillDetectionJobQueue
             FROM files f
             WHERE f.capture_directory IS NOT NULL AND f.capture_directory != ''
               AND (f.capture_directory LIKE '/%' OR f.capture_directory LIKE 'https://%')
+              AND f.date >= '2020-01-01'
               AND NOT EXISTS (
                 SELECT 1 FROM video_index vi
                 WHERE vi.file_id = f.id AND vi.type = 'bill'
