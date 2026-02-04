@@ -167,7 +167,6 @@ foreach ($files as $file) {
             ':title' => $newTitle,
             ':id' => $fileId,
         ]);
-        echo "  ✓ Updated\n";
         $reclassified++;
     }
 
