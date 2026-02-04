@@ -123,8 +123,8 @@ class LegislatorResolver
             return $scored[0];
         }
 
-        // Fallback: Use temporal consensus
-        if (!empty($temporalContext)) {
+        // Fallback: Use temporal consensus (only if text looks like a name)
+        if (!empty($temporalContext) && !$this->isNonNameText($extracted['cleaned'])) {
             $consensusId = $this->contextAnalyzer->findConsensusMatch($temporalContext, 3);
             if ($consensusId !== null) {
                 // Find this legislator in our candidates
@@ -141,6 +141,30 @@ class LegislatorResolver
         }
 
         return null;
+    }
+
+    /**
+     * Check if text contains obvious non-name terms that should never match legislators.
+     * Prevents titles, roles, and job descriptions from being matched via temporal consensus.
+     */
+    private function isNonNameText(string $text): bool
+    {
+        $nonNameTerms = [
+            'staff', 'attorney', 'counsel', 'clerk', 'director', 'manager',
+            'assistant', 'secretary', 'chair', 'chairman', 'chairwoman',
+            'vice', 'president', 'officer', 'coordinator', 'analyst',
+            'advisor', 'administrator', 'executive', 'chief', 'commissioner',
+            'committee', 'subcommittee', 'member', 'representative',
+        ];
+
+        $lowerText = strtolower($text);
+        foreach ($nonNameTerms as $term) {
+            if (str_contains($lowerText, $term)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
