@@ -22,9 +22,9 @@ class OcrSpeakerExtractor
     /**
      * @return array<int,array{name:string,start:float}>
      */
-    public function extract(string $manifestUrl, string $chamber, string $eventType): array
+    public function extract(string $manifestUrl, string $chamber, string $eventType, string $date = '2020-01-01'): array
     {
-        $crop = $this->chamberConfig->getCrop($chamber, $eventType);
+        $crop = $this->chamberConfig->getCrop($chamber, $eventType, $date);
         if (!$crop) {
             $this->logger?->put(sprintf('No OCR crop config for %s (%s).', $chamber, $eventType), 4);
             return [];

@@ -168,6 +168,7 @@ wait
 Detailed feature documentation is available in [`docs/features/`](docs/features/):
 
 - **[YouTube Scraping](docs/features/youtube-scraping.md)** - Setup and usage of the YouTube video harvester for Virginia Senate videos
+- **[Chyron Configuration](docs/features/chyron-configuration.md)** - Configure OCR crop regions for bill and speaker detection across different video types and eras
 - **[Raw Text Resolution](docs/features/raw-text-resolution.md)** - OCR text matching to database references (legislators and bills)
 - **[Database Migrations](sql/README.md)** - SQL schema changes and migration guide
 

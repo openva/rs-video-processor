@@ -1,0 +1,63 @@
+# Chyron OCR crop regions for bill and speaker detection
+#
+# Format: [x_percent, y_percent, width_percent, height_percent]
+# Where 0.0 = left/top edge, 1.0 = right/bottom edge
+#
+# Each configuration can have multiple eras based on video date.
+# The system will select the appropriate era based on the video's date field.
+
+bill_detection:
+  # Default era (2020+) - current chyron positions
+  default:
+    min_date: "2020-01-01"
+    regions:
+      senate_floor: [0.75, 0.11, 0.14, 0.05]
+      senate_committee: [0.75, 0.11, 0.14, 0.06]
+      house_floor: [0.74, 0.11, 0.15, 0.08]
+      house_committee: [0.00, 0.00, 0.2, 0.08]  # NEEDS CONFIGURATION - placeholder coords
+
+  # Era 2016-2019 - older chyron positions
+  # era_2016:
+  #   min_date: "2016-01-01"
+  #   regions:
+  #     senate_floor: [0.75, 0.11, 0.14, 0.05]
+  #     senate_committee: [0.75, 0.11, 0.14, 0.06]
+  #     house_floor: [0.74, 0.11, 0.15, 0.08]
+  #     house_committee: [0.74, 0.11, 0.15, 0.08]
+
+  # Era 2006-2015 - earliest video format
+  # era_2006:
+  #   min_date: "2006-01-01"
+  #   regions:
+  #     senate_floor: [0.75, 0.11, 0.14, 0.05]
+  #     senate_committee: [0.75, 0.11, 0.14, 0.06]
+  #     house_floor: [0.74, 0.11, 0.15, 0.08]
+  #     house_committee: [0.74, 0.11, 0.15, 0.08]
+
+speaker_detection:
+  # Default era (2020+) - current chyron positions
+  default:
+    min_date: "2020-01-01"
+    regions:
+      house_floor: [0.3, 0.77, 0.55, 0.12]
+      house_committee: [0, 0.05, 0.15, 0.1]
+      senate_floor: [0.14, 0.82, 1.0, 0.08]
+      senate_committee: [0.14, 0.82, 0.86, 0.08]
+
+  # Era 2016-2019 - older chyron positions
+  # era_2016:
+  #   min_date: "2016-01-01"
+  #   regions:
+  #     house_floor: [0.3, 0.77, 0.55, 0.12]
+  #     house_committee: [0, 0.05, 0.15, 0.1]
+  #     senate_floor: [0.14, 0.82, 1.0, 0.08]
+  #     senate_committee: [0.14, 0.82, 0.86, 0.08]
+
+  # Era 2006-2015 - earliest video format
+  # era_2006:
+  #   min_date: "2006-01-01"
+  #   regions:
+  #     house_floor: [0.3, 0.77, 0.55, 0.12]
+  #     house_committee: [0, 0.05, 0.15, 0.1]
+  #     senate_floor: [0.14, 0.82, 1.0, 0.08]
+  #     senate_committee: [0.14, 0.82, 0.86, 0.08]

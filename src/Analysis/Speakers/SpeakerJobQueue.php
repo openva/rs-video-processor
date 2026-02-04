@@ -15,7 +15,7 @@ class SpeakerJobQueue
      */
     public function fetch(int $limit = 3): array
     {
-        $sql = "SELECT f.id, f.chamber, f.path, f.capture_directory, f.video_index_cache
+        $sql = "SELECT f.id, f.chamber, f.path, f.capture_directory, f.video_index_cache, f.date
             FROM files f
             WHERE (f.path LIKE 'https://video.richmondsunlight.com/%'
               OR f.path LIKE 'https://archive.org/%')
@@ -65,7 +65,8 @@ class SpeakerJobQueue
                 $metadata,
                 $eventType,
                 is_string($captureDir) ? $captureDir : null,
-                $manifestUrl
+                $manifestUrl,
+                (string) $row['date']
             );
         }
 

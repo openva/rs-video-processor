@@ -11,7 +11,8 @@ class SpeakerJob
         public ?array $metadata,
         public ?string $eventType = null,
         public ?string $captureDirectory = null,
-        public ?string $manifestUrl = null
+        public ?string $manifestUrl = null,
+        public string $date = '2020-01-01'
     ) {
     }
 }

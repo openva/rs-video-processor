@@ -33,7 +33,8 @@ class SpeakerDetectionProcessor
                     $segments = $this->ocrExtractor->extract(
                         $job->manifestUrl,
                         $job->chamber,
-                        $job->eventType
+                        $job->eventType,
+                        $job->date
                     );
                 } catch (\Throwable $e) {
                     $this->logger?->put('OCR extraction failed for file #' . $job->fileId . ': ' . $e->getMessage(), 4);

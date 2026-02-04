@@ -15,7 +15,7 @@ class BillDetectionJobQueue
      */
     public function fetch(int $limit = 3): array
     {
-        $sql = "SELECT f.id, f.chamber, f.committee_id, f.capture_directory, f.video_index_cache
+        $sql = "SELECT f.id, f.chamber, f.committee_id, f.capture_directory, f.video_index_cache, f.date
             FROM files f
             WHERE f.capture_directory IS NOT NULL AND f.capture_directory != ''
               AND (f.capture_directory LIKE '/%' OR f.capture_directory LIKE 'https://%')
@@ -62,7 +62,8 @@ class BillDetectionJobQueue
                 $eventType,
                 $captureDir,
                 $manifestUrl,
-                $metadata
+                $metadata,
+                (string) $row['date']
             );
         }
 

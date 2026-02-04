@@ -11,7 +11,8 @@ class BillDetectionJob
         public string $eventType,
         public string $captureDirectory,
         public ?string $manifestUrl,
-        public ?array $metadata
+        public ?array $metadata,
+        public string $date = '2020-01-01'
     ) {
     }
 }

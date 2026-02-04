@@ -32,7 +32,7 @@ class BillDetectionProcessor
             return;
         }
 
-        $crop = $this->chamberConfig->getCrop($job->chamber, $job->eventType);
+        $crop = $this->chamberConfig->getCrop($job->chamber, $job->eventType, $job->date);
         if (!$crop) {
             $this->logger?->put('No crop configuration for chamber ' . $job->chamber, 4);
             return;
