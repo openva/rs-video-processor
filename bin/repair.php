@@ -264,11 +264,11 @@ function repairTranscripts(
         );
 
         try {
-            echo sprintf("Processing transcript for file #%d...\n", $job->id);
+            echo sprintf("Processing transcript for file #%d...\n", $job->fileId);
             $processor->process($job);
-            echo sprintf("  Completed file #%d\n", $job->id);
+            echo sprintf("  Completed file #%d\n", $job->fileId);
         } catch (Throwable $e) {
-            echo sprintf("  Failed file #%d: %s\n", $job->id, $e->getMessage());
+            echo sprintf("  Failed file #%d: %s\n", $job->fileId, $e->getMessage());
         }
     }
 }
