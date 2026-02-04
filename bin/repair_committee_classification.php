@@ -125,11 +125,13 @@ foreach ($files as $file) {
         // Build new title
         $chamberName = ucfirst($chamber);
         $newTitle = sprintf('%s %s', $chamberName, $committeeName);
+        $videoKey = preg_replace('/\.mp4$/', '', $videoKey); // Strip .mp4 extension
     } else {
         // Floor session
         $newCommitteeId = null;
         $chamberName = ucfirst($chamber);
         $newTitle = sprintf('%s Session', $chamberName);
+        $videoKey = preg_replace('/\.mp4$/', '', $videoKey); // Strip .mp4 extension
     }
 
     // Check if anything changed
