@@ -14,6 +14,7 @@
 declare(strict_types=1);
 
 use RichmondSunlight\VideoProcessor\Fetcher\CommitteeDirectory;
+use RichmondSunlight\VideoProcessor\Fetcher\S3KeyBuilder;
 
 $app = require __DIR__ . '/bootstrap.php';
 $pdo = $app->pdo;
@@ -45,7 +46,7 @@ HELP;
 }
 
 // Find files with video_index_cache that might need reclassification
-$sql = "SELECT id, chamber, committee_id, title, video_index_cache
+$sql = "SELECT id, chamber, committee_id, title, video_index_cache, capture_directory, date
         FROM files
         WHERE video_index_cache IS NOT NULL
           AND video_index_cache != ''
@@ -66,7 +67,11 @@ if (empty($files)) {
 echo sprintf("Checking %d file(s) for misclassification...\n\n", count($files));
 
 $committees = new CommitteeDirectory($pdo);
-$updateStmt = $pdo->prepare('UPDATE files SET committee_id = :committee_id, title = :title WHERE id = :id');
+$keyBuilder = new S3KeyBuilder();
+$updateStmt = $pdo->prepare('UPDATE files SET committee_id = :committee_id, title = :title, capture_directory = :capture_directory WHERE id = :id');
+
+// S3 bucket for file moves
+const S3_BUCKET = 'video.richmondsunlight.com';
 
 $checked = 0;
 $reclassified = 0;
@@ -78,6 +83,8 @@ foreach ($files as $file) {
     $chamber = $file['chamber'];
     $currentCommitteeId = $file['committee_id'];
     $currentTitle = $file['title'];
+    $currentCaptureDir = $file['capture_directory'];
+    $date = $file['date'];
 
     // Parse cached metadata
     $cache = json_decode($file['video_index_cache'], true);
@@ -125,20 +132,30 @@ foreach ($files as $file) {
         // Build new title
         $chamberName = ucfirst($chamber);
         $newTitle = sprintf('%s %s', $chamberName, $committeeName);
+
+        // Build new capture directory
+        $shortname = $newCommitteeId ? $committees->getShortnameById($newCommitteeId) : null;
+        $videoKey = $keyBuilder->build($chamber, $date, $shortname);
         $videoKey = preg_replace('/\.mp4$/', '', $videoKey); // Strip .mp4 extension
+        $newCaptureDir = '/' . trim($videoKey, '/') . '/';
     } else {
         // Floor session
         $newCommitteeId = null;
         $chamberName = ucfirst($chamber);
         $newTitle = sprintf('%s Session', $chamberName);
+
+        // Build new capture directory (floor session)
+        $videoKey = $keyBuilder->build($chamber, $date, null);
         $videoKey = preg_replace('/\.mp4$/', '', $videoKey); // Strip .mp4 extension
+        $newCaptureDir = '/' . trim($videoKey, '/') . '/';
     }
 
     // Check if anything changed
     $committeeIdChanged = $currentCommitteeId != $newCommitteeId; // Intentional != for NULL comparison
     $titleChanged = $currentTitle !== $newTitle;
+    $captureDirChanged = $currentCaptureDir !== $newCaptureDir;
 
-    if (!$committeeIdChanged && !$titleChanged) {
+    if (!$committeeIdChanged && !$titleChanged && !$captureDirChanged) {
         $alreadyCorrect++;
         continue;
     }
@@ -161,14 +178,43 @@ foreach ($files as $file) {
         echo sprintf("  Title: %s → %s\n", $currentTitle, $newTitle);
     }
 
+    if ($captureDirChanged) {
+        echo sprintf("  Capture Dir: %s → %s\n", $currentCaptureDir, $newCaptureDir);
+    }
+
     if ($dryRun) {
         echo "  [DRY-RUN] Would update\n";
     } else {
+        // Move files in S3 if capture directory changed
+        if ($captureDirChanged && $currentCaptureDir) {
+            $oldPath = 's3://' . S3_BUCKET . $currentCaptureDir;
+            $newPath = 's3://' . S3_BUCKET . $newCaptureDir;
+
+            echo "  Moving S3 files...\n";
+            $cmd = sprintf(
+                'aws s3 mv %s %s --recursive --quiet',
+                escapeshellarg($oldPath),
+                escapeshellarg($newPath)
+            );
+            exec($cmd, $output, $status);
+
+            if ($status !== 0) {
+                echo "  ✗ ERROR: Failed to move S3 files\n";
+                $log?->put(sprintf('File #%d: Failed to move S3 files from %s to %s', $fileId, $oldPath, $newPath), 5);
+                $errors++;
+                echo "\n";
+                continue;
+            }
+            echo "  ✓ S3 files moved\n";
+        }
+
         $updateStmt->execute([
             ':committee_id' => $newCommitteeId,
             ':title' => $newTitle,
+            ':capture_directory' => $newCaptureDir,
             ':id' => $fileId,
         ]);
+        echo "  ✓ Database updated\n";
         $reclassified++;
     }
 
