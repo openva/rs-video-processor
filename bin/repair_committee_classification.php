@@ -46,7 +46,7 @@ HELP;
 }
 
 // Find files with video_index_cache that might need reclassification
-$sql = "SELECT id, chamber, committee_id, title, video_index_cache, capture_directory, date
+$sql = "SELECT id, chamber, committee_id, title, video_index_cache, capture_directory, capture_rate, date
         FROM files
         WHERE video_index_cache IS NOT NULL
           AND video_index_cache != ''
@@ -154,6 +154,13 @@ foreach ($files as $file) {
     $committeeIdChanged = $currentCommitteeId != $newCommitteeId; // Intentional != for NULL comparison
     $titleChanged = $currentTitle !== $newTitle;
     $captureDirChanged = $currentCaptureDir !== $newCaptureDir;
+
+    // Skip capture_directory changes if screenshots don't exist yet (capture_rate would be set if they do)
+    if ($captureDirChanged && !isset($file['capture_rate'])) {
+        echo sprintf("File #%d: Skipping capture_directory update (screenshots not generated yet)\n", $fileId);
+        $captureDirChanged = false;
+        $newCaptureDir = $currentCaptureDir; // Keep existing path
+    }
 
     if (!$committeeIdChanged && !$titleChanged && !$captureDirChanged) {
         $alreadyCorrect++;
