@@ -73,24 +73,29 @@ if ($dispatcher->usesInMemoryQueue()) {
     exit(0);
 }
 
-$messages = $dispatcher->receive($limit, 10);
-if (empty($messages)) {
-    $log->put('No screenshot jobs in queue.', 3);
-    exit(0);
-}
+$processed = 0;
+while ($processed < $limit) {
+    $batchSize = min(10, $limit - $processed);
+    $messages = $dispatcher->receive($batchSize, 10);
+    if (empty($messages)) {
+        $log->put("Queue empty after processing {$processed} jobs.", 3);
+        break;
+    }
 
-foreach ($messages as $message) {
-    try {
-        if ($message->payload->type !== JobType::SCREENSHOTS) {
-            $log->put('Skipping job of type ' . $message->payload->type, 4);
-            continue;
+    foreach ($messages as $message) {
+        try {
+            if ($message->payload->type !== JobType::SCREENSHOTS) {
+                $log->put('Skipping job of type ' . $message->payload->type, 4);
+                continue;
+            }
+            $job = $mapper->fromPayload($message->payload);
+            $generator->process($job);
+            $processed++;
+        } catch (Throwable $e) {
+            $log->put('Screenshot job failed for file #' . $message->payload->fileId . ': ' . $e->getMessage(), 6);
+        } finally {
+            $dispatcher->acknowledge($message);
         }
-        $job = $mapper->fromPayload($message->payload);
-        $generator->process($job);
-    } catch (Throwable $e) {
-        $log->put('Screenshot job failed for file #' . $message->payload->fileId . ': ' . $e->getMessage(), 6);
-    } finally {
-        $dispatcher->acknowledge($message);
     }
 }
 
