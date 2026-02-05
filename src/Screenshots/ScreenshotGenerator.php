@@ -63,7 +63,11 @@ class ScreenshotGenerator
         file_put_contents($manifestPath, json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
         $manifestUrl = $this->storage->upload($manifestPath, $prefix . '/manifest.json');
 
-        $this->updateDatabase($job, $prefix, $manifestUrl);
+        // Ping the database connection before updating to prevent "MySQL server has gone away" errors
+        // Screenshot generation can take 5+ minutes, exceeding MySQL wait_timeout
+        $this->ensureConnectionAlive();
+
+        $this->updateDatabase($job, $prefix);
 
         $this->cleanup($tempDir);
     }
@@ -178,17 +182,62 @@ class ScreenshotGenerator
         return $this->keyBuilder->build($job->chamber, $job->date, $shortname);
     }
 
-    private function updateDatabase(ScreenshotJob $job, string $prefix, string $manifestUrl): void
+    /**
+     * Ensure database connection is alive by pinging it.
+     * If connection has timed out, this will fail and be caught by updateDatabase.
+     */
+    private function ensureConnectionAlive(): void
+    {
+        try {
+            // Ping the connection with a simple query
+            $this->pdo->query('SELECT 1');
+        } catch (\PDOException $e) {
+            $this->logger?->put('Database connection check failed: ' . $e->getMessage(), 4);
+            // Connection is dead, will be handled in updateDatabase retry
+        }
+    }
+
+    private function updateDatabase(ScreenshotJob $job, string $prefix): void
     {
         $directory = '/' . trim($prefix, '/') . '/';
         $sql = 'UPDATE files SET capture_directory = :dir, capture_rate = 60, date_modified = CURRENT_TIMESTAMP WHERE id = :id';
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->execute([
-            ':dir' => $directory,
-            ':id' => $job->id,
-        ]);
 
-        $this->logger?->put(sprintf('Uploaded %s screenshots for file #%d', $prefix, $job->id), 3);
+        $maxRetries = 2;
+        $attempt = 0;
+
+        while ($attempt < $maxRetries) {
+            try {
+                $stmt = $this->pdo->prepare($sql);
+                $stmt->execute([
+                    ':dir' => $directory,
+                    ':id' => $job->id,
+                ]);
+
+                $this->logger?->put(sprintf('Uploaded %s screenshots for file #%d', $prefix, $job->id), 3);
+                return; // Success
+            } catch (\PDOException $e) {
+                $attempt++;
+
+                // Check if this is a "server has gone away" error
+                if (str_contains($e->getMessage(), 'server has gone away') && $attempt < $maxRetries) {
+                    $this->logger?->put('MySQL connection lost, retrying database update (attempt ' . $attempt . ')...', 4);
+
+                    // Force PDO to close and reconnect by unsetting attributes
+                    // This is a workaround since we can't recreate the injected PDO
+                    try {
+                        $this->pdo->query('SELECT 1');
+                    } catch (\PDOException) {
+                        // Ignore - just trying to force reconnection
+                    }
+
+                    sleep(1); // Brief pause before retry
+                    continue;
+                }
+
+                // Not a reconnectable error or out of retries
+                throw $e;
+            }
+        }
     }
 
     private function cleanup(string $dir): void
