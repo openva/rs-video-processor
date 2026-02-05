@@ -63,10 +63,6 @@ class ScreenshotGenerator
         file_put_contents($manifestPath, json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
         $manifestUrl = $this->storage->upload($manifestPath, $prefix . '/manifest.json');
 
-        // Ping the database connection before updating to prevent "MySQL server has gone away" errors
-        // Screenshot generation can take 5+ minutes, exceeding MySQL wait_timeout
-        $this->ensureConnectionAlive();
-
         $this->updateDatabase($job, $prefix);
 
         $this->cleanup($tempDir);
@@ -128,8 +124,16 @@ class ScreenshotGenerator
         $manifest = [];
         $batchSize = 10; // Upload 10 frames at a time in parallel
 
+        $lastPing = time();
+
         for ($i = 0; $i < count($frameFiles); $i += $batchSize) {
             $batch = array_slice($frameFiles, $i, $batchSize);
+
+            // Ping database every 60 seconds during upload to keep connection alive
+            if (time() - $lastPing > 60) {
+                $this->pingDatabase();
+                $lastPing = time();
+            }
 
             // Upload frames in this batch (TODO: make truly parallel with async S3 uploads)
             foreach ($batch as $index => $fullImage) {
@@ -171,17 +175,16 @@ class ScreenshotGenerator
     }
 
     /**
-     * Ensure database connection is alive by pinging it.
-     * If connection has timed out, this will fail and be caught by updateDatabase.
+     * Ping database connection to keep it alive during long operations.
      */
-    private function ensureConnectionAlive(): void
+    private function pingDatabase(): void
     {
         try {
-            // Ping the connection with a simple query
             $this->pdo->query('SELECT 1');
         } catch (\PDOException $e) {
-            $this->logger?->put('Database connection check failed: ' . $e->getMessage(), 4);
-            // Connection is dead, will be handled in updateDatabase retry
+            // Connection lost, but we can't reconnect here
+            // Just log it - the retry in updateDatabase will handle it
+            $this->logger?->put('Database ping failed: ' . $e->getMessage(), 4);
         }
     }
 
@@ -190,41 +193,21 @@ class ScreenshotGenerator
         $directory = '/' . trim($prefix, '/') . '/';
         $sql = 'UPDATE files SET capture_directory = :dir, capture_rate = 60, date_modified = CURRENT_TIMESTAMP WHERE id = :id';
 
-        $maxRetries = 2;
-        $attempt = 0;
+        try {
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute([
+                ':dir' => $directory,
+                ':id' => $job->id,
+            ]);
 
-        while ($attempt < $maxRetries) {
-            try {
-                $stmt = $this->pdo->prepare($sql);
-                $stmt->execute([
-                    ':dir' => $directory,
-                    ':id' => $job->id,
-                ]);
-
-                $this->logger?->put(sprintf('Uploaded %s screenshots for file #%d', $prefix, $job->id), 3);
-                return; // Success
-            } catch (\PDOException $e) {
-                $attempt++;
-
-                // Check if this is a "server has gone away" error
-                if (str_contains($e->getMessage(), 'server has gone away') && $attempt < $maxRetries) {
-                    $this->logger?->put('MySQL connection lost, retrying database update (attempt ' . $attempt . ')...', 4);
-
-                    // Force PDO to close and reconnect by unsetting attributes
-                    // This is a workaround since we can't recreate the injected PDO
-                    try {
-                        $this->pdo->query('SELECT 1');
-                    } catch (\PDOException) {
-                        // Ignore - just trying to force reconnection
-                    }
-
-                    sleep(1); // Brief pause before retry
-                    continue;
-                }
-
-                // Not a reconnectable error or out of retries
-                throw $e;
+            $this->logger?->put(sprintf('Uploaded %s screenshots for file #%d', $prefix, $job->id), 3);
+        } catch (\PDOException $e) {
+            // If connection lost, log error and rethrow
+            // The worker will retry the entire job
+            if (str_contains($e->getMessage(), 'server has gone away')) {
+                $this->logger?->put('Database connection lost during update for file #' . $job->id, 5);
             }
+            throw $e;
         }
     }
 
