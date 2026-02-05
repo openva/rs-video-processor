@@ -4,12 +4,10 @@
 declare(strict_types=1);
 
 use Aws\S3\S3Client;
-use RichmondSunlight\VideoProcessor\Queue\JobType;
 use RichmondSunlight\VideoProcessor\Fetcher\CommitteeDirectory;
 use RichmondSunlight\VideoProcessor\Fetcher\S3KeyBuilder;
 use RichmondSunlight\VideoProcessor\Fetcher\S3Storage;
 use RichmondSunlight\VideoProcessor\Screenshots\ScreenshotGenerator;
-use RichmondSunlight\VideoProcessor\Screenshots\ScreenshotJob;
 use RichmondSunlight\VideoProcessor\Screenshots\ScreenshotJobPayloadMapper;
 use RichmondSunlight\VideoProcessor\Screenshots\ScreenshotJobQueue;
 
@@ -53,7 +51,13 @@ if ($mode === 'enqueue') {
         exit(0);
     }
     if ($dispatcher->usesInMemoryQueue()) {
-        processScreenshotJobs($jobs, $generator, $log);
+        foreach ($jobs as $job) {
+            try {
+                $generator->process($job);
+            } catch (Throwable $e) {
+                $log->put('Screenshot job failed for file #' . $job->id . ': ' . $e->getMessage(), 6);
+            }
+        }
         exit(0);
     }
     foreach ($jobs as $job) {
@@ -63,47 +67,18 @@ if ($mode === 'enqueue') {
     exit(0);
 }
 
-if ($dispatcher->usesInMemoryQueue()) {
-    $jobs = $queue->fetch($limit);
-    if (empty($jobs)) {
-        $log->put('No videos pending screenshot generation.', 3);
-        exit(0);
-    }
-    processScreenshotJobs($jobs, $generator, $log);
-    exit(0);
-}
-
 $processed = 0;
+$batchSize = min(10, $limit);
 while ($processed < $limit) {
-    $batchSize = min(10, $limit - $processed);
-    $messages = $dispatcher->receive($batchSize, 10);
-    if (empty($messages)) {
-        $log->put("Queue empty after processing {$processed} jobs.", 3);
+    $jobs = $queue->fetch($batchSize);
+    if (empty($jobs)) {
+        $log->put("No more jobs after processing {$processed}.", 3);
         break;
     }
-
-    foreach ($messages as $message) {
-        try {
-            if ($message->payload->type !== JobType::SCREENSHOTS) {
-                $log->put('Skipping job of type ' . $message->payload->type, 4);
-                continue;
-            }
-            $job = $mapper->fromPayload($message->payload);
-            $generator->process($job);
-            $processed++;
-        } catch (Throwable $e) {
-            $log->put('Screenshot job failed for file #' . $message->payload->fileId . ': ' . $e->getMessage(), 6);
-        } finally {
-            $dispatcher->acknowledge($message);
-        }
-    }
-}
-
-function processScreenshotJobs(array $jobs, ScreenshotGenerator $generator, Log $log): void
-{
     foreach ($jobs as $job) {
         try {
             $generator->process($job);
+            $processed++;
         } catch (Throwable $e) {
             $log->put('Screenshot job failed for file #' . $job->id . ': ' . $e->getMessage(), 6);
         }
