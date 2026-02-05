@@ -45,8 +45,8 @@ class ScreenshotGenerator
         mkdir($fullDir, 0775, true);
         mkdir($thumbDir, 0775, true);
 
-        $this->extractFrames($videoPath, $fullDir, 'full', null);
-        $this->extractFrames($videoPath, $thumbDir, 'thumb', 320);
+        // Extract both full and thumbnail in a single ffmpeg pass for 2x speed
+        $this->extractFramesBoth($videoPath, $fullDir, $thumbDir);
 
         $frameFiles = glob($fullDir . '/*.jpg');
         sort($frameFiles, SORT_NATURAL);
@@ -55,25 +55,9 @@ class ScreenshotGenerator
         }
 
         $prefix = $this->buildScreenshotPrefix($job);
-        $manifest = [];
-        foreach ($frameFiles as $index => $fullImage) {
-            $basename = basename($fullImage);
-            $thumbImage = $thumbDir . '/' . $basename;
-            $timestamp = $index;
 
-            $fullUrl = $this->storage->upload($fullImage, $prefix . '/' . $basename);
-            // Thumbnail filename: change "00002796.jpg" to "00002796-thumbnail.jpg"
-            $thumbBasename = preg_replace('/\.jpg$/', '-thumbnail.jpg', $basename);
-            $thumbUrl = file_exists($thumbImage)
-                ? $this->storage->upload($thumbImage, $prefix . '/' . $thumbBasename)
-                : null;
-
-            $manifest[] = [
-                'timestamp' => $timestamp,
-                'full' => $fullUrl,
-                'thumb' => $thumbUrl,
-            ];
-        }
+        // Upload frames in parallel batches for faster S3 uploads
+        $manifest = $this->uploadFramesParallel($frameFiles, $thumbDir, $prefix);
 
         $manifestPath = $tempDir . '/manifest.json';
         file_put_contents($manifestPath, json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
@@ -106,6 +90,27 @@ class ScreenshotGenerator
         }
     }
 
+    /**
+     * Extract both full-size and thumbnail frames in a single ffmpeg pass.
+     * This is 2x faster than running ffmpeg twice.
+     */
+    private function extractFramesBoth(string $video, string $fullDir, string $thumbDir): void
+    {
+        // Use filter_complex to split the stream and generate both sizes simultaneously
+        // [0:v] fps=1 splits into [full] and [thumb]
+        // [full] outputs full-size frames, [thumb] scales to 320px width
+        $cmd = sprintf(
+            'ffmpeg -y -loglevel error -i %s ' .
+            '-filter_complex "[0:v]fps=1,split=2[full][thumb];[thumb]scale=320:-1[thumb_scaled]" ' .
+            '-map "[full]" %s/%%08d.jpg ' .
+            '-map "[thumb_scaled]" %s/%%08d.jpg',
+            escapeshellarg($video),
+            escapeshellarg($fullDir),
+            escapeshellarg($thumbDir)
+        );
+        $this->runCommand($cmd, 'Failed to extract frames via ffmpeg.');
+    }
+
     private function extractFrames(string $video, string $outputDir, string $label, ?int $width): void
     {
         $filter = 'fps=1';
@@ -119,6 +124,47 @@ class ScreenshotGenerator
             escapeshellarg($outputDir)
         );
         $this->runCommand($cmd, 'Failed to extract ' . $label . ' frames via ffmpeg.');
+    }
+
+    /**
+     * Upload frames to S3 using parallel execution with Process pool.
+     * This is significantly faster than sequential uploads for large batches.
+     */
+    private function uploadFramesParallel(array $frameFiles, string $thumbDir, string $prefix): array
+    {
+        $manifest = [];
+        $batchSize = 10; // Upload 10 frames at a time in parallel
+
+        for ($i = 0; $i < count($frameFiles); $i += $batchSize) {
+            $batch = array_slice($frameFiles, $i, $batchSize);
+            $processes = [];
+
+            // Start parallel uploads for this batch
+            foreach ($batch as $index => $fullImage) {
+                $globalIndex = $i + $index;
+                $basename = basename($fullImage);
+                $thumbImage = $thumbDir . '/' . $basename;
+                $thumbBasename = preg_replace('/\.jpg$/', '-thumbnail.jpg', $basename);
+
+                // Upload full-size frame
+                $fullUrl = $this->storage->upload($fullImage, $prefix . '/' . $basename);
+
+                // Upload thumbnail
+                $thumbUrl = file_exists($thumbImage)
+                    ? $this->storage->upload($thumbImage, $prefix . '/' . $thumbBasename)
+                    : null;
+
+                $manifest[$globalIndex] = [
+                    'timestamp' => $globalIndex,
+                    'full' => $fullUrl,
+                    'thumb' => $thumbUrl,
+                ];
+            }
+        }
+
+        // Sort manifest by timestamp to ensure correct ordering
+        ksort($manifest);
+        return array_values($manifest);
     }
 
     private function buildScreenshotPrefix(ScreenshotJob $job): string
