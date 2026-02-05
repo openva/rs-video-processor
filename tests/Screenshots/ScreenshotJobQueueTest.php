@@ -20,10 +20,11 @@ class ScreenshotJobQueueTest extends TestCase
             path TEXT,
             html TEXT,
             capture_directory TEXT,
+            capture_rate INTEGER,
             date_created TEXT
         )');
 
-        $stmt = $pdo->prepare('INSERT INTO files (chamber, committee_id, title, date, path, capture_directory, date_created) VALUES (:chamber, :committee_id, :title, :date, :path, :capture_directory, :created)');
+        $stmt = $pdo->prepare('INSERT INTO files (chamber, committee_id, title, date, path, capture_directory, capture_rate, date_created) VALUES (:chamber, :committee_id, :title, :date, :path, :capture_directory, :capture_rate, :created)');
 
         // Video with empty capture_directory - needs screenshots
         $stmt->execute([
@@ -33,6 +34,7 @@ class ScreenshotJobQueueTest extends TestCase
             ':date' => '2025-01-31',
             ':path' => 'https://video.richmondsunlight.com/house/floor/20250131.mp4',
             ':capture_directory' => '',
+            ':capture_rate' => null,
             ':created' => '2025-01-31 12:00:00',
         ]);
 
@@ -44,27 +46,43 @@ class ScreenshotJobQueueTest extends TestCase
             ':date' => '2025-02-01',
             ':path' => 'https://video.richmondsunlight.com/senate/floor/20250201.mp4',
             ':capture_directory' => 'senate/floor/20250201.mp4',
+            ':capture_rate' => null,
             ':created' => '2025-02-01 12:00:00',
         ]);
 
-        // Video with full screenshot URL - already has screenshots, should be excluded
+        // Video with capture_directory but NULL capture_rate - screenshots failed/never ran
+        $stmt->execute([
+            ':chamber' => 'house',
+            ':committee_id' => null,
+            ':title' => 'Session',
+            ':date' => '2025-02-03',
+            ':path' => 'https://video.richmondsunlight.com/house/floor/20250203.mp4',
+            ':capture_directory' => '/house/floor/20250203/',
+            ':capture_rate' => null,
+            ':created' => '2025-02-03 12:00:00',
+        ]);
+
+        // Video with full screenshot URL and capture_rate set - already has screenshots, should be excluded
         $stmt->execute([
             ':chamber' => 'house',
             ':committee_id' => null,
             ':title' => 'Committee',
-            ':date' => '2025-02-02',
-            ':path' => 'https://video.richmondsunlight.com/house/committee/20250202.mp4',
-            ':capture_directory' => 'https://video.richmondsunlight.com/house/committee/20250202/',
-            ':created' => '2025-02-02 12:00:00',
+            ':date' => '2025-02-04',
+            ':path' => 'https://video.richmondsunlight.com/house/committee/20250204.mp4',
+            ':capture_directory' => 'https://video.richmondsunlight.com/house/committee/20250204/',
+            ':capture_rate' => 60,
+            ':created' => '2025-02-04 12:00:00',
         ]);
 
         $queue = new ScreenshotJobQueue($pdo);
         $jobs = $queue->fetch();
 
-        $this->assertCount(2, $jobs);
-        $this->assertSame('senate', strtolower($jobs[0]->chamber)); // Newest first (DESC order)
-        $this->assertSame('2025-02-01', $jobs[0]->date);
-        $this->assertSame('house', strtolower($jobs[1]->chamber));
-        $this->assertSame('2025-01-31', $jobs[1]->date);
+        $this->assertCount(3, $jobs); // Should fetch all 3 videos needing screenshots
+        $this->assertSame('house', strtolower($jobs[0]->chamber)); // Newest first (DESC order)
+        $this->assertSame('2025-02-03', $jobs[0]->date); // Video with capture_directory but NULL capture_rate
+        $this->assertSame('senate', strtolower($jobs[1]->chamber));
+        $this->assertSame('2025-02-01', $jobs[1]->date);
+        $this->assertSame('house', strtolower($jobs[2]->chamber));
+        $this->assertSame('2025-01-31', $jobs[2]->date);
     }
 }
