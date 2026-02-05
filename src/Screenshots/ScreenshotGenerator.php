@@ -96,18 +96,21 @@ class ScreenshotGenerator
 
     /**
      * Extract both full-size and thumbnail frames in a single ffmpeg pass.
-     * This is 2x faster than running ffmpeg twice.
+     * Optimized for maximum speed with multi-threading and fast JPEG encoding.
      */
     private function extractFramesBoth(string $video, string $fullDir, string $thumbDir): void
     {
-        // Use filter_complex to split the stream and generate both sizes simultaneously
-        // [0:v] fps=1 splits into [full] and [thumb]
-        // [full] outputs full-size frames, [thumb] scales to 320px width
+        // Optimization flags:
+        // -threads 0: Use all CPU cores (2 on c7i.large)
+        // -qscale:v 3: Faster JPEG encoding (3 = good quality, vs default 2 = best)
+        // -filter_complex: Single-pass extraction of both sizes
         $cmd = sprintf(
-            'ffmpeg -y -loglevel error -i %s ' .
+            'ffmpeg -y -loglevel error ' .
+            '-threads 0 ' .           // Use all CPU cores
+            '-i %s ' .
             '-filter_complex "[0:v]fps=1,split=2[full][thumb];[thumb]scale=320:-1[thumb_scaled]" ' .
-            '-map "[full]" %s/%%08d.jpg ' .
-            '-map "[thumb_scaled]" %s/%%08d.jpg',
+            '-map "[full]" -qscale:v 3 %s/%%08d.jpg ' .      // Full-size with quality=3
+            '-map "[thumb_scaled]" -qscale:v 5 %s/%%08d.jpg', // Thumbnails with quality=5
             escapeshellarg($video),
             escapeshellarg($fullDir),
             escapeshellarg($thumbDir)
@@ -115,20 +118,6 @@ class ScreenshotGenerator
         $this->runCommand($cmd, 'Failed to extract frames via ffmpeg.');
     }
 
-    private function extractFrames(string $video, string $outputDir, string $label, ?int $width): void
-    {
-        $filter = 'fps=1';
-        if ($width !== null) {
-            $filter .= ',scale=' . $width . ':-1';
-        }
-        $cmd = sprintf(
-            'ffmpeg -y -loglevel error -i %s -vf %s %s/%%08d.jpg',
-            escapeshellarg($video),
-            escapeshellarg($filter),
-            escapeshellarg($outputDir)
-        );
-        $this->runCommand($cmd, 'Failed to extract ' . $label . ' frames via ffmpeg.');
-    }
 
     /**
      * Upload frames to S3 using parallel execution with Process pool.
@@ -141,9 +130,8 @@ class ScreenshotGenerator
 
         for ($i = 0; $i < count($frameFiles); $i += $batchSize) {
             $batch = array_slice($frameFiles, $i, $batchSize);
-            $processes = [];
 
-            // Start parallel uploads for this batch
+            // Upload frames in this batch (TODO: make truly parallel with async S3 uploads)
             foreach ($batch as $index => $fullImage) {
                 $globalIndex = $i + $index;
                 $basename = basename($fullImage);
