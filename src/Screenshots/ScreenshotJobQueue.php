@@ -47,6 +47,17 @@ class ScreenshotJobQueue
             );
         }
 
+        // Mark fetched rows as claimed before releasing locks, so other
+        // workers' SKIP LOCKED queries won't pick up the same rows.
+        if (!empty($jobs) && in_array($driver, ['mysql', 'pgsql'], true)) {
+            $ids = array_map(fn(ScreenshotJob $j) => $j->id, $jobs);
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $update = $this->pdo->prepare(
+                "UPDATE files SET capture_rate = 0, capture_directory = '/pending' WHERE id IN ({$placeholders})"
+            );
+            $update->execute($ids);
+        }
+
         if (in_array($driver, ['mysql', 'pgsql'], true)) {
             $this->pdo->commit();
         }
