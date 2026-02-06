@@ -36,36 +36,38 @@ class ScreenshotGenerator
     {
         $this->logger?->put('Generating screenshots for file #' . $job->id, 3);
         $tempDir = $this->createTempDir($job->id);
-        $videoPath = $tempDir . '/video.mp4';
+        try {
+            $videoPath = $tempDir . '/video.mp4';
 
-        $this->downloadVideo($job->videoPath, $videoPath);
+            $this->downloadVideo($job->videoPath, $videoPath);
 
-        $fullDir = $tempDir . '/full';
-        $thumbDir = $tempDir . '/thumb';
-        mkdir($fullDir, 0775, true);
-        mkdir($thumbDir, 0775, true);
+            $fullDir = $tempDir . '/full';
+            $thumbDir = $tempDir . '/thumb';
+            mkdir($fullDir, 0775, true);
+            mkdir($thumbDir, 0775, true);
 
-        // Extract both full and thumbnail in a single ffmpeg pass for 2x speed
-        $this->extractFramesBoth($videoPath, $fullDir, $thumbDir);
+            // Extract both full and thumbnail in a single ffmpeg pass for 2x speed
+            $this->extractFramesBoth($videoPath, $fullDir, $thumbDir);
 
-        $frameFiles = glob($fullDir . '/*.jpg');
-        sort($frameFiles, SORT_NATURAL);
-        if (empty($frameFiles)) {
-            throw new RuntimeException('ffmpeg failed to produce screenshots.');
+            $frameFiles = glob($fullDir . '/*.jpg');
+            sort($frameFiles, SORT_NATURAL);
+            if (empty($frameFiles)) {
+                throw new RuntimeException('ffmpeg failed to produce screenshots.');
+            }
+
+            $prefix = $this->buildScreenshotPrefix($job);
+
+            // Upload frames in parallel batches for faster S3 uploads
+            $manifest = $this->uploadFramesParallel($frameFiles, $thumbDir, $prefix);
+
+            $manifestPath = $tempDir . '/manifest.json';
+            file_put_contents($manifestPath, json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+            $manifestUrl = $this->storage->upload($manifestPath, $prefix . '/manifest.json');
+
+            $this->updateDatabase($job, $prefix);
+        } finally {
+            $this->cleanup($tempDir);
         }
-
-        $prefix = $this->buildScreenshotPrefix($job);
-
-        // Upload frames in parallel batches for faster S3 uploads
-        $manifest = $this->uploadFramesParallel($frameFiles, $thumbDir, $prefix);
-
-        $manifestPath = $tempDir . '/manifest.json';
-        file_put_contents($manifestPath, json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
-        $manifestUrl = $this->storage->upload($manifestPath, $prefix . '/manifest.json');
-
-        $this->updateDatabase($job, $prefix);
-
-        $this->cleanup($tempDir);
     }
 
     private function createTempDir(int $id): string
