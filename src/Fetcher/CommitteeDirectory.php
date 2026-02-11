@@ -97,10 +97,16 @@ class CommitteeDirectory
         $bestScore = 0;
         foreach ($candidates as $candidate) {
             $candidateName = (string) $candidate['name'];
-            if ($this->normalizeName($candidateName) === $normalizedInput) {
+            $normalizedCandidate = $this->normalizeName($candidateName);
+            if ($normalizedCandidate === $normalizedInput) {
                 return $candidate;
             }
             similar_text(strtoupper($candidateName), strtoupper($name), $percent);
+            // Boost score when input is a meaningful substring of the candidate name
+            // e.g., "Public Safety" matching "Militia, Police and Public Safety"
+            if (strlen($normalizedInput) >= 6 && str_contains($normalizedCandidate, $normalizedInput)) {
+                $percent = max($percent, 80.0);
+            }
             if ($percent > $bestScore) {
                 $bestScore = $percent;
                 $best = $candidate;
