@@ -29,6 +29,9 @@ class SpeakerResultWriter
         if (empty($segments)) {
             return;
         }
+        $delete = $this->pdo->prepare('DELETE FROM video_index WHERE file_id = :id AND type = :type');
+        $delete->execute([':id' => $fileId, ':type' => 'legislator']);
+
         $now = new DateTimeImmutable('now');
         $stmt = $this->pdo->prepare('INSERT INTO video_index (file_id, time, screenshot, raw_text, type, linked_id, ignored, date_created) VALUES (:file_id, :time, :shot, :raw, :type, :linked, "n", :created)');
         foreach ($segments as $segment) {

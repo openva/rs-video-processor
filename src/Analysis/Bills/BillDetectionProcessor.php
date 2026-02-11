@@ -40,6 +40,8 @@ class BillDetectionProcessor
 
         $agenda = $this->agendaExtractor->extract($job->metadata);
 
+        $this->writer->clearExisting($job->fileId);
+
         foreach ($manifest as $entry) {
             $imagePath = $this->screenshotFetcher->fetch($entry['full']);
             try {

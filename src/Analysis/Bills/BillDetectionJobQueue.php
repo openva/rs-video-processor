@@ -67,6 +67,17 @@ class BillDetectionJobQueue
             );
         }
 
+        // Insert placeholder rows so other workers' NOT EXISTS checks skip these files.
+        if (!empty($jobs) && in_array($driver, ['mysql', 'pgsql'], true)) {
+            $placeholder = $this->pdo->prepare(
+                "INSERT INTO video_index (file_id, time, screenshot, raw_text, type, linked_id, ignored, date_created)
+                 VALUES (:file_id, '00:00:00', '00000000', '/pending', 'bill', NULL, 'y', NOW())"
+            );
+            foreach ($jobs as $job) {
+                $placeholder->execute([':file_id' => $job->fileId]);
+            }
+        }
+
         if (in_array($driver, ['mysql', 'pgsql'], true)) {
             $this->pdo->commit();
         }

@@ -11,6 +11,12 @@ class BillResultWriter
     {
     }
 
+    public function clearExisting(int $fileId): void
+    {
+        $stmt = $this->pdo->prepare('DELETE FROM video_index WHERE file_id = :id AND type = :type');
+        $stmt->execute([':id' => $fileId, ':type' => 'bill']);
+    }
+
     public function record(int $fileId, int $timestamp, array $bills, string $screenshotFilename): void
     {
         if (empty($bills)) {
