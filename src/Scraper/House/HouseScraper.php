@@ -118,26 +118,24 @@ class HouseScraper implements VideoSourceScraperInterface
         $description = $event['Description'] ?? $rootState['set_description'] ?? '';
         $scheduledStart = $event['ScheduledStart'] ?? $rootState['set_scheduledStart'] ?? null;
 
-        // Determine event type using heuristics (API's CommitteeId is unreliable)
-        // Floor sessions are specifically labeled "House Session" or "Floor Session"
-        // or have "Regular Session" in the description
-        // Committee meetings have "Committee" or "Subcommittee" in title or "Committee Room" in description
+        // Determine event type: floor sessions are the exception, not the rule.
+        // Only explicitly labeled sessions ("House Session", "Floor Session", or
+        // "Regular Session" in description) are floor. Everything else is a
+        // committee or subcommittee meeting, with the title as the committee name.
         $titleTrimmed = trim($title);
-        $hasRegularSessionInDesc = stripos($description, 'Regular Session') !== false;
         $isFloorSession = stripos($titleTrimmed, 'House Session') !== false ||
                           stripos($titleTrimmed, 'Floor Session') !== false ||
-                          $hasRegularSessionInDesc;
-        $hasCommitteeInTitle = stripos($titleTrimmed, 'Committee') !== false ||
-                               stripos($titleTrimmed, 'Subcommittee') !== false;
-        $hasCommitteeInDesc = stripos($description, 'Committee Room') !== false;
+                          stripos($description, 'Regular Session') !== false ||
+                          stripos($description, 'Special Session') !== false;
 
-        $isCommittee = !$isFloorSession && ($hasCommitteeInTitle || $hasCommitteeInDesc);
-        $committeeName = $isCommittee ? $titleTrimmed : null;
-
-        if ($isCommittee) {
-            $eventType = stripos($committeeName, 'subcommittee') !== false ? 'subcommittee' : 'committee';
-        } else {
+        if ($isFloorSession) {
             $eventType = 'floor';
+            $committeeName = null;
+        } else {
+            $committeeName = $titleTrimmed ?: null;
+            $eventType = ($committeeName && stripos($committeeName, 'subcommittee') !== false)
+                ? 'subcommittee'
+                : 'committee';
         }
 
         return [

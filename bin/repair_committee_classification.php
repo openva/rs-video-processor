@@ -101,19 +101,15 @@ foreach ($files as $file) {
     $title = isset($cache['title']) ? trim($cache['title']) : '';
     $description = $cache['description'] ?? '';
 
-    // Floor sessions are specifically labeled as such or have "Regular Session" in description
-    $hasRegularSessionInDesc = stripos($description, 'Regular Session') !== false;
+    // Floor sessions are the exception: only explicitly labeled sessions are floor.
+    // Everything else is a committee or subcommittee meeting.
     $isFloorSession = stripos($title, 'House Session') !== false ||
                       stripos($title, 'Senate Session') !== false ||
                       stripos($title, 'Floor Session') !== false ||
-                      $hasRegularSessionInDesc;
+                      stripos($description, 'Regular Session') !== false ||
+                      stripos($description, 'Special Session') !== false;
 
-    // Committee meetings have "Committee" or "Subcommittee" in title or "Committee Room" in description
-    $hasCommitteeInTitle = stripos($title, 'Committee') !== false ||
-                           stripos($title, 'Subcommittee') !== false;
-    $hasCommitteeInDesc = stripos($description, 'Committee Room') !== false;
-
-    $isCommittee = !$isFloorSession && ($hasCommitteeInTitle || $hasCommitteeInDesc);
+    $isCommittee = !$isFloorSession && $title !== '';
 
     if ($isCommittee) {
         // Extract committee name from title
