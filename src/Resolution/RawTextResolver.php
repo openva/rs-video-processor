@@ -45,7 +45,7 @@ class RawTextResolver
             throw new \RuntimeException("File {$fileId} not found");
         }
 
-        $this->logger?->put("Starting resolution for file_id={$fileId} (session={$fileMetadata['session_id']})", 3);
+        $this->logger?->put("Starting resolution for file_id={$fileId} (session={$fileMetadata['session_id']})", 2);
 
         // Fetch entries to process
         $entries = $this->fetchEntries($fileId, $force, $type);
@@ -127,7 +127,7 @@ class RawTextResolver
                 $stats['total'],
                 $stats['total'] > 0 ? ($stats['resolved'] / $stats['total'] * 100) : 0
             ),
-            4
+            3
         );
 
         return $stats;
