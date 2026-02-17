@@ -144,7 +144,7 @@ class YouTubeApiClient
         $this->quotaUsed += $cost;
         $this->logger?->put(
             sprintf('YouTube API quota: %d units (total: %d)', $cost, $this->quotaUsed),
-            5
+            2
         );
     }
 

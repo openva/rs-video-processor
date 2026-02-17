@@ -103,7 +103,7 @@ foreach ($files as $file) {
     }
 
     $missing++;
-    $log?->put(sprintf('File #%d: Missing manifest at %s', $fileId, $manifestUrl), 4);
+    $log?->put(sprintf('File #%d: Missing manifest at %s', $fileId, $manifestUrl), 3);
 
     if ($dryRun) {
         echo "DRY-RUN: Would rebuild manifest for file #$fileId at $manifestKey\n";

@@ -83,7 +83,7 @@ if (file_exists($snapshotPath)) {
     $loaded = json_decode(file_get_contents($snapshotPath), true);
     if (is_array($loaded)) {
         $cachedRecords = $loaded;
-        $logger?->put(sprintf('Loaded %d cached records from snapshot %s', count($cachedRecords), $snapshotPath), 3);
+        $logger?->put(sprintf('Loaded %d cached records from snapshot %s', count($cachedRecords), $snapshotPath), 2);
     }
 }
 
@@ -103,7 +103,7 @@ $records = array_values($recordsById);
 
 // Save merged records back to snapshot
 file_put_contents($snapshotPath, json_encode($records, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
-$logger?->put(sprintf('Total records after merge: %d (snapshot saved to %s)', count($records), $snapshotPath), 3);
+$logger?->put(sprintf('Total records after merge: %d (snapshot saved to %s)', count($records), $snapshotPath), 2);
 
 $before = count($records);
 $records = array_values(array_filter($records, [VideoFilter::class, 'shouldKeep']));

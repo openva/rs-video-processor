@@ -99,7 +99,7 @@ class VideoImporter
         }
 
         if ($skipped > 0) {
-            $this->logger?->put(sprintf('Skipped %d duplicate record(s)', $skipped), 3);
+            $this->logger?->put(sprintf('Skipped %d duplicate record(s)', $skipped), 2);
         }
 
         return $count;
