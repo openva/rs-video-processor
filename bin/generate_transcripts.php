@@ -11,6 +11,7 @@ use RichmondSunlight\VideoProcessor\Transcripts\TranscriptJob;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptJobQueue;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptJobPayloadMapper;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptProcessor;
+use RichmondSunlight\VideoProcessor\Contract\ContractValidator;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptWriter;
 
 $app = require __DIR__ . '/bootstrap.php';
@@ -100,6 +101,7 @@ foreach ($messages as $message) {
         }
 
         $processor->process($job);
+        validateTranscriptContract($pdo, $job->fileId, $log);
     } catch (Throwable $e) {
         $log->put('Transcript generation failed for file #' . $message->payload->fileId . ': ' . $e->getMessage(), 6);
     } finally {
@@ -109,11 +111,28 @@ foreach ($messages as $message) {
 
 function processTranscriptJobs(array $jobs, TranscriptProcessor $processor, Log $log): void
 {
+    // Get PDO from global scope for contract validation
+    global $pdo;
     foreach ($jobs as $job) {
         try {
             $processor->process($job);
+            validateTranscriptContract($pdo, $job->fileId, $log);
         } catch (Throwable $e) {
             $log->put('Transcript generation failed for file #' . $job->fileId . ': ' . $e->getMessage(), 6);
         }
+    }
+}
+
+function validateTranscriptContract(PDO $pdo, int $fileId, Log $log): void
+{
+    $validator = new ContractValidator($pdo);
+    $issues = $validator->validateFile($fileId);
+    $problems = array_filter($issues, fn($i) => $i['level'] === 'error' || $i['level'] === 'warning');
+
+    foreach ($problems as $issue) {
+        $log->put(
+            sprintf('Contract %s for file #%d: %s', strtoupper($issue['level']), $fileId, $issue['message']),
+            $issue['level'] === 'error' ? 5 : 4
+        );
     }
 }

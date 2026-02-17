@@ -3,6 +3,7 @@
 
 declare(strict_types=1);
 
+use RichmondSunlight\VideoProcessor\Contract\ContractValidator;
 use RichmondSunlight\VideoProcessor\Resolution\RawTextResolver;
 
 require_once __DIR__ . '/../includes/settings.inc.php';
@@ -93,6 +94,11 @@ try {
         } else {
             displayFileStats($stats);
         }
+
+        // Run contract validation on the resolved file
+        if (!$dryRun) {
+            runContractValidation($pdo, [$fileId], $logger, $jsonOutput);
+        }
     } else {
         // Process all files
         if (!$jsonOutput) {
@@ -106,6 +112,15 @@ try {
             echo "\n";
         }
 
+        // Get file IDs before resolving, so we can validate them afterward
+        $fileIdsStmt = $pdo->prepare('
+            SELECT DISTINCT file_id FROM video_index
+            WHERE linked_id IS NULL
+            ORDER BY file_id DESC
+            ' . ($limit !== null ? 'LIMIT ' . (int) $limit : ''));
+        $fileIdsStmt->execute();
+        $resolvedFileIds = array_column($fileIdsStmt->fetchAll(PDO::FETCH_ASSOC), 'file_id');
+
         $stats = $resolver->resolveAll($dryRun, $force, $type, $limit);
 
         // Display results
@@ -113,6 +128,11 @@ try {
             echo json_encode($stats, JSON_PRETTY_PRINT) . "\n";
         } else {
             displayAllStats($stats);
+        }
+
+        // Run contract validation on processed files
+        if (!$dryRun && !empty($resolvedFileIds)) {
+            runContractValidation($pdo, $resolvedFileIds, $logger, $jsonOutput);
         }
     }
 } catch (Exception $e) {
@@ -221,4 +241,42 @@ function formatDuration(float $seconds): string
     $seconds = $seconds % 60;
 
     return sprintf('%dm %ds', $minutes, (int)$seconds);
+}
+
+function runContractValidation(PDO $pdo, array $fileIds, ?Log $logger, bool $jsonOutput): void
+{
+    $validator = new ContractValidator($pdo);
+    $allIssues = [];
+
+    foreach ($fileIds as $fileId) {
+        $issues = $validator->validateFile((int) $fileId);
+        $errors = array_filter($issues, fn($i) => $i['level'] === 'error' || $i['level'] === 'warning');
+        if (!empty($errors)) {
+            $allIssues[$fileId] = $errors;
+        }
+    }
+
+    if (empty($allIssues)) {
+        if (!$jsonOutput) {
+            echo "\nContract validation: all files passed.\n";
+        }
+        return;
+    }
+
+    if ($jsonOutput) {
+        echo json_encode(['contract_issues' => $allIssues], JSON_PRETTY_PRINT) . "\n";
+    } else {
+        echo "\nContract Validation Issues\n";
+        echo "=========================\n";
+        foreach ($allIssues as $fileId => $issues) {
+            echo "  File #{$fileId}:\n";
+            foreach ($issues as $issue) {
+                $logger?->put(
+                    sprintf('Contract %s for file #%d: %s', strtoupper($issue['level']), $fileId, $issue['message']),
+                    $issue['level'] === 'error' ? 5 : 4
+                );
+                echo sprintf("    [%s] %s: %s\n", strtoupper($issue['level']), $issue['code'], $issue['message']);
+            }
+        }
+    }
 }
