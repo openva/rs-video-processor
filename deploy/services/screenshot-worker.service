@@ -4,8 +4,8 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/ubuntu/rs-video-processor
-ExecStart=/home/ubuntu/rs-video-processor/bin/screenshot_worker.sh
+WorkingDirectory=/home/ubuntu/rideo-processor
+ExecStart=/home/ubuntu/video-processor/bin/screenshot_worker.sh
 Restart=always
 Environment=SCREENSHOT_WORKER_LIMIT=5
 Environment=SCREENSHOT_WORKER_IDLE_SECONDS=30
