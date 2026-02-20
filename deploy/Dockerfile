@@ -9,6 +9,7 @@ RUN apt-get update &&  apt-get install -y zip \
     curl \
     wget \
     git \
+    unzip \
     tesseract-ocr \
     python3 \
     python3-pip \
@@ -18,6 +19,9 @@ RUN apt-get update &&  apt-get install -y zip \
     libfreetype6-dev \
     mariadb-client \
     && rm -rf /var/lib/apt/lists/*
+
+# Install deno (required by yt-dlp for YouTube signature decryption)
+RUN curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh
 
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install gd pdo pdo_mysql

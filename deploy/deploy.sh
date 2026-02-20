@@ -59,6 +59,12 @@ sudo apt-get install -y \
 # Export from your browser using "Get cookies.txt LOCALLY" extension
 # Instructions: https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp
 
+# Install deno (required by yt-dlp for YouTube signature decryption)
+if ! command -v deno &> /dev/null; then
+  curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sudo -E sh
+  echo "Installed deno $(deno --version | head -1)"
+fi
+
 # Install the AWS CLI
 if ! command -v aws &> /dev/null; then
   curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
