@@ -46,22 +46,20 @@ if ($errors > 0) {
 function download_fixture(string $url, string $destination): void
 {
     $temp = $destination . '.download';
-    $source = @fopen($url, 'rb');
-    if ($source === false) {
-        throw new RuntimeException('Unable to open source URL.');
+
+    $command = sprintf(
+        'curl -fsSL --retry 3 --retry-delay 2 -o %s %s 2>&1',
+        escapeshellarg($temp),
+        escapeshellarg($url)
+    );
+    exec($command, $output, $exitCode);
+
+    if ($exitCode !== 0) {
+        @unlink($temp);
+        throw new RuntimeException('Download failed: ' . implode("\n", $output));
     }
 
-    $output = @fopen($temp, 'wb');
-    if ($output === false) {
-        fclose($source);
-        throw new RuntimeException('Unable to create temporary file.');
-    }
-
-    $bytes = stream_copy_to_stream($source, $output);
-    fclose($source);
-    fclose($output);
-
-    if ($bytes === false || $bytes === 0) {
+    if (!file_exists($temp) || filesize($temp) === 0) {
         @unlink($temp);
         throw new RuntimeException('Download returned no data.');
     }
