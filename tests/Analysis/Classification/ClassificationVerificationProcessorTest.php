@@ -60,7 +60,11 @@ class ClassificationVerificationProcessorTest extends TestCase
         ]);
 
         $processor = new ClassificationVerificationProcessor(
-            $loader, $fetcher, $classifier, $writer, $committeeDir
+            $loader,
+            $fetcher,
+            $classifier,
+            $writer,
+            $committeeDir
         );
         $processor->process($this->createJob());
     }
@@ -88,7 +92,11 @@ class ClassificationVerificationProcessorTest extends TestCase
         $committeeDir = $this->createMock(CommitteeDirectory::class);
 
         $processor = new ClassificationVerificationProcessor(
-            $loader, $fetcher, $classifier, $writer, $committeeDir
+            $loader,
+            $fetcher,
+            $classifier,
+            $writer,
+            $committeeDir
         );
         $processor->process($this->createJob());
     }
@@ -117,7 +125,11 @@ class ClassificationVerificationProcessorTest extends TestCase
 
         $job = $this->createJob('floor');
         $processor = new ClassificationVerificationProcessor(
-            $loader, $fetcher, $classifier, $writer, $committeeDir
+            $loader,
+            $fetcher,
+            $classifier,
+            $writer,
+            $committeeDir
         );
         $processor->process($job);
     }
@@ -147,7 +159,11 @@ class ClassificationVerificationProcessorTest extends TestCase
 
         $job = $this->createJob('committee', 42);
         $processor = new ClassificationVerificationProcessor(
-            $loader, $fetcher, $classifier, $writer, $committeeDir
+            $loader,
+            $fetcher,
+            $classifier,
+            $writer,
+            $committeeDir
         );
         $processor->process($job);
     }
@@ -166,12 +182,22 @@ class ClassificationVerificationProcessorTest extends TestCase
         $committeeDir = $this->createMock(CommitteeDirectory::class);
 
         $job = new ClassificationVerificationJob(
-            1, 'house', 'floor', null, '/house/floor/20250115/',
-            null, null, 'House Session'
+            1,
+            'house',
+            'floor',
+            null,
+            '/house/floor/20250115/',
+            null,
+            null,
+            'House Session'
         );
 
         $processor = new ClassificationVerificationProcessor(
-            $loader, $fetcher, $classifier, $writer, $committeeDir
+            $loader,
+            $fetcher,
+            $classifier,
+            $writer,
+            $committeeDir
         );
         $processor->process($job);
     }
@@ -200,7 +226,11 @@ class ClassificationVerificationProcessorTest extends TestCase
         $committeeDir->method('matchEntry')->willReturn(null);
 
         $processor = new ClassificationVerificationProcessor(
-            $loader, $fetcher, $classifier, $writer, $committeeDir
+            $loader,
+            $fetcher,
+            $classifier,
+            $writer,
+            $committeeDir
         );
         $processor->process($this->createJob());
     }
