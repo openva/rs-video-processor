@@ -47,7 +47,11 @@ class CommitteeDirectory
         if (!$id || !isset($this->byId[$id])) {
             return null;
         }
-        return strtolower((string) $this->byId[$id]['shortname']);
+        $shortname = $this->byId[$id]['shortname'];
+        if ($shortname === null || $shortname === '') {
+            return (string) $id;
+        }
+        return strtolower($shortname);
     }
 
     public function matchId(?string $name, string $chamber, string $type): ?int
