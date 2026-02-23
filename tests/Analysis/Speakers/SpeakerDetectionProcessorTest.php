@@ -90,6 +90,31 @@ class SpeakerDetectionProcessorTest extends TestCase
         $this->assertSame(2, (int) $count);
     }
 
+    public function testOverwritesExistingEntries(): void
+    {
+        $pdo = $this->createTestDatabase();
+
+        // Seed existing entries (as MetadataIndexer would)
+        $pdo->exec("INSERT INTO video_index (file_id, time, screenshot, raw_text, type, ignored, date_created)
+                     VALUES (1, '00:00:00', '00000001', 'Old Speaker', 'legislator', 'n', datetime('now'))");
+
+        $metadataExtractor = new SpeakerMetadataExtractor();
+        $diarizer = $this->createMock(DiarizerInterface::class);
+        $diarizer->expects($this->never())->method('diarize');
+        $ocrExtractor = $this->createMock(OcrSpeakerExtractor::class);
+        $ocrExtractor->expects($this->never())->method('extract');
+        $legislators = new LegislatorDirectory($pdo);
+        $writer = new SpeakerResultWriter($pdo);
+        $processor = new SpeakerDetectionProcessor($metadataExtractor, $diarizer, $ocrExtractor, $legislators, $writer, null);
+
+        $job = new SpeakerJob(1, 'house', 'file://example', ['Speakers' => [['text' => 'Smith', 'startTime' => '00:00:10']]]);
+        $processor->process($job);
+
+        $rows = $pdo->query("SELECT raw_text FROM video_index WHERE file_id = 1 AND type = 'legislator'")->fetchAll(PDO::FETCH_COLUMN);
+        $this->assertCount(1, $rows);
+        $this->assertSame('Smith', $rows[0]);
+    }
+
     private function createTestDatabase(): PDO
     {
         $pdo = new PDO('sqlite::memory:');

@@ -123,10 +123,8 @@ class HouseScraper implements VideoSourceScraperInterface
         // "Regular Session" in description) are floor. Everything else is a
         // committee or subcommittee meeting, with the title as the committee name.
         $titleTrimmed = trim($title);
-        $isFloorSession = stripos($titleTrimmed, 'House Session') !== false ||
-                          stripos($titleTrimmed, 'Floor Session') !== false ||
-                          stripos($description, 'Regular Session') !== false ||
-                          stripos($description, 'Special Session') !== false;
+        $isFloorSession = preg_match('/\b(House|Floor|Veto|Joint|Reconvened)\s+Session\b/i', $titleTrimmed)
+            || preg_match('/\b(Regular|Special|Veto|Reconvened)\s+Session\b/i', $description);
 
         if ($isFloorSession) {
             $eventType = 'floor';

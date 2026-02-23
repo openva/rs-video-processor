@@ -58,6 +58,9 @@ class MetadataIndexer
             }
         }
 
+        $delete = $this->pdo->prepare('DELETE FROM video_index WHERE file_id = :id AND type = :type');
+        $delete->execute([':id' => $fileId, ':type' => 'legislator']);
+
         $stmt = $this->pdo->prepare('INSERT INTO video_index (file_id, time, screenshot, raw_text, type, linked_id, ignored, date_created) VALUES (:file_id, :time, :shot, :raw, :type, NULL, "n", :created)');
         foreach ($speakers as $speaker) {
             if (empty($speaker['start_time']) || empty($speaker['name'])) {

@@ -52,9 +52,9 @@ class VideoImporter
             // Check if this video already exists
             // Handle NULL committee_id separately to avoid SQL issues
             if ($payload['committee_id'] === null) {
-                $checkSql = 'SELECT id FROM files WHERE chamber = ? AND date = ? AND (committee_id IS NULL OR committee_id = \'\') LIMIT 1';
+                $checkSql = 'SELECT id FROM files WHERE chamber = ? AND date = ? AND title = ? AND (committee_id IS NULL OR committee_id = \'\') LIMIT 1';
                 $checkStmt = $this->pdo->prepare($checkSql);
-                $checkStmt->execute([$payload['chamber'], $payload['date']]);
+                $checkStmt->execute([$payload['chamber'], $payload['date'], $payload['title']]);
             } else {
                 $checkSql = 'SELECT id FROM files WHERE chamber = ? AND date = ? AND committee_id = ? LIMIT 1';
                 $checkStmt = $this->pdo->prepare($checkSql);

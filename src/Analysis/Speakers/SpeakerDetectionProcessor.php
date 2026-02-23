@@ -20,11 +20,6 @@ class SpeakerDetectionProcessor
 
     public function process(SpeakerJob $job): void
     {
-        if ($this->writer->hasEntries($job->fileId)) {
-            $this->logger?->put('Skipping speaker detection for file #' . $job->fileId . ' (already indexed).', 4);
-            return;
-        }
-
         $segments = $this->metadataExtractor->extract($job->metadata);
         if (empty($segments)) {
             if ($job->manifestUrl && $job->eventType) {

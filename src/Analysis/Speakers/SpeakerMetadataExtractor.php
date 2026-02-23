@@ -14,20 +14,49 @@ class SpeakerMetadataExtractor
         if (!$metadata || empty($speakerData)) {
             return [];
         }
-        $segments = [];
+
+        // Collect raw entries first
+        $raw = [];
         foreach ($speakerData as $entry) {
-            // Support both raw format (text/startTime) and normalized format (name/start_time)
             $name = trim((string) ($entry['name'] ?? $entry['text'] ?? ''));
             $start = $entry['start_time'] ?? $entry['startTime'] ?? null;
             if ($name === '' || !$start) {
                 continue;
             }
+            $raw[] = ['name' => $name, 'start' => (string) $start];
+        }
+
+        // Detect ISO timestamps and find earliest as baseline
+        $baseline = null;
+        foreach ($raw as $entry) {
+            if ($this->isIsoTimestamp($entry['start'])) {
+                $ts = strtotime($entry['start']);
+                if ($ts !== false && ($baseline === null || $ts < $baseline)) {
+                    $baseline = $ts;
+                }
+            }
+        }
+
+        $segments = [];
+        foreach ($raw as $entry) {
+            if ($baseline !== null && $this->isIsoTimestamp($entry['start'])) {
+                $ts = strtotime($entry['start']);
+                $seconds = ($ts !== false) ? (float) max(0, $ts - $baseline) : 0.0;
+            } else {
+                $seconds = $this->parseTime($entry['start']);
+            }
             $segments[] = [
-                'name' => $this->normalizeName($name),
-                'start' => strtotime($start) ?: $this->parseTime($start),
+                'name' => $this->normalizeName($entry['name']),
+                'start' => $seconds,
             ];
         }
         return $segments;
+    }
+
+    private function isIsoTimestamp(string $value): bool
+    {
+        return (strpos($value, 'T') !== false) ||
+               (preg_match('/\d{4}-\d{2}-\d{2}/', $value) === 1);
     }
 
     private function normalizeName(string $name): string

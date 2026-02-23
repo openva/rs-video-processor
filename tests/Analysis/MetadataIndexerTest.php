@@ -50,6 +50,35 @@ class MetadataIndexerTest extends TestCase
         );
     }
 
+    public function testIndexTwiceDoesNotProduceDuplicates(): void
+    {
+        $pdo = new PDO('sqlite::memory:');
+        $pdo->exec('CREATE TABLE video_index (
+            id INTEGER PRIMARY KEY,
+            file_id INTEGER,
+            time TEXT,
+            screenshot TEXT,
+            raw_text TEXT,
+            type TEXT,
+            linked_id INTEGER,
+            ignored TEXT,
+            date_created TEXT
+        )');
+
+        $metadata = [
+            'speakers' => [
+                ['name' => 'Delegate Example', 'start_time' => '2025-01-31T13:05:00'],
+            ],
+        ];
+
+        $indexer = new MetadataIndexer($pdo);
+        $indexer->index(42, $metadata);
+        $indexer->index(42, $metadata);
+
+        $count = $pdo->query('SELECT COUNT(*) FROM video_index WHERE file_id = 42')->fetchColumn();
+        $this->assertSame(1, (int) $count);
+    }
+
     public function testConvertsAbsoluteTimestampsToRelativeTimes(): void
     {
         $pdo = new PDO('sqlite::memory:');

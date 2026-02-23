@@ -10,4 +10,5 @@ final class JobType
     public const SPEAKER_DETECTION = 'speaker_detection';
     public const VIDEO_DOWNLOAD = 'video_download';
     public const ARCHIVE_UPLOAD = 'archive_upload';
+    public const CLASSIFICATION_VERIFICATION = 'classification_verification';
 }

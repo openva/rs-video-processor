@@ -90,7 +90,13 @@ class SenateScraper implements VideoSourceScraperInterface
         $durationSeconds = $this->parseDuration($durationCell?->textContent ?? '');
         $committeeData = $this->extractCommitteeFromTitle($titleText);
         $committeeName = $committeeData['subcommittee'] ?? $committeeData['committee'] ?? null;
-        $eventType = $committeeData['subcommittee'] ? 'subcommittee' : ($committeeName ? 'committee' : 'floor');
+        $isFloorSession = preg_match('/\b(Senate|Floor|Veto|Joint|Reconvened)\s+Session\b/i', $committeeName ?? '');
+        if ($isFloorSession) {
+            $eventType = 'floor';
+            $committeeName = null;
+        } else {
+            $eventType = $committeeData['subcommittee'] ? 'subcommittee' : ($committeeName ? 'committee' : 'floor');
+        }
         $mp4FromRow = $this->extractMp4LinkFromRow($row);
 
         $published = $meetingDate ? new DateTimeImmutable($meetingDate) : new DateTimeImmutable('today');

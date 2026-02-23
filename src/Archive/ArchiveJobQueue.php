@@ -21,6 +21,8 @@ class ArchiveJobQueue
             LEFT JOIN committees c ON f.committee_id = c.id
             WHERE f.path LIKE 'https://video.richmondsunlight.com/%'
               AND (f.webvtt IS NOT NULL OR f.srt IS NOT NULL)
+              AND f.capture_directory IS NOT NULL AND f.capture_directory != ''
+              AND f.transcript IS NOT NULL
             ORDER BY f.date DESC
             LIMIT :limit";
 

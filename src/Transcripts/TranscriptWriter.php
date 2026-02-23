@@ -23,6 +23,9 @@ class TranscriptWriter
         $now = new DateTimeImmutable('now');
         $this->pdo->beginTransaction();
 
+        $delete = $this->pdo->prepare('DELETE FROM video_transcript WHERE file_id = :id');
+        $delete->execute([':id' => $fileId]);
+
         // Insert segments into video_transcript table
         $stmt = $this->pdo->prepare('INSERT INTO video_transcript (file_id, text, time_start, time_end, new_speaker, legislator_id, date_created) VALUES (:file_id, :text, :start, :end, :new_speaker, NULL, :created)');
         foreach ($segments as $segment) {
@@ -35,7 +38,7 @@ class TranscriptWriter
                     ':new_speaker' => 'n',
                     ':created' => $now->format('Y-m-d H:i:s'),
                 ]);
-            } catch (Throwable $e) {
+            } catch (\Throwable $e) {
                 throw new RuntimeException(
                     sprintf('Failed to insert transcript segment for file #%d: %s', $fileId, $segment['text']),
                     0,

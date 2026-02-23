@@ -1,0 +1,198 @@
+<?php
+
+namespace RichmondSunlight\VideoProcessor\Tests\Support;
+
+use PDO;
+
+class TestDatabaseFactory
+{
+    public static function create(): PDO
+    {
+        $pdo = new PDO('sqlite::memory:');
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+        $pdo->exec('CREATE TABLE files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chamber TEXT,
+            committee_id INTEGER,
+            title TEXT,
+            description TEXT,
+            type TEXT,
+            length TEXT,
+            date TEXT,
+            sponsor TEXT,
+            width INTEGER,
+            height INTEGER,
+            fps REAL,
+            capture_rate INTEGER,
+            capture_directory TEXT,
+            path TEXT,
+            html TEXT,
+            author_name TEXT,
+            license TEXT,
+            webvtt TEXT,
+            srt TEXT,
+            transcript TEXT,
+            video_index_cache TEXT,
+            raw_metadata TEXT,
+            date_created TEXT,
+            date_modified TEXT
+        )');
+
+        $pdo->exec('CREATE TABLE committees (
+            id INTEGER PRIMARY KEY,
+            name TEXT,
+            shortname TEXT,
+            chamber TEXT,
+            parent_id INTEGER
+        )');
+
+        $pdo->exec('CREATE TABLE video_index (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_id INTEGER,
+            time TEXT,
+            screenshot TEXT,
+            raw_text TEXT,
+            type TEXT,
+            linked_id INTEGER,
+            ignored TEXT DEFAULT "n",
+            date_created TEXT
+        )');
+
+        $pdo->exec('CREATE TABLE video_transcript (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_id INTEGER,
+            text TEXT,
+            time_start TEXT,
+            time_end TEXT,
+            new_speaker TEXT,
+            legislator_id INTEGER,
+            date_created TEXT
+        )');
+
+        $pdo->exec('CREATE TABLE people (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            name_formal TEXT
+        )');
+
+        return $pdo;
+    }
+
+    public static function seedCommittees(PDO $pdo): void
+    {
+        $fixtures = [
+            ['id' => 55, 'name' => 'ABC/Gaming', 'shortname' => 'abc', 'chamber' => 'house', 'parent_id' => 8],
+            ['id' => 73, 'name' => 'Ad Hoc', 'shortname' => 'ad-hoc', 'chamber' => 'house', 'parent_id' => 14],
+            ['id' => 26, 'name' => 'Agriculture', 'shortname' => 'agriculture', 'chamber' => 'house', 'parent_id' => 1],
+            ['id' => 1, 'name' => 'Agriculture, Chesapeake and Natural Resources', 'shortname' => 'agriculture', 'chamber' => 'house', 'parent_id' => null],
+            ['id' => 15, 'name' => 'Agriculture, Conservation and Natural Resources', 'shortname' => 'agriculture', 'chamber' => 'senate', 'parent_id' => null],
+            ['id' => 96, 'name' => 'Appointments Review', 'shortname' => 'appointments', 'chamber' => 'senate', 'parent_id' => 24],
+            ['id' => 2, 'name' => 'Appropriations', 'shortname' => 'appropriations', 'chamber' => 'house', 'parent_id' => null],
+            ['id' => 92, 'name' => 'Campaigns and Elections', 'shortname' => 'elections', 'chamber' => 'senate', 'parent_id' => 22],
+            ['id' => 83, 'name' => 'Capital Outlay', 'shortname' => 'capital', 'chamber' => 'senate', 'parent_id' => 19],
+            ['id' => 29, 'name' => 'Capital Outlay', 'shortname' => 'capital', 'chamber' => 'house', 'parent_id' => 2],
+            ['id' => 93, 'name' => 'Certificate, Oath and Confirmation Review', 'shortname' => 'certificate', 'chamber' => 'senate', 'parent_id' => 22],
+            ['id' => 91, 'name' => 'Charters', 'shortname' => 'charters', 'chamber' => 'senate', 'parent_id' => 21],
+            ['id' => 28, 'name' => 'Chesapeake', 'shortname' => 'chesapeake', 'chamber' => 'house', 'parent_id' => 1],
+            ['id' => 77, 'name' => 'Civil', 'shortname' => 'civil', 'chamber' => 'senate', 'parent_id' => 17],
+            ['id' => 43, 'name' => 'Civil Law', 'shortname' => 'civil', 'chamber' => 'house', 'parent_id' => 5],
+            ['id' => 84, 'name' => 'Claims', 'shortname' => 'claims', 'chamber' => 'senate', 'parent_id' => 19],
+            ['id' => 97, 'name' => 'Commending, Memorial and Memorializing Resolution Review', 'shortname' => 'commendments', 'chamber' => 'senate', 'parent_id' => 24],
+            ['id' => 106, 'name' => 'Commerce and Energy', 'shortname' => 'energy', 'chamber' => 'house', 'parent_id' => null],
+            ['id' => 16, 'name' => 'Commerce and Labor', 'shortname' => 'commerce', 'chamber' => 'senate', 'parent_id' => null],
+            ['id' => 30, 'name' => 'Commerce, Agriculture and Natural Resources', 'shortname' => 'commerce', 'chamber' => 'house', 'parent_id' => 2],
+            ['id' => 13, 'name' => 'Communications, Technology and Innovation', 'shortname' => 'science', 'chamber' => 'house', 'parent_id' => null],
+            ['id' => 103, 'name' => 'Communications, Technology and Innovation Subcommittee #1', 'shortname' => '1', 'chamber' => 'house', 'parent_id' => 13],
+            ['id' => 31, 'name' => 'Compensation and Retirement', 'shortname' => 'compensation', 'chamber' => 'house', 'parent_id' => 2],
+            ['id' => 64, 'name' => 'Constitutional', 'shortname' => 'constitutional', 'chamber' => 'house', 'parent_id' => 11],
+            ['id' => 94, 'name' => 'Constitutional Amendments, Reapportionment, Referenda', 'shortname' => 'constitution', 'chamber' => 'senate', 'parent_id' => 22],
+            ['id' => 4, 'name' => 'Counties, Cities and Towns', 'shortname' => 'counties', 'chamber' => 'house', 'parent_id' => null],
+            ['id' => 40, 'name' => 'Counties, Cities and Towns Subcommittee #1', 'shortname' => '1', 'chamber' => 'house', 'parent_id' => 4],
+            ['id' => 41, 'name' => 'Counties, Cities and Towns Subcommittee #2', 'shortname' => '2', 'chamber' => 'house', 'parent_id' => 4],
+            ['id' => 5, 'name' => 'Courts of Justice', 'shortname' => 'courts', 'chamber' => 'house', 'parent_id' => null],
+            ['id' => 17, 'name' => 'Courts of Justice', 'shortname' => 'courts', 'chamber' => 'senate', 'parent_id' => null],
+            ['id' => 78, 'name' => 'Criminal', 'shortname' => 'criminal', 'chamber' => 'senate', 'parent_id' => 17],
+            ['id' => 42, 'name' => 'Criminal Law', 'shortname' => 'criminal', 'chamber' => 'house', 'parent_id' => 5],
+            ['id' => 85, 'name' => 'Economic Development/National Resources', 'shortname' => 'development', 'chamber' => 'senate', 'parent_id' => 19],
+            ['id' => 86, 'name' => 'Education', 'shortname' => 'education', 'chamber' => 'senate', 'parent_id' => 19],
+            ['id' => 6, 'name' => 'Education', 'shortname' => 'education', 'chamber' => 'house', 'parent_id' => null],
+            ['id' => 18, 'name' => 'Education and Health', 'shortname' => 'education', 'chamber' => 'senate', 'parent_id' => null],
+            ['id' => 65, 'name' => 'Elections', 'shortname' => 'elections', 'chamber' => 'house', 'parent_id' => 11],
+            ['id' => 32, 'name' => 'Elementary and Secondary Education', 'shortname' => 'primary-education', 'chamber' => 'house', 'parent_id' => 2],
+            ['id' => 66, 'name' => 'Finance', 'shortname' => 'finance', 'chamber' => 'house', 'parent_id' => 11],
+            ['id' => 7, 'name' => 'Finance', 'shortname' => 'finance', 'chamber' => 'house', 'parent_id' => null],
+            ['id' => 19, 'name' => 'Finance and Appropriations', 'shortname' => 'finance', 'chamber' => 'senate', 'parent_id' => null],
+            ['id' => 98, 'name' => 'Financial Disclosure Review', 'shortname' => 'finance', 'chamber' => 'senate', 'parent_id' => 24],
+            ['id' => 74, 'name' => 'Financial Institutions and Insurance', 'shortname' => 'finance', 'chamber' => 'senate', 'parent_id' => 16],
+            ['id' => 54, 'name' => 'FOIA/Procurement', 'shortname' => 'foia', 'chamber' => 'house', 'parent_id' => 8],
+            ['id' => 33, 'name' => 'General Government and Technology', 'shortname' => 'government', 'chamber' => 'house', 'parent_id' => 2],
+            ['id' => 87, 'name' => 'General Government/Technology', 'shortname' => 'general', 'chamber' => 'senate', 'parent_id' => 19],
+            ['id' => 8, 'name' => 'General Laws', 'shortname' => 'general-laws', 'chamber' => 'house', 'parent_id' => null],
+            ['id' => 20, 'name' => 'General Laws and Technology', 'shortname' => 'general-laws', 'chamber' => 'senate', 'parent_id' => null],
+            ['id' => 34, 'name' => 'Health and Human Resources', 'shortname' => 'health', 'chamber' => 'house', 'parent_id' => 2],
+            ['id' => 88, 'name' => 'Health and Human Resources', 'shortname' => 'health', 'chamber' => 'senate', 'parent_id' => 19],
+            ['id' => 107, 'name' => 'Health and Human Services', 'shortname' => 'human-services', 'chamber' => 'house', 'parent_id' => null],
+            ['id' => 79, 'name' => 'Health Care', 'shortname' => 'health-care', 'chamber' => 'senate', 'parent_id' => 18],
+            ['id' => 101, 'name' => 'Health Licensing', 'shortname' => 'licensing', 'chamber' => 'senate', 'parent_id' => 18],
+            ['id' => 80, 'name' => 'Health Professions', 'shortname' => 'health-professions', 'chamber' => 'senate', 'parent_id' => 18],
+            ['id' => 57, 'name' => 'Health, Welfare and Institutions', 'shortname' => 'health', 'chamber' => 'house', 'parent_id' => 9],
+            ['id' => 35, 'name' => 'Higher Education', 'shortname' => 'higher-education', 'chamber' => 'house', 'parent_id' => 2],
+            ['id' => 81, 'name' => 'Higher Education', 'shortname' => 'college', 'chamber' => 'senate', 'parent_id' => 18],
+            ['id' => 49, 'name' => 'Higher Education', 'shortname' => 'college', 'chamber' => 'house', 'parent_id' => 6],
+            ['id' => 53, 'name' => 'Housing', 'shortname' => 'housing', 'chamber' => 'house', 'parent_id' => 8],
+            ['id' => 59, 'name' => 'Institutions', 'shortname' => 'institutions', 'chamber' => 'house', 'parent_id' => 9],
+            ['id' => 95, 'name' => 'Joint Reapportionment', 'shortname' => 'reapportionment', 'chamber' => 'senate', 'parent_id' => 22],
+            ['id' => 67, 'name' => 'Joint Rules', 'shortname' => 'joint', 'chamber' => 'house', 'parent_id' => 12],
+            ['id' => 44, 'name' => 'Judicial Panel', 'shortname' => 'judicial', 'chamber' => 'house', 'parent_id' => 5],
+            ['id' => 3, 'name' => 'Labor and Commerce', 'shortname' => 'commerce', 'chamber' => 'house', 'parent_id' => null],
+            ['id' => 38, 'name' => 'Labor and Commerce Subcommittee #1', 'shortname' => '1', 'chamber' => 'house', 'parent_id' => 3],
+            ['id' => 39, 'name' => 'Labor and Commerce Subcommittee #2', 'shortname' => '2', 'chamber' => 'house', 'parent_id' => 3],
+            ['id' => 21, 'name' => 'Local Government', 'shortname' => 'local', 'chamber' => 'senate', 'parent_id' => null],
+            ['id' => 45, 'name' => 'Mental Health', 'shortname' => 'mental-health', 'chamber' => 'house', 'parent_id' => 5],
+            ['id' => 104, 'name' => 'Mental Health', 'shortname' => 'mental-health', 'chamber' => 'senate', 'parent_id' => 17],
+            ['id' => 27, 'name' => 'Natural Resources', 'shortname' => 'natural-resources', 'chamber' => 'house', 'parent_id' => 1],
+            ['id' => 22, 'name' => 'Privileges and Elections', 'shortname' => 'pe', 'chamber' => 'senate', 'parent_id' => null],
+            ['id' => 11, 'name' => 'Privileges and Elections', 'shortname' => 'pe', 'chamber' => 'house', 'parent_id' => null],
+            ['id' => 56, 'name' => 'Professions/Occupations and Administrative Process', 'shortname' => 'professions', 'chamber' => 'house', 'parent_id' => 8],
+            ['id' => 82, 'name' => 'Public Education', 'shortname' => 'public-education', 'chamber' => 'senate', 'parent_id' => 18],
+            ['id' => 10, 'name' => 'Public Safety', 'shortname' => 'public-safety', 'chamber' => 'house', 'parent_id' => null],
+            ['id' => 36, 'name' => 'Public Safety', 'shortname' => 'safety', 'chamber' => 'house', 'parent_id' => 2],
+            ['id' => 89, 'name' => 'Public Safety', 'shortname' => 'safety', 'chamber' => 'senate', 'parent_id' => 19],
+            ['id' => 61, 'name' => 'Public Safety Subcommittee #1', 'shortname' => '1', 'chamber' => 'house', 'parent_id' => 10],
+            ['id' => 62, 'name' => 'Public Safety Subcommittee #2', 'shortname' => '2', 'chamber' => 'house', 'parent_id' => 10],
+            ['id' => 63, 'name' => 'Public Safety Subcommittee #3', 'shortname' => '3', 'chamber' => 'house', 'parent_id' => 10],
+            ['id' => 105, 'name' => 'Redistricting', 'shortname' => 'redistricting', 'chamber' => 'senate', 'parent_id' => 22],
+            ['id' => 23, 'name' => 'Rehabilitation and Social Services', 'shortname' => 'social-services', 'chamber' => 'senate', 'parent_id' => null],
+            ['id' => 12, 'name' => 'Rules', 'shortname' => 'rules', 'chamber' => 'house', 'parent_id' => null],
+            ['id' => 24, 'name' => 'Rules', 'shortname' => 'rules', 'chamber' => 'senate', 'parent_id' => null],
+            ['id' => 102, 'name' => 'Special Public Smoking Legislation', 'shortname' => 'smoking', 'chamber' => 'senate', 'parent_id' => 18],
+            ['id' => 99, 'name' => 'Standards of Conduct', 'shortname' => 'conduct', 'chamber' => 'senate', 'parent_id' => 24],
+            ['id' => 68, 'name' => 'Standards of Conduct', 'shortname' => 'conduct', 'chamber' => 'house', 'parent_id' => 12],
+            ['id' => 46, 'name' => 'Standards of Quality', 'shortname' => 'soq', 'chamber' => 'house', 'parent_id' => 6],
+            ['id' => 47, 'name' => 'Students and Day Care', 'shortname' => 'students', 'chamber' => 'house', 'parent_id' => 6],
+            ['id' => 100, 'name' => 'Studies', 'shortname' => 'studies', 'chamber' => 'senate', 'parent_id' => 24],
+            ['id' => 69, 'name' => 'Studies', 'shortname' => 'studies', 'chamber' => 'house', 'parent_id' => 12],
+            ['id' => 50, 'name' => 'Subcomittee #1', 'shortname' => '1', 'chamber' => 'house', 'parent_id' => 7],
+            ['id' => 51, 'name' => 'Subcommittee #2', 'shortname' => '2', 'chamber' => 'house', 'parent_id' => 7],
+            ['id' => 52, 'name' => 'Subcommittee #3', 'shortname' => '3', 'chamber' => 'house', 'parent_id' => 7],
+            ['id' => 48, 'name' => 'Teachers and Administrative Action', 'shortname' => 'teachers', 'chamber' => 'house', 'parent_id' => 6],
+            ['id' => 37, 'name' => 'Transportation', 'shortname' => 'transportation', 'chamber' => 'house', 'parent_id' => 2],
+            ['id' => 90, 'name' => 'Transportation', 'shortname' => 'transportation', 'chamber' => 'senate', 'parent_id' => 19],
+            ['id' => 25, 'name' => 'Transportation', 'shortname' => 'transportation', 'chamber' => 'senate', 'parent_id' => null],
+            ['id' => 14, 'name' => 'Transportation', 'shortname' => 'transportation', 'chamber' => 'house', 'parent_id' => null],
+            ['id' => 70, 'name' => 'Transportation Subcommittee #1', 'shortname' => '1', 'chamber' => 'house', 'parent_id' => 14],
+            ['id' => 71, 'name' => 'Transportation Subcommittee #2', 'shortname' => '2', 'chamber' => 'house', 'parent_id' => 14],
+            ['id' => 72, 'name' => 'Transportation Subcommittee #3', 'shortname' => '3', 'chamber' => 'house', 'parent_id' => 14],
+            ['id' => 75, 'name' => 'Utilities', 'shortname' => 'utilities', 'chamber' => 'senate', 'parent_id' => 16],
+            ['id' => 58, 'name' => 'Welfare', 'shortname' => 'welfare', 'chamber' => 'house', 'parent_id' => 9],
+            ['id' => 76, 'name' => "Workers' Compensation, Unemployment Compensation and Labor", 'shortname' => 'labor', 'chamber' => 'senate', 'parent_id' => 16],
+            ['id' => 9, 'name' => 'Health, Welfare and Institutions', 'shortname' => 'hwi', 'chamber' => 'house', 'parent_id' => null],
+        ];
+
+        $insert = $pdo->prepare('INSERT INTO committees (id, name, shortname, chamber, parent_id) VALUES (:id, :name, :shortname, :chamber, :parent_id)');
+        foreach ($fixtures as $fixture) {
+            $insert->execute($fixture);
+        }
+    }
+}

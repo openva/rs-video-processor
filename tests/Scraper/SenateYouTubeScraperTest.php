@@ -40,7 +40,7 @@ class SenateYouTubeScraperTest extends TestCase
         // Test second record (Floor Session)
         $second = $records[1];
         $this->assertSame('abc123def456', $second['video_id']);
-        $this->assertSame('Senate Floor Session', $second['committee']);
+        $this->assertNull($second['committee_name']);
         $this->assertSame('floor', $second['event_type']);
         $this->assertSame('2026-01-14', $second['meeting_date']);
         $this->assertSame(8130, $second['duration_seconds']); // 2h 15m 30s = 8130 seconds
@@ -78,8 +78,8 @@ class SenateYouTubeScraperTest extends TestCase
         $this->assertSame('Finance Committee', $records[0]['committee']);
         $this->assertNull($records[0]['subcommittee']);
 
-        // Senate Floor Session
-        $this->assertSame('Senate Floor Session', $records[1]['committee']);
+        // Senate Floor Session — committee_name is cleared for floor sessions
+        $this->assertNull($records[1]['committee_name']);
         $this->assertNull($records[1]['subcommittee']);
 
         // Commerce and Labor with Subcommittee

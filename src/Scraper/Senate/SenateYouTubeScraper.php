@@ -114,8 +114,12 @@ class SenateYouTubeScraper implements VideoSourceScraperInterface
         // Determine event type
         if ($committeeData['subcommittee']) {
             $eventType = 'subcommittee';
+        } elseif ($committeeName && preg_match('/\b(Senate|Floor|Veto|Joint|Reconvened)\s+Session\b/i', $committeeName)) {
+            $eventType = 'floor';
+            $committeeName = null;
         } elseif ($committeeName && preg_match('/\bfloor\b/i', $committeeName)) {
             $eventType = 'floor';
+            $committeeName = null;
         } elseif ($committeeName) {
             $eventType = 'committee';
         } else {
