@@ -326,6 +326,7 @@ class CommitteeDirectory
     private function expandAbbreviations(string $name): string
     {
         $replacements = [
+            '/\\bACNR\\b/i' => 'Agriculture, Conservation and Natural Resources',
             '/\\bCCT\\b/i' => 'Counties, Cities and Towns',
             '/\\bSFAC\\b/i' => 'Finance and Appropriations',
         ];
