@@ -119,4 +119,236 @@ class SenateYouTubeScraperTest extends TestCase
 
         $this->assertCount(2, $records);
     }
+
+    /**
+     * @dataProvider realYouTubeTitlesProvider
+     */
+    public function testClassifiesRealYouTubeTitles(
+        string $title,
+        string $expectedEventType,
+        ?string $expectedCommittee,
+        ?string $expectedSubcommittee
+    ): void {
+        $client = new FakeHttpClient([]);
+        $scraper = new SenateYouTubeScraper($client, 'fake-api-key');
+
+        $result = $scraper->classifyTitle($title);
+
+        $this->assertSame($expectedEventType, $result['event_type'], "Event type mismatch for: {$title}");
+        $this->assertSame($expectedCommittee, $result['committee'], "Committee mismatch for: {$title}");
+        $this->assertSame($expectedSubcommittee, $result['subcommittee'], "Subcommittee mismatch for: {$title}");
+    }
+
+    public static function realYouTubeTitlesProvider(): array
+    {
+        return [
+            // --- Floor sessions (Senate Chamber) ---
+            'floor: Senate Chamber 2026-02-23' => [
+                'Senate of Virginia: Senate Chamber on 2026-02-23',
+                'floor', 'Senate Chamber', null,
+            ],
+            'floor: Senate Chamber 2026-02-23 [Finished]' => [
+                'Senate of Virginia: Senate Chamber on 2026-02-23 [Finished]',
+                'floor', 'Senate Chamber', null,
+            ],
+            'floor: Senate Chamber 2026-02-20' => [
+                'Senate of Virginia: Senate Chamber on 2026-02-20 [Finished]',
+                'floor', 'Senate Chamber', null,
+            ],
+            'floor: Senate Chamber 2026-02-19' => [
+                'Senate of Virginia: Senate Chamber on 2026-02-19',
+                'floor', 'Senate Chamber', null,
+            ],
+            'floor: Senate Chamber 2026-02-18' => [
+                'Senate of Virginia: Senate Chamber on 2026-02-18',
+                'floor', 'Senate Chamber', null,
+            ],
+            'floor: Senate Chamber 2026-02-17' => [
+                'Senate of Virginia: Senate Chamber on 2026-02-17 [Finished]',
+                'floor', 'Senate Chamber', null,
+            ],
+            'floor: Senate Chamber 2026-02-16' => [
+                'Senate of Virginia: Senate Chamber on 2026-02-16 [Finished]',
+                'floor', 'Senate Chamber', null,
+            ],
+            'floor: Senate Chamber 2026-02-13' => [
+                'Senate of Virginia: Senate Chamber on 2026-02-13',
+                'floor', 'Senate Chamber', null,
+            ],
+            'floor: Senate Chamber 2026-02-12' => [
+                'Senate of Virginia: Senate Chamber on 2026-02-12',
+                'floor', 'Senate Chamber', null,
+            ],
+            'floor: Senate Chamber 2026-02-10' => [
+                'Senate of Virginia: Senate Chamber on 2026-02-10',
+                'floor', 'Senate Chamber', null,
+            ],
+            'floor: Senate Chamber 2026-02-09' => [
+                'Senate of Virginia: Senate Chamber on 2026-02-09',
+                'floor', 'Senate Chamber', null,
+            ],
+            'floor: Senate Chamber 2026-02-06' => [
+                'Senate of Virginia: Senate Chamber on 2026-02-06',
+                'floor', 'Senate Chamber', null,
+            ],
+            'floor: Senate Chamber 2026-02-04' => [
+                'Senate of Virginia: Senate Chamber on 2026-02-04',
+                'floor', 'Senate Chamber', null,
+            ],
+            'floor: Senate Chamber 2026-02-03' => [
+                'Senate of Virginia: Senate Chamber on 2026-02-03',
+                'floor', 'Senate Chamber', null,
+            ],
+            'floor: Senate Chamber 2026-01-30' => [
+                'Senate of Virginia: Senate Chamber on 2026-01-30',
+                'floor', 'Senate Chamber', null,
+            ],
+            'floor: Senate Chamber 2026-01-29' => [
+                'Senate of Virginia: Senate Chamber on 2026-01-29',
+                'floor', 'Senate Chamber', null,
+            ],
+            'floor: Senate Chamber 2026-01-28' => [
+                'Senate of Virginia: Senate Chamber on 2026-01-28',
+                'floor', 'Senate Chamber', null,
+            ],
+            'floor: Senate Chamber 2026-01-27' => [
+                'Senate of Virginia: Senate Chamber on 2026-01-27',
+                'floor', 'Senate Chamber', null,
+            ],
+            'floor: Senate Chamber 2026-01-23' => [
+                'Senate of Virginia: Senate Chamber on 2026-01-23 [Finished]',
+                'floor', 'Senate Chamber', null,
+            ],
+            'floor: Senate Chamber 2026-01-17' => [
+                'Senate of Virginia: Senate Chamber on 2026-01-17 [Finished]',
+                'floor', 'Senate Chamber', null,
+            ],
+            'floor: Senate Chamber 2020-02-28' => [
+                'Senate of Virginia: Senate Chamber on 2020-02-28 [Archival]',
+                'floor', 'Senate Chamber', null,
+            ],
+
+            // --- Floor sessions (dash-separated format) ---
+            'floor: Senate Session (plain)' => [
+                'Senate Session',
+                'floor', 'Senate Session', null,
+            ],
+
+            // --- Committees ---
+            'committee: Courts of Justice' => [
+                'Senate of Virginia: Courts of Justice on 2026-02-23',
+                'committee', 'Courts of Justice', null,
+            ],
+            'committee: Courts of Justice [Finished]' => [
+                'Senate of Virginia: Courts of Justice on 2026-02-23 [Finished]',
+                'committee', 'Courts of Justice', null,
+            ],
+            'committee: Commerce and Labor' => [
+                'Senate of Virginia: Commerce and Labor on 2026-02-23 [Finished]',
+                'committee', 'Commerce and Labor', null,
+            ],
+            'committee: Local Government' => [
+                'Senate of Virginia: Local Government on 2026-02-23 [Finished]',
+                'committee', 'Local Government', null,
+            ],
+            'committee: Finance and Appropriations' => [
+                'Senate of Virginia: Finance and Appropriations on 2026-02-22 [Finished]',
+                'committee', 'Finance and Appropriations', null,
+            ],
+            'committee: Rehabilitation and Social Services' => [
+                'Senate of Virginia: Rehabilitation and Social Services on 2026-02-20 [Finished]',
+                'committee', 'Rehabilitation and Social Services', null,
+            ],
+            'committee: Education and Health' => [
+                'Senate of Virginia: Education and Health on 2026-01-22 [Finished]',
+                'committee', 'Education and Health', null,
+            ],
+            'committee: General Laws and Technology' => [
+                'Senate of Virginia: General Laws and Technology on 2026-01-21',
+                'committee', 'General Laws and Technology', null,
+            ],
+            'committee: Agriculture' => [
+                'Senate of Virginia: Agriculture, Conservation and Natural Resources on 2026-02-10',
+                'committee', 'Agriculture, Conservation and Natural Resources', null,
+            ],
+            'committee: Privileges and Elections' => [
+                'Senate of Virginia: Privileges and Elections on 2026-01-14 [Finished]',
+                'committee', 'Privileges and Elections', null,
+            ],
+            'committee: Transportation' => [
+                'Senate of Virginia: Transportation on 2021-02-18 [Archival]',
+                'committee', 'Transportation', null,
+            ],
+            'committee: Rules' => [
+                'Senate of Virginia: Rules on 2020-01-31 [Archival]',
+                'committee', 'Rules', null,
+            ],
+            'committee: Administrative Law Advisory Committee' => [
+                'Senate of Virginia: Administrative Law Advisory Committee on 2025-09-16 [Finished]',
+                'committee', 'Administrative Law Advisory Committee', null,
+            ],
+            'committee: Commerce and Labor [Archival]' => [
+                'Senate of Virginia: Commerce and Labor on 2020-02-17 [Archival]',
+                'committee', 'Commerce and Labor', null,
+            ],
+            'committee: Finance and Appropriations [Archival]' => [
+                'Senate of Virginia: Finance and Appropriations on 2020-01-29 [Archival]',
+                'committee', 'Finance and Appropriations', null,
+            ],
+
+            // --- Subcommittees (colon-separated parent: child) ---
+            'subcommittee: Education & Health: Higher Education' => [
+                'Senate of Virginia: Education & Health: Higher Education on 2026-02-23 [Finished]',
+                'subcommittee', 'Education & Health', 'Higher Education',
+            ],
+            'subcommittee: Education & Health: Health Professions' => [
+                'Senate of Virginia: Education & Health: Health Professions on 2026-02-20 [Finished]',
+                'subcommittee', 'Education & Health', 'Health Professions',
+            ],
+            'subcommittee: Education & Health: Public Education' => [
+                'Senate of Virginia: Education & Health: Public Education on 2026-01-15 [Finished]',
+                'subcommittee', 'Education & Health', 'Public Education',
+            ],
+            'subcommittee: Education & Health: Health' => [
+                'Senate of Virginia: Education & Health: Health on 2026-01-20 [Finished]',
+                'subcommittee', 'Education & Health', 'Health',
+            ],
+            'subcommittee: SFAC: Capital Outlay & Transportation' => [
+                'Senate of Virginia: SFAC: Capital Outlay & Transportation Subcommittee on 2026-01-16 [Finished]',
+                'subcommittee', 'SFAC', 'Capital Outlay & Transportation Subcommittee',
+            ],
+            'subcommittee: SFAC: Public Safety & Claims' => [
+                'Senate of Virginia: SFAC: Public Safety & Claims Subcommittee on 2026-01-12 [Finished]',
+                'subcommittee', 'SFAC', 'Public Safety & Claims Subcommittee',
+            ],
+            'subcommittee: SFAC: Economic Development & Natural Resources' => [
+                'Senate of Virginia: SFAC: Economic Development & Natural Resources on 2026-02-02 [Finished]',
+                'subcommittee', 'SFAC', 'Economic Development & Natural Resources',
+            ],
+            'subcommittee: Finance and Appropriations [Archival]' => [
+                'Senate of Virginia: Finance and Appropriations on 2022-03-03 [Archival]',
+                'committee', 'Finance and Appropriations', null,
+            ],
+
+            // --- Edge cases (no "Senate of Virginia:" prefix) ---
+            'edge: Joint Subcommittee' => [
+                'Senate Joint Subcommittee on Costal Flooding on 2021-11-22 [Archival]',
+                'committee', 'Senate Joint Subcommittee on Costal Flooding', null,
+            ],
+
+            // --- Dash-separated format (existing style) ---
+            'dash: Finance Committee' => [
+                'Finance Committee - January 15, 2026 - Budget Hearing',
+                'committee', 'Finance Committee', null,
+            ],
+            'dash: Senate Floor Session' => [
+                'Senate Floor Session - 1/14/26',
+                'floor', 'Senate Floor Session', null,
+            ],
+            'dash: Commerce and Labor subcommittee' => [
+                'Commerce and Labor - Subcommittee on Workers\' Rights - Meeting',
+                'subcommittee', 'Commerce and Labor', 'Subcommittee on Workers\' Rights',
+            ],
+        ];
+    }
 }

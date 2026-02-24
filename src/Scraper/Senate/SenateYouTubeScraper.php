@@ -107,24 +107,14 @@ class SenateYouTubeScraper implements VideoSourceScraperInterface
         $isoDuration = $contentDetails['duration'] ?? null;
         $durationSeconds = $isoDuration ? $this->apiClient->parseIsoDuration($isoDuration) : null;
 
-        // Extract committee information from title
-        $committeeData = $this->extractCommitteeFromTitle($title);
-        $committeeName = $committeeData['subcommittee'] ?? $committeeData['committee'] ?? null;
-
-        // Determine event type
-        if ($committeeData['subcommittee']) {
-            $eventType = 'subcommittee';
-        } elseif ($committeeName && preg_match('/\b(Senate|Floor|Veto|Joint|Reconvened)\s+Session\b/i', $committeeName)) {
-            $eventType = 'floor';
-            $committeeName = null;
-        } elseif ($committeeName && preg_match('/\bfloor\b/i', $committeeName)) {
-            $eventType = 'floor';
-            $committeeName = null;
-        } elseif ($committeeName) {
-            $eventType = 'committee';
-        } else {
-            $eventType = 'floor';
-        }
+        // Classify title into event type, committee, and subcommittee
+        $classification = $this->classifyTitle($title);
+        $committeeData = [
+            'committee' => $classification['committee'],
+            'subcommittee' => $classification['subcommittee'],
+        ];
+        $committeeName = $classification['committee_name'];
+        $eventType = $classification['event_type'];
 
         // Extract date - try from title first, fall back to publishedAt
         $meetingDate = $this->extractDateFromTitle($title);
@@ -169,19 +159,103 @@ class SenateYouTubeScraper implements VideoSourceScraperInterface
     }
 
     /**
-     * Extract committee and subcommittee names from title.
-     * Reuses logic from SenateScraper.
+     * Classify a YouTube title into event type, committee, and subcommittee.
+     *
+     * @return array{event_type: string, committee: ?string, subcommittee: ?string, committee_name: ?string}
      */
-    private function extractCommitteeFromTitle(string $title): array
+    public function classifyTitle(string $title): array
+    {
+        $committeeData = $this->extractCommitteeFromTitle($title);
+        $committeeName = $committeeData['subcommittee'] ?? $committeeData['committee'] ?? null;
+
+        if ($committeeData['subcommittee']) {
+            $eventType = 'subcommittee';
+        } elseif ($committeeName && preg_match('/\b(Senate|Floor|Veto|Joint|Reconvened)\s+Session\b/i', $committeeName)) {
+            $eventType = 'floor';
+            $committeeName = null;
+        } elseif ($committeeName && preg_match('/\bfloor\b/i', $committeeName)) {
+            $eventType = 'floor';
+            $committeeName = null;
+        } elseif ($committeeName && preg_match('/\bSenate\s+Chamber\b/i', $committeeName)) {
+            $eventType = 'floor';
+            $committeeName = null;
+        } elseif ($committeeName) {
+            $eventType = 'committee';
+        } else {
+            $eventType = 'floor';
+        }
+
+        return [
+            'event_type' => $eventType,
+            'committee' => $committeeData['committee'],
+            'subcommittee' => $committeeData['subcommittee'],
+            'committee_name' => $committeeName,
+        ];
+    }
+
+    /**
+     * Extract committee and subcommittee names from title.
+     *
+     * Handles two formats:
+     * - "Senate of Virginia: {name} on {date} [status]" (colon-prefix format)
+     * - "Finance Committee - January 15, 2026 - Budget Hearing" (dash-separated format)
+     */
+    public function extractCommitteeFromTitle(string $title): array
     {
         $normalized = preg_replace('/\s+/', ' ', trim($title));
+
+        // Handle "Senate of Virginia: ..." prefix format
+        if (preg_match('/^(?:Senate\s+of\s+Virginia)\s*:\s*(.+)$/i', $normalized, $prefixMatch)) {
+            return $this->parseColonPrefixTitle($prefixMatch[1]);
+        }
+
+        // Fall back to dash-separated format
+        return $this->parseDashSeparatedTitle($normalized);
+    }
+
+    private function parseColonPrefixTitle(string $body): array
+    {
+        // Strip trailing status tags like [Finished], [Archival]
+        $body = preg_replace('/\s*\[[\w]+\]\s*$/', '', $body);
+
+        // Strip trailing "on YYYY-MM-DD" date
+        $body = preg_replace('/\s+on\s+\d{4}-\d{2}-\d{2}\s*$/', '', $body);
+
+        $body = trim($body);
+        if ($body === '') {
+            return ['committee' => null, 'subcommittee' => null];
+        }
+
+        // Split by ": " for parent:child (committee:subcommittee)
+        $parts = array_map('trim', explode(':', $body));
+        $parts = array_values(array_filter($parts, static fn($p) => $p !== ''));
+
+        if (count($parts) >= 2) {
+            return [
+                'committee' => $parts[0],
+                'subcommittee' => implode(': ', array_slice($parts, 1)),
+            ];
+        }
+
+        return [
+            'committee' => $parts[0] ?? null,
+            'subcommittee' => null,
+        ];
+    }
+
+    private function parseDashSeparatedTitle(string $normalized): array
+    {
+        // Strip trailing status tags and "on YYYY-MM-DD" for non-prefix titles too
+        $normalized = preg_replace('/\s*\[[\w]+\]\s*$/', '', $normalized);
+        $normalized = preg_replace('/\s+on\s+\d{4}-\d{2}-\d{2}\s*$/', '', $normalized);
+
         $segments = array_filter(
             array_map('trim', explode(' - ', $normalized)),
             static fn($segment) => $segment !== ''
         );
 
         $clean = [];
-        foreach ($segments as $index => $segment) {
+        foreach ($segments as $segment) {
             // Skip date patterns (e.g., "January 15, 2026", "1/15/26")
             if (preg_match('/^[A-Za-z]+\s+\d{1,2},\s+\d{4}$/', $segment)) {
                 continue;
