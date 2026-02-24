@@ -64,6 +64,20 @@ class NameMatcher
             $district = $matches[2];
             $rawText = preg_replace('/\(([RDI])-\d+\)/i', '', $rawText);
         }
+        // Handle (R85), (D42), etc. (no dash — Virginia House chyron format)
+        // The chyron places the city name before the party indicator on the same line,
+        // so when more than 3 proper-word tokens remain after stripping the indicator,
+        // the last 2 are the city name and should be removed.
+        elseif (preg_match('/\(([RDI])(\d+)\)/i', $rawText, $matches)) {
+            $party = strtoupper($matches[1]);
+            $district = $matches[2];
+            $rawText = preg_replace('/\(([RDI])\d+\)/i', '', $rawText);
+            $rawText = trim(preg_replace('/\s+/', ' ', $rawText));
+            $tempTokens = array_values(array_filter(explode(' ', $rawText), fn($t) => strlen($t) > 0));
+            if (count($tempTokens) > 3) {
+                $rawText = implode(' ', array_slice($tempTokens, 0, -2));
+            }
+        }
         // Handle (R), (D), (I)
         elseif (preg_match('/\(([RDI])\)/i', $rawText, $matches)) {
             $party = strtoupper($matches[1]);
