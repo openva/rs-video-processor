@@ -227,6 +227,7 @@ class RawTextResolver
             $sql .= ' AND linked_id IS NULL';
         }
 
+        $sql .= ' AND ignored != \'y\'';
         $sql .= ' ORDER BY CAST(screenshot AS INTEGER)';
 
         $stmt = $this->pdo->prepare($sql);
@@ -259,6 +260,7 @@ class RawTextResolver
             $sql .= ' AND linked_id IS NULL';
         }
 
+        $sql .= ' AND ignored != \'y\'';
         $sql .= ' ORDER BY file_id DESC';
 
         if ($limit !== null) {

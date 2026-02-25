@@ -115,7 +115,7 @@ try {
         // Get file IDs before resolving, so we can validate them afterward
         $fileIdsStmt = $pdo->prepare('
             SELECT DISTINCT file_id FROM video_index
-            WHERE linked_id IS NULL
+            WHERE linked_id IS NULL AND ignored != \'y\'
             ORDER BY file_id DESC
             ' . ($limit !== null ? 'LIMIT ' . (int) $limit : ''));
         $fileIdsStmt->execute();
