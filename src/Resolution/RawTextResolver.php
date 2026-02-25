@@ -244,24 +244,35 @@ class RawTextResolver
     private function getFilesWithUnresolvedEntries(bool $force, ?string $type, ?int $limit): array
     {
         $sql = '
-            SELECT DISTINCT file_id
-            FROM video_index
+            SELECT DISTINCT vi.file_id
+            FROM video_index vi
+            JOIN files f ON f.id = vi.file_id
             WHERE 1=1
         ';
 
         $params = [];
 
         if ($type !== null) {
-            $sql .= ' AND type = :type';
+            $sql .= ' AND vi.type = :type';
             $params[':type'] = $type;
         }
 
         if (!$force) {
-            $sql .= ' AND linked_id IS NULL';
+            $sql .= ' AND vi.linked_id IS NULL';
+            $sql .= ' AND vi.ignored != \'y\'';
+            // Attempt recent files every run; decay frequency with age.
+            // Files ≤30 days old are always included. Older files are sampled
+            // with probability 30/age_days, creating a natural gradient from
+            // "every run" down to "very rarely" for decade-old videos.
+            $sql .= '
+                AND (
+                    DATEDIFF(NOW(), f.date) <= 30
+                    OR RAND() < 30.0 / DATEDIFF(NOW(), f.date)
+                )
+            ';
         }
 
-        $sql .= ' AND ignored != \'y\'';
-        $sql .= ' ORDER BY file_id DESC';
+        $sql .= ' ORDER BY vi.file_id DESC';
 
         if ($limit !== null) {
             $sql .= ' LIMIT :limit';
