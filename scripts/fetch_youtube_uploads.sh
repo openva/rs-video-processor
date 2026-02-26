@@ -46,17 +46,28 @@ jq -c '.videos[]' "$MANIFEST_FILE" | while IFS= read -r entry; do
     echo "[$date] $title"
     echo "  YouTube ID : $youtube_id"
 
+    # Skip if already uploaded in a previous run
+    if aws s3 ls "$BUCKET/uploads/${youtube_id}.mp4" > /dev/null 2>&1; then
+        echo "  Already uploaded — skipping."
+        continue
+    fi
+
     video_file="$TMPDIR_BASE/${youtube_id}.mp4"
     caption_file="$TMPDIR_BASE/${youtube_id}.en.vtt"
 
-    # Download video + auto-generated captions via yt-dlp
-    yt-dlp \
-        -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
+    # Download video + auto-generated captions via yt-dlp.
+    # Use `if !` so a yt-dlp failure skips this video rather than killing the script.
+    if ! yt-dlp \
+        -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best" \
         --merge-output-format mp4 \
         --write-auto-sub --sub-lang en --convert-subs vtt \
         --no-abort-on-error \
         -o "$TMPDIR_BASE/${youtube_id}.%(ext)s" \
         "$youtube_url"
+    then
+        echo "  WARNING: yt-dlp failed for $youtube_id — skipping."
+        continue
+    fi
 
     # Upload video
     if [[ -f "$video_file" ]]; then
