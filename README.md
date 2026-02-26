@@ -87,6 +87,44 @@ That script ensures the container is running, verifies dependencies, and launche
 * `bin/generate_transcripts.php`, `bin/detect_bills.php`, `bin/detect_speakers.php` — same enqueue/worker pattern for analysis.
 * `bin/resolve_raw_text.php --file-id=N|--limit=N|--dry-run` — resolve OCR text to database references (legislators, bills).
 * `bin/upload_archive.php --limit=N` — upload S3-hosted files + captions to the Internet Archive, updating the `files` table.
+* `bin/generate_upload_manifest.php` — writes a JSON manifest of Senate YouTube videos not yet on S3 to `uploads/manifest.json` in the video bucket. Runs automatically each pipeline pass.
+* `bin/process_uploads.php` — processes videos staged in `uploads/` by the local upload script: extracts metadata, moves each file to its final S3 path, and updates the `files` table. Runs automatically each pipeline pass.
+
+---
+
+## Manual YouTube uploads
+
+When the server's `yt-dlp` cookie authentication fails, Senate YouTube videos can be downloaded locally and uploaded to S3 for the server to process.
+
+**Requirements (local machine):**
+
+```bash
+brew install yt-dlp awscli jq
+```
+
+AWS CLI must be configured with credentials that allow `s3:GetObject` and `s3:PutObject` on `video.richmondsunlight.com/uploads/`.
+
+**Workflow:**
+
+1. The server generates `uploads/manifest.json` automatically on each pipeline run, listing all Senate YouTube videos not yet downloaded.
+
+2. Run the local script to download and upload them:
+
+   ```bash
+   ./scripts/fetch_youtube_uploads.sh
+   ```
+
+   The script downloads each video (plus auto-generated captions) via `yt-dlp` and uploads the results to `s3://video.richmondsunlight.com/uploads/`. It is safe to interrupt and re-run — already-uploaded videos are skipped.
+
+3. On the next pipeline run, `bin/process_uploads.php` detects the staged files, moves each to its final S3 path (e.g. `senate/floor/20260223.mp4`), and updates the `files` table. Screenshots, transcripts, and all other downstream processing then proceed normally.
+
+**Troubleshooting slow downloads:**
+
+YouTube throttles downloads when `yt-dlp`'s `n`-signature extraction fails. Update to the latest release to fix this:
+
+```bash
+yt-dlp -U
+```
 
 All scripts bootstrap via `bin/bootstrap.php`, which wires up the shared `Log`, PDO connection, and `JobDispatcher`. Use the `--enqueue` flag when running on the lightweight instance so work is pushed to SQS; omit it on the worker to poll/process jobs directly.
 
