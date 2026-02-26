@@ -73,7 +73,7 @@ foreach ($mp4s as $object) {
           AND (path IS NULL OR path = '' OR path NOT LIKE 'https://video.richmondsunlight.com/%')
         LIMIT 1
     ");
-    $stmt->execute([':pattern' => '%"youtube_id":"' . $youtubeId . '"%']);
+    $stmt->execute([':pattern' => '%"youtube_id": "' . $youtubeId . '"%']);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$row) {
