@@ -33,8 +33,16 @@ run_pipeline_pass() {
   echo "=== Step 1: Scraping and syncing videos ==="
   php bin/pipeline.php
 
-  # Step 2: Fetch/download videos that need downloading
-  echo "=== Step 2: Fetching videos ==="
+  # Step 2a: Generate manifest of Senate YouTube videos awaiting manual upload
+  echo "=== Step 2a: Generating upload manifest ==="
+  php bin/generate_upload_manifest.php
+
+  # Step 2b: Process any videos already uploaded to the S3 uploads/ staging area
+  echo "=== Step 2b: Processing manual uploads ==="
+  php bin/process_uploads.php
+
+  # Step 2c: Fetch/download videos that need downloading
+  echo "=== Step 2c: Fetching videos ==="
   php bin/fetch_videos.php
 
   # Step 3: Generate screenshots for videos that need them
