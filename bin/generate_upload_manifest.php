@@ -45,8 +45,20 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
         'youtube_url' => $youtubeUrl,
         'title'       => $row['title'],
         'date'        => $row['date'],
+        'event_type'  => $cache['event_type'] ?? 'committee',
     ];
 }
+
+// Sort: floor first, then committee, then subcommittee; within each group by date DESC
+$typePriority = ['floor' => 0, 'committee' => 1, 'subcommittee' => 2];
+usort($videos, function (array $a, array $b) use ($typePriority): int {
+    $pa = $typePriority[$a['event_type']] ?? 3;
+    $pb = $typePriority[$b['event_type']] ?? 3;
+    if ($pa !== $pb) {
+        return $pa - $pb;
+    }
+    return strcmp($b['date'], $a['date']);
+});
 
 if (empty($videos)) {
     $log->put('Upload manifest: no missing Senate YouTube videos.', 3);
