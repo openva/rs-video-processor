@@ -118,6 +118,17 @@ foreach ($mp4s as $object) {
             // No captions uploaded — that's fine
         }
 
+        if ($captionContents !== null) {
+            // Discard if the file doesn't look like a VTT (e.g. binary/corrupted download)
+            if (!str_starts_with(ltrim($captionContents), 'WEBVTT')) {
+                $log->put("Discarding caption for file #{$fileId}: not a valid VTT file.", 4);
+                $captionContents = null;
+            } else {
+                // Strip 4-byte Unicode sequences (emoji etc.) that MySQL utf8mb3 columns reject
+                $captionContents = preg_replace('/[\x{10000}-\x{10FFFF}]/u', '', $captionContents);
+            }
+        }
+
         // Update files record, including committee_id in case it was previously NULL
         $update = $pdo->prepare('
             UPDATE files
