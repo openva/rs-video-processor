@@ -67,7 +67,7 @@ foreach ($mp4s as $object) {
 
     // Find matching file record by YouTube ID in video_index_cache
     $stmt = $pdo->prepare("
-        SELECT id, chamber, committee_id, date
+        SELECT id, chamber, committee_id, date, video_index_cache
         FROM files
         WHERE video_index_cache LIKE :pattern
           AND (path IS NULL OR path = '' OR path NOT LIKE 'https://video.richmondsunlight.com/%')
@@ -81,10 +81,19 @@ foreach ($mp4s as $object) {
         continue;
     }
 
-    $fileId      = (int) $row['id'];
-    $chamber     = $row['chamber'];
-    $committeeId = $row['committee_id'] !== null ? (int) $row['committee_id'] : null;
-    $date        = $row['date'];
+    $fileId  = (int) $row['id'];
+    $chamber = $row['chamber'];
+    $date    = $row['date'];
+
+    // Re-derive committee from video_index_cache so misclassified videos
+    // (committee_id = NULL) get the correct S3 path instead of the floor path.
+    $cache         = json_decode($row['video_index_cache'], true) ?? [];
+    $committeeName = $cache['committee_name'] ?? $cache['committee'] ?? null;
+    $eventType     = $cache['event_type'] ?? 'committee';
+    $committeeEntry = $committeeName
+        ? $directory->matchEntry($committeeName, $chamber, $eventType === 'subcommittee' ? 'subcommittee' : 'committee')
+        : null;
+    $committeeId = $committeeEntry['id'] ?? ($row['committee_id'] !== null ? (int) $row['committee_id'] : null);
 
     $log->put("Processing upload for file #{$fileId} ({$youtubeId})", 3);
 
@@ -109,22 +118,23 @@ foreach ($mp4s as $object) {
             // No captions uploaded — that's fine
         }
 
-        // Update files record
+        // Update files record, including committee_id in case it was previously NULL
         $update = $pdo->prepare('
             UPDATE files
-            SET path = :path, length = :length, width = :width,
+            SET path = :path, committee_id = :committee_id, length = :length, width = :width,
                 height = :height, fps = :fps, webvtt = :webvtt,
                 date_modified = CURRENT_TIMESTAMP
             WHERE id = :id
         ');
         $update->execute([
-            ':path'   => $s3Url,
-            ':length' => $meta['length'] ?? null,
-            ':width'  => $meta['width'] ?? null,
-            ':height' => $meta['height'] ?? null,
-            ':fps'    => $meta['fps'] ?? null,
-            ':webvtt' => $captionContents,
-            ':id'     => $fileId,
+            ':path'         => $s3Url,
+            ':committee_id' => $committeeId,
+            ':length'       => $meta['length'] ?? null,
+            ':width'        => $meta['width'] ?? null,
+            ':height'       => $meta['height'] ?? null,
+            ':fps'          => $meta['fps'] ?? null,
+            ':webvtt'       => $captionContents,
+            ':id'           => $fileId,
         ]);
 
         $log->put("File #{$fileId} → {$finalKey}", 3);
