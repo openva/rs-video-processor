@@ -152,6 +152,82 @@ class VideoImporterTest extends TestCase
         $this->assertSame(1, (int) $rows); // Only one record should exist
     }
 
+    public function testSetsCommitteeIdZeroForUnresolvedCommittees(): void
+    {
+        $directory = new CommitteeDirectory($this->pdo);
+        $importer = new VideoImporter($this->pdo, $directory);
+
+        $importer->import([[
+            'chamber' => 'senate',
+            'meeting_date' => '2025-03-15',
+            'duration_seconds' => 3600,
+            'committee_name' => 'Subcommittee Room 300',   // no DB match
+            'event_type' => 'committee',
+            'video_url' => 'https://www.youtube.com/watch?v=aaa111',
+        ]]);
+
+        $row = $this->pdo->query('SELECT committee_id FROM files')->fetch(PDO::FETCH_ASSOC);
+        $this->assertSame(0, (int) $row['committee_id']);
+    }
+
+    public function testDistinctUnresolvedCommitteesOnSameDayBothInsert(): void
+    {
+        $directory = new CommitteeDirectory($this->pdo);
+        $importer = new VideoImporter($this->pdo, $directory);
+
+        $count1 = $importer->import([[
+            'chamber' => 'senate',
+            'meeting_date' => '2025-03-15',
+            'duration_seconds' => 3600,
+            'committee_name' => 'Subcommittee Room 300',
+            'event_type' => 'committee',
+            'video_url' => 'https://www.youtube.com/watch?v=aaa111',
+        ]]);
+
+        $count2 = $importer->import([[
+            'chamber' => 'senate',
+            'meeting_date' => '2025-03-15',
+            'duration_seconds' => 5400,
+            'committee_name' => 'Conference Room B',
+            'event_type' => 'committee',
+            'video_url' => 'https://www.youtube.com/watch?v=bbb222',  // different URL
+        ]]);
+
+        $this->assertSame(1, $count1);
+        $this->assertSame(1, $count2);
+        $this->assertSame(2, (int) $this->pdo->query('SELECT COUNT(*) FROM files')->fetchColumn());
+    }
+
+    public function testSameUnresolvedCommitteeImportedTwiceIsDeduped(): void
+    {
+        $directory = new CommitteeDirectory($this->pdo);
+        $importer = new VideoImporter($this->pdo, $directory);
+
+        $url = 'https://www.youtube.com/watch?v=aaa111';
+
+        $count1 = $importer->import([[
+            'chamber' => 'senate',
+            'meeting_date' => '2025-03-15',
+            'duration_seconds' => 3600,
+            'committee_name' => 'Subcommittee Room 300',
+            'event_type' => 'committee',
+            'video_url' => $url,
+        ]]);
+
+        $count2 = $importer->import([[
+            'chamber' => 'senate',
+            'meeting_date' => '2025-03-15',
+            'duration_seconds' => 3600,
+            'committee_name' => 'Subcommittee Room 300',
+            'event_type' => 'committee',
+            'video_url' => $url,  // same URL = same video
+        ]]);
+
+        $this->assertSame(1, $count1);
+        $this->assertSame(0, $count2);
+        $this->assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM files')->fetchColumn());
+    }
+
     public function testStoresRawMetadataWithoutAgendaAndSpeakers(): void
     {
         $directory = new CommitteeDirectory($this->pdo);

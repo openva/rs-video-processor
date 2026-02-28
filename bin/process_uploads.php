@@ -93,7 +93,7 @@ foreach ($mp4s as $object) {
     $committeeEntry = $committeeName
         ? $directory->matchEntry($committeeName, $chamber, $eventType === 'subcommittee' ? 'subcommittee' : 'committee')
         : null;
-    $committeeId = $committeeEntry['id'] ?? ($row['committee_id'] !== null ? (int) $row['committee_id'] : null);
+    $committeeId = $committeeEntry['id'] ?? ($eventType !== 'floor' ? 0 : null);
 
     $log->put("Processing upload for file #{$fileId} ({$youtubeId})", 3);
 

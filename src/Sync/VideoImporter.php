@@ -50,12 +50,18 @@ class VideoImporter
             }
 
             // Check if this video already exists
-            // Handle NULL committee_id separately to avoid SQL issues
             if ($payload['committee_id'] === null) {
+                // Floor session: dedup by chamber + date + title
                 $checkSql = 'SELECT id FROM files WHERE chamber = ? AND date = ? AND title = ? AND (committee_id IS NULL OR committee_id = \'\') LIMIT 1';
                 $checkStmt = $this->pdo->prepare($checkSql);
                 $checkStmt->execute([$payload['chamber'], $payload['date'], $payload['title']]);
+            } elseif ($payload['committee_id'] === 0) {
+                // Unresolved committee: dedup by path (URL is unique per video)
+                $checkSql = 'SELECT id FROM files WHERE path = ? LIMIT 1';
+                $checkStmt = $this->pdo->prepare($checkSql);
+                $checkStmt->execute([$payload['path']]);
             } else {
+                // Known committee: dedup by chamber + date + committee_id
                 $checkSql = 'SELECT id FROM files WHERE chamber = ? AND date = ? AND committee_id = ? LIMIT 1';
                 $checkStmt = $this->pdo->prepare($checkSql);
                 $checkStmt->execute([$payload['chamber'], $payload['date'], $payload['committee_id']]);
@@ -134,7 +140,7 @@ class VideoImporter
         $eventType = strtolower($record['event_type'] ?? 'floor');
         $committeeName = $record['committee_name'] ?? null;
         $committeeEntry = $committeeName ? $this->committees->matchEntry($committeeName, $chamber, $eventType === 'subcommittee' ? 'subcommittee' : 'committee') : null;
-        $committeeId = $committeeEntry['id'] ?? null;
+        $committeeId = $committeeEntry['id'] ?? ($eventType !== 'floor' ? 0 : null);
 
         // Build descriptive title
         $chamberName = ucfirst($chamber);
