@@ -336,6 +336,12 @@ class SenateYouTubeScraperTest extends TestCase
                 'committee', 'Senate Joint Subcommittee on Costal Flooding', null,
             ],
 
+            // --- Noise-prefixed titles (leading junk before "Senate of Virginia:") ---
+            'noise-prefix: TEST: before Senate of Virginia' => [
+                'TEST: Senate of Virginia: Subcommittee Room 300 on 2026-02-27 [Finished]',
+                'committee', 'Subcommittee Room 300', null,
+            ],
+
             // --- Dash-separated format (existing style) ---
             'dash: Finance Committee' => [
                 'Finance Committee - January 15, 2026 - Budget Hearing',

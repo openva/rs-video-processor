@@ -185,6 +185,11 @@ class SenateYouTubeScraper implements VideoSourceScraperInterface
             $eventType = 'floor';
         }
 
+        // Safety net: a title containing "Committee" is never a floor session
+        if ($eventType === 'floor' && stripos($title, 'Committee') !== false) {
+            $eventType = 'committee';
+        }
+
         return [
             'event_type' => $eventType,
             'committee' => $committeeData['committee'],
@@ -204,8 +209,9 @@ class SenateYouTubeScraper implements VideoSourceScraperInterface
     {
         $normalized = preg_replace('/\s+/', ' ', trim($title));
 
-        // Handle "Senate of Virginia: ..." prefix format
-        if (preg_match('/^(?:Senate\s+of\s+Virginia)\s*:\s*(.+)$/i', $normalized, $prefixMatch)) {
+        // Handle "Senate of Virginia: ..." prefix format.
+        // The anchor is intentionally omitted to tolerate leading noise like "TEST: ".
+        if (preg_match('/Senate\s+of\s+Virginia\s*:\s*(.+)$/i', $normalized, $prefixMatch)) {
             return $this->parseColonPrefixTitle($prefixMatch[1]);
         }
 
