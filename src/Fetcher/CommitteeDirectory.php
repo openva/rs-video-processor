@@ -346,6 +346,15 @@ class CommitteeDirectory
                 'chamber' => 'senate',
                 'type' => 'subcommittee',
             ],
+            // "Capital Outlay & Transportation" is how the Virginia Senate YouTube channel
+            // labels the Finance and Appropriations Capital Outlay subcommittee.
+            // Without this alias, "Transportation" (id=90) wins due to the index bonus
+            // in scoreLabelParts() when scoring part[1] "Transportation Subcommittee".
+            'capital outlay and transportation' => [
+                'name' => 'Capital Outlay',
+                'chamber' => 'senate',
+                'type' => 'subcommittee',
+            ],
         ];
 
         $alias = null;
@@ -360,8 +369,8 @@ class CommitteeDirectory
         if ($alias === null) {
             $normalizedLookup = trim(preg_replace('/\\bsubcommittee\\b/', '', $normalizedLookup));
             foreach ($aliases as $key => $value) {
-                $keyNormalized = $this->normalizeName($key);
-                if ($normalizedLookup !== '' && str_contains($keyNormalized, $normalizedLookup)) {
+                $keyNormalized = trim(preg_replace('/\\bsubcommittee\\b/', '', $this->normalizeName($key)));
+                if ($normalizedLookup !== '' && $normalizedLookup === $keyNormalized) {
                     $alias = $value;
                     break;
                 }

@@ -1018,6 +1018,64 @@ class CommitteeDirectoryTest extends TestCase
                 'type' => 'committee',
                 'expected' => 11,
                 ],
+
+                // --- Senate YouTube committee names (colon-prefix format, after title parsing) ---
+                [
+                'input' => 'Agriculture, Conservation and Natural Resources',
+                'chamber' => 'senate',
+                'type' => 'committee',
+                'expected' => 15,
+                ],
+                [
+                'input' => 'Rules',
+                'chamber' => 'senate',
+                'type' => 'committee',
+                'expected' => 24,
+                ],
+                // "Education & Health" uses & which normalizeName converts to "and"
+                [
+                'input' => 'Education & Health',
+                'chamber' => 'senate',
+                'type' => 'committee',
+                'expected' => 18,
+                ],
+                [
+                'input' => 'Education & Health: Higher Education',
+                'chamber' => 'senate',
+                'type' => 'subcommittee',
+                'expected' => 81,
+                ],
+                [
+                'input' => 'Education & Health: Health Professions',
+                'chamber' => 'senate',
+                'type' => 'subcommittee',
+                'expected' => 80,
+                ],
+                [
+                'input' => 'Education & Health: Public Education',
+                'chamber' => 'senate',
+                'type' => 'subcommittee',
+                'expected' => 82,
+                ],
+                [
+                'input' => 'SFAC: Capital Outlay & Transportation Subcommittee',
+                'chamber' => 'senate',
+                'type' => 'subcommittee',
+                'expected' => 83,
+                ],
+                [
+                'input' => 'SFAC: Economic Development & Natural Resources',
+                'chamber' => 'senate',
+                'type' => 'subcommittee',
+                'expected' => 85,
+                ],
+                // Administrative Law Advisory Committee is not a standing Senate committee
+                [
+                'input' => 'Administrative Law Advisory Committee',
+                'chamber' => 'senate',
+                'type' => 'committee',
+                'expected' => null,
+                ],
                 ];
 
                 $failures = [];
