@@ -155,6 +155,14 @@ foreach ($mp4s as $object) {
         if ($captionContents !== null) {
             $s3Client->deleteObject(['Bucket' => $bucket, 'Key' => $captionKey]);
         }
+    } catch (S3Exception $e) {
+        if ($e->getAwsErrorCode() === 'NoSuchKey') {
+            // The upload was deleted between listing and download — a concurrent pipeline
+            // run already processed and removed it. This is not an error.
+            $log->put("Upload already processed by concurrent run for file #{$fileId} ({$youtubeId}) — skipping.", 3);
+        } else {
+            $log->put("Failed to process upload for file #{$fileId}: " . $e->getMessage(), 5);
+        }
     } catch (\Throwable $e) {
         $log->put("Failed to process upload for file #{$fileId}: " . $e->getMessage(), 5);
     } finally {
