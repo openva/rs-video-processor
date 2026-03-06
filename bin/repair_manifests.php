@@ -50,6 +50,7 @@ $sql = "SELECT id, chamber, date, capture_directory
         FROM files
         WHERE capture_directory IS NOT NULL
           AND capture_directory != ''
+          AND capture_directory != '/pending'
         ORDER BY id DESC";
 
 if ($limit > 0) {
