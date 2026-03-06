@@ -41,10 +41,6 @@ run_pipeline_pass() {
   echo "=== Step 2b: Processing manual uploads ==="
   php bin/process_uploads.php
 
-  # Step 2c: Fetch/download videos that need downloading
-  echo "=== Step 2c: Fetching videos ==="
-  php bin/fetch_videos.php
-
   # Step 3: Generate screenshots for videos that need them
   echo "=== Step 3: Generating screenshots ==="
   php bin/generate_screenshots.php --enqueue
@@ -80,6 +76,10 @@ run_pipeline_pass() {
   # Step 10: Archive to Internet Archive
   echo "=== Step 10: Archiving videos ==="
   php bin/upload_archive.php
+
+  # Note: YouTube video downloads (bin/fetch_videos.php) are NOT run here.
+  # YouTube cookies expire too quickly for server-side yt-dlp to be reliable.
+  # Use scripts/fetch_youtube_uploads.sh locally instead.
 
   echo "Pipeline pass #${pass_num} complete at $(date)"
 }

@@ -23,14 +23,10 @@ BUCKET="s3://video.richmondsunlight.com"
 MANIFEST_KEY="uploads/manifest.json"
 TMPDIR_BASE="${TMPDIR:-/tmp}"
 MANIFEST_FILE="$TMPDIR_BASE/rs_upload_manifest.json"
-COOKIE_FILE="$TMPDIR_BASE/rs_yt_cookies.txt"
 
-# Export YouTube cookies from Chrome once (single keychain prompt).
-echo "Exporting YouTube cookies from Chrome..."
-yt-dlp --cookies-from-browser chrome --cookies "$COOKIE_FILE" \
-    --skip-download "https://www.youtube.com/watch?v=dQw4w9WgXcQ" \
-    --quiet 2>/dev/null || true
-trap 'rm -f "$COOKIE_FILE"' EXIT
+# Note: cookies are read directly from Firefox for each download via
+# --cookies-from-browser firefox. Firefox cookie storage does not require
+# keychain access, so no prompts are expected.
 
 # Download manifest from S3
 echo "Fetching manifest from S3..."
@@ -70,7 +66,7 @@ jq -c '.videos[]' "$MANIFEST_FILE" | while IFS= read -r entry; do
         --merge-output-format mp4 \
         --write-auto-sub --sub-lang en --convert-subs vtt \
         --no-abort-on-error \
-        --cookies "$COOKIE_FILE" \
+        --cookies-from-browser firefox \
         -o "$TMPDIR_BASE/${youtube_id}.%(ext)s" \
         "$youtube_url"
     then
