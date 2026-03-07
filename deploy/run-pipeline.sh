@@ -41,6 +41,10 @@ run_pipeline_pass() {
   echo "=== Step 2b: Processing manual uploads ==="
   php bin/process_uploads.php
 
+  # Regenerate manifest so it reflects videos processed in step 2b
+  echo "=== Step 2b (post): Regenerating upload manifest ==="
+  php bin/generate_upload_manifest.php
+
   # Step 3: Generate screenshots for videos that need them
   echo "=== Step 3: Generating screenshots ==="
   php bin/generate_screenshots.php --enqueue
