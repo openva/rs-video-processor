@@ -12,15 +12,18 @@ class RawTextResolver
 {
     private LegislatorResolver $legislatorResolver;
     private BillResolver $billResolver;
+    private HistoricalRawTextLookup $historicalLookup;
 
     public function __construct(
         private PDO $pdo,
         ?LegislatorResolver $legislatorResolver = null,
         ?BillResolver $billResolver = null,
-        private ?Log $logger = null
+        private ?Log $logger = null,
+        ?HistoricalRawTextLookup $historicalLookup = null
     ) {
         $this->legislatorResolver = $legislatorResolver ?? new LegislatorResolver($pdo);
         $this->billResolver = $billResolver ?? new BillResolver($pdo);
+        $this->historicalLookup = $historicalLookup ?? new HistoricalRawTextLookup($pdo);
     }
 
     /**
@@ -81,6 +84,15 @@ class RawTextResolver
                 $result = $this->legislatorResolver->resolve($entry['raw_text'], $context);
             } elseif ($entryType === 'bill') {
                 $result = $this->billResolver->resolve($entry['raw_text'], $context);
+            }
+
+            // Fallback: look up historical matches from previously resolved entries
+            if ($result === null) {
+                $result = $this->historicalLookup->lookup(
+                    $entry['raw_text'],
+                    $entryType,
+                    $fileMetadata['session_id']
+                );
             }
 
             if ($result) {
