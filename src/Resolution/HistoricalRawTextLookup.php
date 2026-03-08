@@ -18,7 +18,9 @@ class HistoricalRawTextLookup
     private const MIN_MAJORITY_FRACTION = 0.80;
     private const CONFIDENCE = 65.0;
 
-    public function __construct(private PDO $pdo) {}
+    public function __construct(private PDO $pdo)
+    {
+    }
 
     /**
      * @return array{id: int, name?: string, number?: string, confidence: float}|null
