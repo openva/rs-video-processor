@@ -20,6 +20,11 @@ class BillDetectionProcessor
 
     public function process(BillDetectionJob $job): void
     {
+        // Always clear existing entries first so that placeholder rows (ignored='y')
+        // inserted by the job queue are removed even if processing fails early.
+        // Without this, a stranded placeholder permanently blocks re-queuing.
+        $this->writer->clearExisting($job->fileId);
+
         if (!$job->manifestUrl) {
             $this->logger?->put('No manifest available for file #' . $job->fileId, 4);
             return;
@@ -39,8 +44,6 @@ class BillDetectionProcessor
         }
 
         $agenda = $this->agendaExtractor->extract($job->metadata);
-
-        $this->writer->clearExisting($job->fileId);
 
         foreach ($manifest as $entry) {
             $imagePath = $this->screenshotFetcher->fetch($entry['full']);

@@ -53,6 +53,7 @@ class SpeakerDetectionProcessor
 
         if (empty($segments)) {
             $this->logger?->put('Unable to determine speakers for file #' . $job->fileId, 4);
+            $this->writer->clearExisting($job->fileId);
             return;
         }
 
