@@ -20,6 +20,7 @@ class SpeakerJobQueue
             WHERE (f.path LIKE 'https://video.richmondsunlight.com/%'
               OR f.path LIKE 'https://archive.org/%')
               AND f.date >= '2020-01-01'
+              AND (f.capture_directory IS NULL OR f.capture_directory != '/pending')
               AND NOT EXISTS (
                 SELECT 1 FROM video_index vi
                 WHERE vi.file_id = f.id AND vi.type = 'legislator'

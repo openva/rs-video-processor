@@ -21,6 +21,7 @@ class ClassificationVerificationJobQueue
             WHERE f.chamber = 'house'
               AND f.capture_directory IS NOT NULL AND f.capture_directory != ''
               AND (f.capture_directory LIKE '/%' OR f.capture_directory LIKE 'https://%')
+              AND f.capture_directory != '/pending'
               AND f.date >= '2020-01-01'
               AND f.video_index_cache IS NOT NULL
               AND f.video_index_cache NOT LIKE '%\"classification_verified\"%'
