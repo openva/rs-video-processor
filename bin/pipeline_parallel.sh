@@ -23,12 +23,19 @@ echo "========================================"
 echo ""
 
 # Step 1: Scrape and import metadata
-echo "[1/6] Scraping and importing metadata..."
+echo "[1/9] Scraping and importing metadata..."
 php "$SCRIPT_DIR/pipeline.php"
 echo ""
 
-# Step 2: Download videos to S3 (parallel)
-echo "[2/6] Downloading videos to S3 ($FETCH_WORKERS workers)..."
+# Step 2: Generate upload manifest and process staged uploads
+echo "[2/9] Processing upload manifest and staged uploads..."
+php "$SCRIPT_DIR/generate_upload_manifest.php"
+php "$SCRIPT_DIR/process_uploads.php"
+php "$SCRIPT_DIR/generate_upload_manifest.php"
+echo ""
+
+# Step 3: Download videos to S3 (parallel)
+echo "[3/9] Downloading videos to S3 ($FETCH_WORKERS workers)..."
 pids=()
 for i in $(seq 1 "$FETCH_WORKERS"); do
     php "$SCRIPT_DIR/fetch_videos.php" --limit="$JOBS_PER_WORKER" &
@@ -38,8 +45,14 @@ for pid in "${pids[@]}"; do wait "$pid"; done
 echo "✓ Video downloads complete"
 echo ""
 
-# Step 3: Generate screenshots (parallel)
-echo "[3/6] Generating screenshots ($SCREENSHOT_WORKERS workers)..."
+# Step 4: Repair committee classifications and manifests
+echo "[4/9] Repairing committee classifications and manifests..."
+php "$SCRIPT_DIR/repair_committee_classification.php" --limit=50
+php "$SCRIPT_DIR/repair_manifests.php" --limit=50
+echo ""
+
+# Step 5: Generate screenshots (parallel)
+echo "[5/9] Generating screenshots ($SCREENSHOT_WORKERS workers)..."
 pids=()
 for i in $(seq 1 "$SCREENSHOT_WORKERS"); do
     php "$SCRIPT_DIR/generate_screenshots.php" --limit="$JOBS_PER_WORKER" &
@@ -49,9 +62,9 @@ for pid in "${pids[@]}"; do wait "$pid"; done
 echo "✓ Screenshot generation complete"
 echo ""
 
-# Step 4: Process transcripts, bills, and speakers in parallel
+# Step 6: Process transcripts, bills, and speakers in parallel
 # These can all run simultaneously since they depend on different inputs
-echo "[4/6] Processing transcripts, bills, and speakers in parallel..."
+echo "[6/9] Processing transcripts, bills, and speakers in parallel..."
 pids=()
 
 # Transcripts (depends on videos)
@@ -76,8 +89,13 @@ for pid in "${pids[@]}"; do wait "$pid"; done
 echo "✓ Transcripts, bills, and speakers complete"
 echo ""
 
-# Step 5: Upload to Internet Archive (parallel)
-echo "[5/6] Uploading to Internet Archive ($ARCHIVE_WORKERS workers)..."
+# Step 7: Resolve raw text to database references
+echo "[7/9] Resolving raw text..."
+php "$SCRIPT_DIR/resolve_raw_text.php"
+echo ""
+
+# Step 8: Upload to Internet Archive (parallel)
+echo "[8/9] Uploading to Internet Archive ($ARCHIVE_WORKERS workers)..."
 pids=()
 for i in $(seq 1 "$ARCHIVE_WORKERS"); do
     php "$SCRIPT_DIR/upload_archive.php" --limit="$JOBS_PER_WORKER" &
@@ -87,8 +105,8 @@ for pid in "${pids[@]}"; do wait "$pid"; done
 echo "✓ Archive uploads complete"
 echo ""
 
-# Step 6: Repair Archive URLs (convert details URLs to direct MP4 URLs)
-echo "[6/6] Repairing Archive URLs..."
+# Step 9: Repair Archive URLs (convert details URLs to direct MP4 URLs)
+echo "[9/9] Repairing Archive URLs..."
 php "$SCRIPT_DIR/repair_archive_urls.php"
 echo "✓ Archive URL repair complete"
 echo ""
