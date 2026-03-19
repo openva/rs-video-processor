@@ -3,11 +3,11 @@ set -euo pipefail
 
 # Run the full video processing pipeline.
 # This script is called after boot/update to process any pending videos.
-# Runs in a loop for up to 50 minutes, then exits to allow auto-shutdown.
+# Default mode: Runs in a loop for up to 110 minutes, then exits to allow auto-shutdown.
 
 APP_DIR="${APP_DIR:-/home/ubuntu/video-processor}"
 GUARD_FILE="${GUARD_FILE:-/home/ubuntu/video-processor.txt}"
-MAX_RUNTIME_SECONDS="${MAX_RUNTIME_SECONDS:-3000}"  # 50 minutes default
+MAX_RUNTIME_SECONDS="${MAX_RUNTIME_SECONDS:-6600}"  # 1 hour 50 minutes default
 
 if [[ ! -f "$GUARD_FILE" ]]; then
   echo "Guard file not found (${GUARD_FILE}); skipping pipeline."
