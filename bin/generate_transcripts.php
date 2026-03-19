@@ -132,7 +132,7 @@ function validateTranscriptContract(PDO $pdo, int $fileId, Log $log): void
     foreach ($problems as $issue) {
         $log->put(
             sprintf('Contract %s for file #%d: %s', strtoupper($issue['level']), $fileId, $issue['message']),
-            $issue['level'] === 'error' ? 5 : 4
+            $issue['level'] === 'error' ? 5 : 2
         );
     }
 }

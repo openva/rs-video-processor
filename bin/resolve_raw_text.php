@@ -273,7 +273,7 @@ function runContractValidation(PDO $pdo, array $fileIds, ?Log $logger, bool $jso
             foreach ($issues as $issue) {
                 $logger?->put(
                     sprintf('Contract %s for file #%d: %s', strtoupper($issue['level']), $fileId, $issue['message']),
-                    $issue['level'] === 'error' ? 5 : 4
+                    $issue['level'] === 'error' ? 5 : 2
                 );
                 echo sprintf("    [%s] %s: %s\n", strtoupper($issue['level']), $issue['code'], $issue['message']);
             }
