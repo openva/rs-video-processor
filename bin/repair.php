@@ -370,11 +370,9 @@ function removeDuplicates(
         GROUP BY chamber, date, committee_id
         HAVING COUNT(*) > 1
         ORDER BY count DESC, date DESC
-        LIMIT :limit
     ";
 
     $stmt = $pdo->prepare($duplicateSql);
-    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
     $stmt->execute();
     $duplicateGroups = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
