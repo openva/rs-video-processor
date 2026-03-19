@@ -28,23 +28,18 @@ class AppBootstrap
     }
 
     /**
-     * Create a non-persistent PDO connection.
+     * Create a fresh non-persistent PDO connection and set it as the global.
      *
-     * Uses the same DSN/credentials as Database class but with PERSISTENT = false
-     * to avoid connection timeout issues during long video processing operations.
+     * Long-running scripts (e.g. generate_screenshots.php) should call this
+     * between jobs to replace a connection that may have timed out.
      *
      * @return \PDO|false
      */
-    private static function createNonPersistentConnection()
+    public static function createFreshConnection()
     {
-        // Check if connection already exists in global scope
-        if (isset($GLOBALS['db_pdo']) && $GLOBALS['db_pdo'] instanceof \PDO) {
-            return $GLOBALS['db_pdo'];
-        }
-
         try {
             $options = [
-                \PDO::ATTR_PERSISTENT => false,  // Non-persistent for video processor
+                \PDO::ATTR_PERSISTENT => false,
                 \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
                 \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
                 \PDO::ATTR_EMULATE_PREPARES => false,
@@ -59,5 +54,17 @@ class AppBootstrap
             error_log('Video processor database connection failed: ' . $e->getMessage());
             return false;
         }
+    }
+
+    /**
+     * @return \PDO|false
+     */
+    private static function createNonPersistentConnection()
+    {
+        if (isset($GLOBALS['db_pdo']) && $GLOBALS['db_pdo'] instanceof \PDO) {
+            return $GLOBALS['db_pdo'];
+        }
+
+        return self::createFreshConnection();
     }
 }

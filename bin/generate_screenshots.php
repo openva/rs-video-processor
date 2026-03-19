@@ -4,6 +4,7 @@
 declare(strict_types=1);
 
 use Aws\S3\S3Client;
+use RichmondSunlight\VideoProcessor\Bootstrap\AppBootstrap;
 use RichmondSunlight\VideoProcessor\Fetcher\CommitteeDirectory;
 use RichmondSunlight\VideoProcessor\Fetcher\S3KeyBuilder;
 use RichmondSunlight\VideoProcessor\Fetcher\S3Storage;
@@ -38,13 +39,13 @@ $s3Client = new S3Client([
 
 $bucket = 'video.richmondsunlight.com';
 $storage = new S3Storage($s3Client, $bucket);
-$committeeDirectory = new CommitteeDirectory($pdo);
 $keyBuilder = new S3KeyBuilder();
-$generator = new ScreenshotGenerator($pdo, $storage, $committeeDirectory, $keyBuilder, $log);
-$queue = new ScreenshotJobQueue($pdo);
 $mapper = new ScreenshotJobPayloadMapper();
 
 if ($mode === 'enqueue') {
+    $committeeDirectory = new CommitteeDirectory($pdo);
+    $generator = new ScreenshotGenerator($pdo, $storage, $committeeDirectory, $keyBuilder, $log);
+    $queue = new ScreenshotJobQueue($pdo);
     $jobs = $queue->fetch($limit);
     if (empty($jobs)) {
         $log->put('No videos pending screenshot generation.', 3);
@@ -70,6 +71,13 @@ if ($mode === 'enqueue') {
 $processed = 0;
 $batchSize = min(10, $limit);
 while ($processed < $limit) {
+    // Get a fresh DB connection before each batch — screenshot jobs take minutes
+    // (download from S3 + ffmpeg + upload frames) and the connection times out.
+    $pdo = AppBootstrap::createFreshConnection();
+    $committeeDirectory = new CommitteeDirectory($pdo);
+    $generator = new ScreenshotGenerator($pdo, $storage, $committeeDirectory, $keyBuilder, $log);
+    $queue = new ScreenshotJobQueue($pdo);
+
     $jobs = $queue->fetch($batchSize);
     if (empty($jobs)) {
         $log->put("No more jobs after processing {$processed}.", 3);

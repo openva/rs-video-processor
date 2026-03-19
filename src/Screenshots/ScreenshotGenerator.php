@@ -126,16 +126,8 @@ class ScreenshotGenerator
         $manifest = [];
         $batchSize = 10; // Upload 10 frames at a time in parallel
 
-        $lastPing = time();
-
         for ($i = 0; $i < count($frameFiles); $i += $batchSize) {
             $batch = array_slice($frameFiles, $i, $batchSize);
-
-            // Ping database every 60 seconds during upload to keep connection alive
-            if (time() - $lastPing > 60) {
-                $this->pingDatabase();
-                $lastPing = time();
-            }
 
             // Upload frames in this batch (TODO: make truly parallel with async S3 uploads)
             foreach ($batch as $index => $fullImage) {
@@ -174,20 +166,6 @@ class ScreenshotGenerator
             return $videoKey;
         }
         return $this->keyBuilder->build($job->chamber, $job->date, $shortname);
-    }
-
-    /**
-     * Ping database connection to keep it alive during long operations.
-     */
-    private function pingDatabase(): void
-    {
-        try {
-            $this->pdo->query('SELECT 1');
-        } catch (\PDOException $e) {
-            // Connection lost, but we can't reconnect here
-            // Just log it - the retry in updateDatabase will handle it
-            $this->logger?->put('Database ping failed: ' . $e->getMessage(), 4);
-        }
     }
 
     private function updateDatabase(ScreenshotJob $job, string $prefix): void
