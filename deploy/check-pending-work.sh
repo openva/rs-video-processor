@@ -23,11 +23,14 @@ php -r '
   // Check for videos needing any processing stage.
   // These queries mirror the WHERE clauses in each stage's job queue class.
   $checks = [
-    // VideoDownloadQueue: has metadata but no S3/archive path
+    // VideoDownloadQueue: has metadata but no S3/archive path (excludes YouTube —
+    // those are downloaded locally via scripts/fetch_youtube_uploads.sh)
     "SELECT COUNT(*) FROM files
      WHERE (path IS NULL OR path = '' OR (path NOT LIKE 'https://video.richmondsunlight.com/%' AND path NOT LIKE 'https://archive.org/%'))
        AND (html IS NULL OR html = '')
-       AND video_index_cache IS NOT NULL AND video_index_cache LIKE '{%'" => "download",
+       AND video_index_cache IS NOT NULL AND video_index_cache LIKE '{%'
+       AND video_index_cache NOT LIKE '%youtube.com%'
+       AND video_index_cache NOT LIKE '%youtu.be%'" => "download",
 
     // ScreenshotJobQueue: downloaded but no screenshots
     "SELECT COUNT(*) FROM files

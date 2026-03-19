@@ -52,6 +52,12 @@ class VideoDownloadQueue
             if (!$remote) {
                 continue;
             }
+            // Skip YouTube URLs — yt-dlp cookie auth doesn't work reliably on
+            // the server. YouTube videos are downloaded locally via
+            // scripts/fetch_youtube_uploads.sh and staged in S3 uploads/.
+            if (preg_match('#https?://(www\.)?(youtube\.com|youtu\.be)/#', $remote)) {
+                continue;
+            }
             $jobs[] = new VideoDownloadJob(
                 (int) $row['id'],
                 (string) $row['chamber'],

@@ -34,7 +34,9 @@ php "$SCRIPT_DIR/process_uploads.php"
 php "$SCRIPT_DIR/generate_upload_manifest.php"
 echo ""
 
-# Step 3: Download videos to S3 (parallel)
+# Step 3: Download non-YouTube videos to S3 (parallel)
+# YouTube videos are skipped by VideoDownloadQueue — they're downloaded locally
+# via scripts/fetch_youtube_uploads.sh and staged in S3 uploads/ instead.
 echo "[3/9] Downloading videos to S3 ($FETCH_WORKERS workers)..."
 pids=()
 for i in $(seq 1 "$FETCH_WORKERS"); do
