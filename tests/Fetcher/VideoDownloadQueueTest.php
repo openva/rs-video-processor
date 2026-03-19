@@ -8,10 +8,12 @@ use RichmondSunlight\VideoProcessor\Fetcher\VideoDownloadQueue;
 
 class VideoDownloadQueueTest extends TestCase
 {
-    public function testFetchReturnsJobsWithMetadata(): void
+    private PDO $pdo;
+
+    protected function setUp(): void
     {
-        $pdo = new PDO('sqlite::memory:');
-        $pdo->exec('CREATE TABLE files (
+        $this->pdo = new PDO('sqlite::memory:');
+        $this->pdo->exec('CREATE TABLE files (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             chamber TEXT,
             committee_id INTEGER,
@@ -22,8 +24,33 @@ class VideoDownloadQueueTest extends TestCase
             video_index_cache TEXT,
             date_created TEXT
         )');
+    }
 
-        $stmt = $pdo->prepare('INSERT INTO files (chamber, committee_id, title, date, path, video_index_cache, date_created) VALUES (:chamber, :committee_id, :title, :date, :path, :cache, :created)');
+    public function testFetchReturnsJobsWithMetadata(): void
+    {
+        $stmt = $this->pdo->prepare('INSERT INTO files (chamber, committee_id, title, date, path, video_index_cache, date_created) VALUES (:chamber, :committee_id, :title, :date, :path, :cache, :created)');
+        $stmt->execute([
+            ':chamber' => 'senate',
+            ':committee_id' => null,
+            ':title' => 'Floor Session',
+            ':date' => '2025-11-19',
+            ':path' => '',
+            ':cache' => json_encode(['video_url' => 'https://granicus.com/player/clip/12345']),
+            ':created' => '2025-11-19 12:00:00',
+        ]);
+
+        $queue = new VideoDownloadQueue($this->pdo);
+        $jobs = $queue->fetch();
+
+        $this->assertCount(1, $jobs);
+        $job = $jobs[0];
+        $this->assertSame('senate', strtolower($job->chamber));
+        $this->assertSame('https://granicus.com/player/clip/12345', $job->remoteUrl);
+    }
+
+    public function testFetchSkipsYouTubeUrls(): void
+    {
+        $stmt = $this->pdo->prepare('INSERT INTO files (chamber, committee_id, title, date, path, video_index_cache, date_created) VALUES (:chamber, :committee_id, :title, :date, :path, :cache, :created)');
         $stmt->execute([
             ':chamber' => 'senate',
             ':committee_id' => null,
@@ -34,12 +61,9 @@ class VideoDownloadQueueTest extends TestCase
             ':created' => '2025-11-19 12:00:00',
         ]);
 
-        $queue = new VideoDownloadQueue($pdo);
+        $queue = new VideoDownloadQueue($this->pdo);
         $jobs = $queue->fetch();
 
-        $this->assertCount(1, $jobs);
-        $job = $jobs[0];
-        $this->assertSame('senate', strtolower($job->chamber));
-        $this->assertSame('https://www.youtube.com/watch?v=dQw4w9WgXcQ', $job->remoteUrl);
+        $this->assertCount(0, $jobs);
     }
 }
