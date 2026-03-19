@@ -20,14 +20,48 @@ php -r '
   $db = new Database();
   $pdo = $db->connect();
 
-  // Check for videos needing any processing stage
+  // Check for videos needing any processing stage.
+  // These queries mirror the WHERE clauses in each stage's job queue class.
   $checks = [
-    "SELECT COUNT(*) FROM files WHERE video_url IS NOT NULL AND s3_url IS NULL" => "download",
-    "SELECT COUNT(*) FROM files WHERE s3_url IS NOT NULL AND screenshot_url IS NULL" => "screenshots",
-    "SELECT COUNT(*) FROM files WHERE screenshot_url IS NOT NULL AND transcript IS NULL" => "transcripts",
-    "SELECT COUNT(*) FROM files WHERE screenshot_url IS NOT NULL AND bills_detected IS NULL" => "bill detection",
-    "SELECT COUNT(*) FROM files WHERE screenshot_url IS NOT NULL AND speakers_detected IS NULL" => "speaker detection",
-    "SELECT COUNT(*) FROM files WHERE s3_url IS NOT NULL AND archive_url IS NULL" => "archiving",
+    // VideoDownloadQueue: has metadata but no S3/archive path
+    "SELECT COUNT(*) FROM files
+     WHERE (path IS NULL OR path = '' OR (path NOT LIKE 'https://video.richmondsunlight.com/%' AND path NOT LIKE 'https://archive.org/%'))
+       AND (html IS NULL OR html = '')
+       AND video_index_cache IS NOT NULL AND video_index_cache LIKE '{%'" => "download",
+
+    // ScreenshotJobQueue: downloaded but no screenshots
+    "SELECT COUNT(*) FROM files
+     WHERE path LIKE 'https://video.richmondsunlight.com/%'
+       AND (capture_directory IS NULL OR capture_directory = ''
+            OR (capture_directory NOT LIKE '/%' AND capture_directory NOT LIKE 'https://%')
+            OR capture_rate IS NULL)" => "screenshots",
+
+    // TranscriptJobQueue: downloaded but no transcript rows
+    "SELECT COUNT(*) FROM files f
+     WHERE f.path LIKE 'https://video.richmondsunlight.com/%'
+       AND NOT EXISTS (SELECT 1 FROM video_transcript vt WHERE vt.file_id = f.id)" => "transcripts",
+
+    // BillDetectionJobQueue: has screenshots but no bill detection
+    "SELECT COUNT(*) FROM files f
+     WHERE f.capture_directory IS NOT NULL AND f.capture_directory != ''
+       AND (f.capture_directory LIKE '/%' OR f.capture_directory LIKE 'https://%')
+       AND f.capture_directory != '/pending'
+       AND f.date >= '2020-01-01'
+       AND NOT EXISTS (SELECT 1 FROM video_index vi WHERE vi.file_id = f.id AND vi.type = 'bill')" => "bill detection",
+
+    // SpeakerJobQueue: downloaded but no speaker detection
+    "SELECT COUNT(*) FROM files f
+     WHERE (f.path LIKE 'https://video.richmondsunlight.com/%' OR f.path LIKE 'https://archive.org/%')
+       AND f.date >= '2020-01-01'
+       AND (f.capture_directory IS NULL OR f.capture_directory != '/pending')
+       AND NOT EXISTS (SELECT 1 FROM video_index vi WHERE vi.file_id = f.id AND vi.type = 'legislator')" => "speaker detection",
+
+    // ArchiveJobQueue: fully processed but not archived
+    "SELECT COUNT(*) FROM files f
+     WHERE f.path LIKE 'https://video.richmondsunlight.com/%'
+       AND (f.webvtt IS NOT NULL OR f.srt IS NOT NULL)
+       AND f.capture_directory IS NOT NULL AND f.capture_directory != ''
+       AND f.transcript IS NOT NULL" => "archiving",
   ];
 
   $totalPending = 0;
