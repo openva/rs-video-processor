@@ -99,6 +99,7 @@ if [[ -f /home/ubuntu/video-processor.txt ]]; then
   # Ensure scripts are executable
   chmod +x deploy/run-pipeline.sh
   chmod +x deploy/auto-shutdown.sh
+  chmod +x deploy/check-pending-work.sh
   chmod +x deploy/update-from-s3.sh
 
   # Install the video pipeline service (runs after update, then auto-shuts down)
