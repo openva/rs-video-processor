@@ -69,26 +69,23 @@ if ($mode === 'enqueue') {
 }
 
 $processed = 0;
-$batchSize = min(10, $limit);
 while ($processed < $limit) {
-    // Get a fresh DB connection before each batch — screenshot jobs take minutes
+    // Fresh connection before each job — screenshot jobs take minutes
     // (download from S3 + ffmpeg + upload frames) and the connection times out.
     $pdo = AppBootstrap::createFreshConnection();
     $committeeDirectory = new CommitteeDirectory($pdo);
     $generator = new ScreenshotGenerator($pdo, $storage, $committeeDirectory, $keyBuilder, $log);
     $queue = new ScreenshotJobQueue($pdo);
 
-    $jobs = $queue->fetch($batchSize);
+    $jobs = $queue->fetch(1);
     if (empty($jobs)) {
         $log->put("No more jobs after processing {$processed}.", 3);
         break;
     }
-    foreach ($jobs as $job) {
-        try {
-            $generator->process($job);
-            $processed++;
-        } catch (Throwable $e) {
-            $log->put('Screenshot job failed for file #' . $job->id . ': ' . $e->getMessage(), 6);
-        }
+    try {
+        $generator->process($jobs[0]);
+        $processed++;
+    } catch (Throwable $e) {
+        $log->put('Screenshot job failed for file #' . $jobs[0]->id . ': ' . $e->getMessage(), 6);
     }
 }

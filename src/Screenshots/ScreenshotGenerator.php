@@ -49,6 +49,9 @@ class ScreenshotGenerator
             // Extract both full and thumbnail in a single ffmpeg pass for 2x speed
             $this->extractFramesBoth($videoPath, $fullDir, $thumbDir);
 
+            // Delete the video immediately — it can be several GB and we no longer need it.
+            @unlink($videoPath);
+
             $frameFiles = glob($fullDir . '/*.jpg');
             sort($frameFiles, SORT_NATURAL);
             if (empty($frameFiles)) {
