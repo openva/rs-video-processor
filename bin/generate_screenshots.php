@@ -74,7 +74,8 @@ while ($processed < $limit) {
     // (download from S3 + ffmpeg + upload frames) and the connection times out.
     $pdo = AppBootstrap::createFreshConnection();
     $committeeDirectory = new CommitteeDirectory($pdo);
-    $generator = new ScreenshotGenerator($pdo, $storage, $committeeDirectory, $keyBuilder, $log);
+    $pdoFactory = fn() => AppBootstrap::createFreshConnection();
+    $generator = new ScreenshotGenerator($pdo, $storage, $committeeDirectory, $keyBuilder, $log, null, null, $pdoFactory);
     $queue = new ScreenshotJobQueue($pdo);
 
     $jobs = $queue->fetch(1);

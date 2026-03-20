@@ -16,6 +16,9 @@ class ScreenshotGenerator
     private ClientInterface $http;
     private string $workingDir;
 
+    /** @var (\Closure(): PDO)|null */
+    private ?\Closure $pdoFactory;
+
     public function __construct(
         private PDO $pdo,
         private StorageInterface $storage,
@@ -23,8 +26,10 @@ class ScreenshotGenerator
         private S3KeyBuilder $keyBuilder,
         private ?Log $logger = null,
         ?string $workingDir = null,
-        ?ClientInterface $http = null
+        ?ClientInterface $http = null,
+        ?\Closure $pdoFactory = null
     ) {
+        $this->pdoFactory = $pdoFactory;
         $this->http = $http ?? new Client(['timeout' => 600]);
         $this->workingDir = $workingDir ?? __DIR__ . '/../../storage/screenshots';
         if (!is_dir($this->workingDir)) {
@@ -173,25 +178,19 @@ class ScreenshotGenerator
 
     private function updateDatabase(ScreenshotJob $job, string $prefix): void
     {
+        // Get a fresh connection if a factory was provided — the original one is
+        // almost certainly dead after minutes of downloading/ffmpeg/uploading.
+        $pdo = $this->pdoFactory ? ($this->pdoFactory)() : $this->pdo;
+
         $directory = '/' . trim($prefix, '/') . '/';
         $sql = 'UPDATE files SET capture_directory = :dir, capture_rate = 60, date_modified = CURRENT_TIMESTAMP WHERE id = :id';
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            ':dir' => $directory,
+            ':id' => $job->id,
+        ]);
 
-        try {
-            $stmt = $this->pdo->prepare($sql);
-            $stmt->execute([
-                ':dir' => $directory,
-                ':id' => $job->id,
-            ]);
-
-            $this->logger?->put(sprintf('Uploaded %s screenshots for file #%d', $prefix, $job->id), 3);
-        } catch (\PDOException $e) {
-            // If connection lost, log error and rethrow
-            // The worker will retry the entire job
-            if (str_contains($e->getMessage(), 'server has gone away')) {
-                $this->logger?->put('Database connection lost during update for file #' . $job->id, 5);
-            }
-            throw $e;
-        }
+        $this->logger?->put(sprintf('Uploaded %s screenshots for file #%d', $prefix, $job->id), 3);
     }
 
     private function cleanup(string $dir): void
