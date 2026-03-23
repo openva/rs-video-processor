@@ -20,6 +20,10 @@ class SpeakerDetectionProcessor
 
     public function process(SpeakerJob $job): void
     {
+        // Get a fresh DB connection before each job — diarization and OCR take
+        // minutes and the connection times out between jobs.
+        $this->writer->reconnect();
+
         $segments = $this->metadataExtractor->extract($job->metadata);
         if (empty($segments)) {
             if ($job->manifestUrl && $job->eventType) {

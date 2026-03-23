@@ -15,6 +15,7 @@ use RichmondSunlight\VideoProcessor\Analysis\Bills\ChamberConfig;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\ScreenshotFetcher;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\ScreenshotManifestLoader;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\TesseractOcrEngine;
+use RichmondSunlight\VideoProcessor\Bootstrap\AppBootstrap;
 use RichmondSunlight\VideoProcessor\Queue\JobType;
 
 $app = require __DIR__ . '/bootstrap.php';
@@ -35,6 +36,7 @@ foreach ($argv as $arg) {
 }
 $mode = isset($options['enqueue']) ? 'enqueue' : 'worker';
 
+$pdoFactory = fn() => AppBootstrap::createFreshConnection();
 $queue = new BillDetectionJobQueue($pdo);
 $mapper = new BillDetectionJobPayloadMapper();
 
@@ -43,7 +45,7 @@ $processor = new BillDetectionProcessor(
     new ScreenshotFetcher(),
     new BillTextExtractor(new TesseractOcrEngine()),
     new BillParser(),
-    new BillResultWriter($pdo),
+    new BillResultWriter($pdo, $pdoFactory),
     new ChamberConfig(),
     new AgendaExtractor(),
     $log

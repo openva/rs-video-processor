@@ -8,8 +8,26 @@ use RuntimeException;
 
 class TranscriptWriter
 {
-    public function __construct(private PDO $pdo)
+    /** @var (\Closure(): PDO)|null */
+    private ?\Closure $pdoFactory;
+
+    public function __construct(
+        private PDO $pdo,
+        ?\Closure $pdoFactory = null
+    ) {
+        $this->pdoFactory = $pdoFactory;
+    }
+
+    /**
+     * Get a fresh PDO connection if a factory is available.
+     * Called before the first DB operation of each job to avoid
+     * "MySQL server has gone away" after long OpenAI transcription.
+     */
+    public function reconnect(): void
     {
+        if ($this->pdoFactory) {
+            $this->pdo = ($this->pdoFactory)();
+        }
     }
 
     /**

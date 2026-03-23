@@ -20,6 +20,10 @@ class BillDetectionProcessor
 
     public function process(BillDetectionJob $job): void
     {
+        // Get a fresh DB connection before each job — bill detection takes minutes
+        // (downloading + OCR on every screenshot) and the connection times out.
+        $this->writer->reconnect();
+
         // Always clear existing entries first so that placeholder rows (ignored='y')
         // inserted by the job queue are removed even if processing fails early.
         // Without this, a stranded placeholder permanently blocks re-queuing.

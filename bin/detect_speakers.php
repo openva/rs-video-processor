@@ -19,6 +19,7 @@ use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerNameOcrEngine;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerNameParser;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerResultWriter;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerTextExtractor;
+use RichmondSunlight\VideoProcessor\Bootstrap\AppBootstrap;
 use RichmondSunlight\VideoProcessor\Queue\JobType;
 use RichmondSunlight\VideoProcessor\Transcripts\AudioExtractor;
 
@@ -40,12 +41,13 @@ $mode = isset($options['enqueue']) ? 'enqueue' : 'worker';
 $log = $app->log;
 $pdo = $app->pdo;
 $dispatcher = $app->dispatcher;
+$pdoFactory = fn() => AppBootstrap::createFreshConnection();
 
 $queue = new SpeakerJobQueue($pdo);
 $mapper = new SpeakerJobPayloadMapper();
 $metadataExtractor = new SpeakerMetadataExtractor();
 $legislators = new LegislatorDirectory($pdo);
-$writer = new SpeakerResultWriter($pdo);
+$writer = new SpeakerResultWriter($pdo, $pdoFactory);
 $minSegmentSeconds = getenv('SPEAKER_OCR_MIN_SEGMENT_SECONDS');
 $minSegmentSeconds = is_numeric($minSegmentSeconds) ? (int) $minSegmentSeconds : 3;
 

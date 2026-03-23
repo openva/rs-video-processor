@@ -11,6 +11,7 @@ use RichmondSunlight\VideoProcessor\Transcripts\TranscriptJob;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptJobQueue;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptJobPayloadMapper;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptProcessor;
+use RichmondSunlight\VideoProcessor\Bootstrap\AppBootstrap;
 use RichmondSunlight\VideoProcessor\Contract\ContractValidator;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptWriter;
 
@@ -37,9 +38,10 @@ $mode = isset($options['enqueue']) ? 'enqueue' : 'worker';
 $dispatcher = $app->dispatcher;
 $log = $app->log;
 $pdo = $app->pdo;
+$pdoFactory = fn() => AppBootstrap::createFreshConnection();
 $jobQueue = new TranscriptJobQueue($pdo);
 $mapper = new TranscriptJobPayloadMapper();
-$writer = new TranscriptWriter($pdo);
+$writer = new TranscriptWriter($pdo, $pdoFactory);
 $httpClient = new Client(['timeout' => 1800]);
 $transcriber = new OpenAITranscriber($httpClient, OPENAI_KEY);
 $processor = new TranscriptProcessor($writer, $transcriber, new CaptionParser(), null, $log);
@@ -86,7 +88,9 @@ foreach ($messages as $message) {
         $job = $mapper->fromPayload($message->payload);
 
         // Fetch webvtt/srt from database (not included in payload due to size)
-        $stmt = $pdo->prepare('SELECT webvtt, srt FROM files WHERE id = :id');
+        // Use a fresh connection — previous job's transcription may have taken minutes.
+        $freshPdo = AppBootstrap::createFreshConnection();
+        $stmt = $freshPdo->prepare('SELECT webvtt, srt FROM files WHERE id = :id');
         $stmt->execute([':id' => $job->fileId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if ($row) {
@@ -101,7 +105,7 @@ foreach ($messages as $message) {
         }
 
         $processor->process($job);
-        validateTranscriptContract($pdo, $job->fileId, $log);
+        validateTranscriptContract(AppBootstrap::createFreshConnection(), $job->fileId, $log);
     } catch (Throwable $e) {
         $log->put('Transcript generation failed for file #' . $message->payload->fileId . ': ' . $e->getMessage(), 6);
     } finally {
@@ -111,12 +115,10 @@ foreach ($messages as $message) {
 
 function processTranscriptJobs(array $jobs, TranscriptProcessor $processor, Log $log): void
 {
-    // Get PDO from global scope for contract validation
-    global $pdo;
     foreach ($jobs as $job) {
         try {
             $processor->process($job);
-            validateTranscriptContract($pdo, $job->fileId, $log);
+            validateTranscriptContract(AppBootstrap::createFreshConnection(), $job->fileId, $log);
         } catch (Throwable $e) {
             $log->put('Transcript generation failed for file #' . $job->fileId . ': ' . $e->getMessage(), 6);
         }

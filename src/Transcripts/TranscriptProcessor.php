@@ -24,6 +24,10 @@ class TranscriptProcessor
 
     public function process(TranscriptJob $job): void
     {
+        // Get a fresh DB connection before each job — OpenAI transcription can
+        // take minutes and the connection times out between jobs.
+        $this->writer->reconnect();
+
         $segments = [];
         $source = 'none';
         if ($job->webvtt) {
