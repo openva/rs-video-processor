@@ -7,6 +7,7 @@ use RichmondSunlight\VideoProcessor\Archive\ArchiveJobProcessor;
 use RichmondSunlight\VideoProcessor\Archive\ArchiveJobQueue;
 use RichmondSunlight\VideoProcessor\Archive\MetadataBuilder;
 use RichmondSunlight\VideoProcessor\Archive\InternetArchiveUploader;
+use RichmondSunlight\VideoProcessor\Bootstrap\AppBootstrap;
 
 $app = require __DIR__ . '/bootstrap.php';
 $log = $app->log;
@@ -21,10 +22,11 @@ foreach ($argv as $arg) {
     }
 }
 
+$pdoFactory = fn() => AppBootstrap::createFreshConnection();
 $metadataBuilder = new MetadataBuilder();
 $uploader = new InternetArchiveUploader($log);
 $queue = new ArchiveJobQueue($pdo);
-$processor = new ArchiveJobProcessor($queue, $metadataBuilder, $uploader, $pdo, $log);
+$processor = new ArchiveJobProcessor($queue, $metadataBuilder, $uploader, $pdo, $log, $pdoFactory);
 $processor->run($limit);
 
 // After uploads complete, check once for any videos that processed quickly
@@ -33,7 +35,8 @@ require_once __DIR__ . '/repair_archive_urls_helper.php';
 
 $log?->put('Checking for Archive.org videos that finished processing...', 3);
 $pendingCount = 0;
-$repairCount = repairArchiveUrls($pdo, $log, $pendingCount);
+$freshPdo = AppBootstrap::createFreshConnection();
+$repairCount = repairArchiveUrls($freshPdo, $log, $pendingCount);
 
 if ($repairCount > 0) {
     $log?->put("Resolved $repairCount Archive.org URL(s) that finished processing quickly", 3);

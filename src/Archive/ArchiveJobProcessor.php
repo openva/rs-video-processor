@@ -8,13 +8,18 @@ use Throwable;
 
 class ArchiveJobProcessor
 {
+    /** @var (\Closure(): PDO)|null */
+    private ?\Closure $pdoFactory;
+
     public function __construct(
         private ArchiveJobQueue $queue,
         private MetadataBuilder $metadataBuilder,
         private InternetArchiveUploader $uploader,
         private PDO $pdo,
-        private Log $logger
+        private Log $logger,
+        ?\Closure $pdoFactory = null
     ) {
+        $this->pdoFactory = $pdoFactory;
     }
 
     public function run(int $limit = 2): void
@@ -30,7 +35,11 @@ class ArchiveJobProcessor
                 $metadata = $this->metadataBuilder->build($job);
                 $url = $this->uploader->upload($job, $metadata);
                 if ($url) {
-                    $stmt = $this->pdo->prepare('UPDATE files SET path = :path WHERE id = :id');
+                    // Get a fresh connection — uploads take minutes (video download,
+                    // ia upload, metadata polling with 90s sleeps) and the original
+                    // connection will have timed out.
+                    $pdo = $this->pdoFactory ? ($this->pdoFactory)() : $this->pdo;
+                    $stmt = $pdo->prepare('UPDATE files SET path = :path WHERE id = :id');
                     $stmt->execute([':path' => $url, ':id' => $job->fileId]);
                     $this->logger->put('Uploaded file #' . $job->fileId . ' to ' . $url, 3);
                 }
