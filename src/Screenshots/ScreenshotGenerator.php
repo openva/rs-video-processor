@@ -92,11 +92,42 @@ class ScreenshotGenerator
             if ($source === false || !copy($source, $destination)) {
                 throw new RuntimeException('Unable to copy local fixture for screenshots.');
             }
+            $this->validateVideo($destination);
             return;
         }
         $response = $this->http->get($url, ['sink' => $destination]);
         if ($response->getStatusCode() >= 400) {
             throw new RuntimeException('Unable to download video for screenshots.');
+        }
+        $this->validateVideo($destination);
+    }
+
+    /**
+     * Run ffprobe to verify the downloaded file is a valid, complete MP4.
+     * Catches corrupt/truncated uploads before wasting time on ffmpeg extraction.
+     */
+    private function validateVideo(string $path): void
+    {
+        $size = @filesize($path);
+        if ($size === false || $size < 1024) {
+            throw new RuntimeException(sprintf(
+                'Downloaded video is too small (%s bytes) — source file is likely corrupt.',
+                $size === false ? '0' : (string) $size
+            ));
+        }
+
+        $cmd = sprintf(
+            'ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 %s 2>&1',
+            escapeshellarg($path)
+        );
+        exec($cmd, $output, $status);
+        if ($status !== 0) {
+            $detail = trim(implode(' ', $output));
+            throw new RuntimeException(sprintf(
+                'Source video is not a valid MP4 (ffprobe exit %d): %s',
+                $status,
+                $detail ?: 'no output'
+            ));
         }
     }
 
