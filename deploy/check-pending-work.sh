@@ -14,7 +14,7 @@ APP_DIR="${APP_DIR:-/home/ubuntu/video-processor}"
 cd "$APP_DIR"
 
 php -r '
-  require_once "vendor/autoload.php";
+  require_once "includes/vendor/autoload.php";
   require_once "includes/settings.inc.php";
 
   $db = new Database();
