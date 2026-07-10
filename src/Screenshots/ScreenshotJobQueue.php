@@ -53,7 +53,7 @@ class ScreenshotJobQueue
             $ids = array_map(fn(ScreenshotJob $j) => $j->id, $jobs);
             $placeholders = implode(',', array_fill(0, count($ids), '?'));
             $update = $this->pdo->prepare(
-                "UPDATE files SET capture_rate = 0, capture_directory = '/pending' WHERE id IN ({$placeholders})"
+                "UPDATE files SET capture_rate = 0, capture_directory = '/pending', date_modified = CURRENT_TIMESTAMP WHERE id IN ({$placeholders})"
             );
             $update->execute($ids);
         }
