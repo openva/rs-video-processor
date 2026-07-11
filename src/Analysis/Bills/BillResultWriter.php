@@ -58,6 +58,27 @@ class BillResultWriter
         }
     }
 
+    /**
+     * Record a terminal "no bills found" sentinel. The job queue's NOT EXISTS
+     * check treats any video_index row of type 'bill' as done, so this stops
+     * the video from being re-OCRed on every pass. ignored='y' keeps it
+     * invisible to the website and to RawTextResolver.
+     */
+    public function recordNoneFound(int $fileId): void
+    {
+        $this->clearExisting($fileId);
+        $now = new DateTimeImmutable('now');
+        $stmt = $this->pdo->prepare('INSERT INTO video_index (file_id, time, screenshot, raw_text, type, linked_id, ignored, date_created) VALUES (:file_id, :time, :screenshot, :raw_text, :type, NULL, "y", :created)');
+        $stmt->execute([
+            ':file_id' => $fileId,
+            ':time' => '00:00:00',
+            ':screenshot' => '00000000',
+            ':raw_text' => '/none',
+            ':type' => 'bill',
+            ':created' => $now->format('Y-m-d H:i:s'),
+        ]);
+    }
+
     private function formatTimestamp(int $seconds): string
     {
         $hours = intdiv($seconds, 3600);
