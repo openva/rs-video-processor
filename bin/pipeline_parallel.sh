@@ -34,6 +34,11 @@ php "$SCRIPT_DIR/process_uploads.php"
 php "$SCRIPT_DIR/generate_upload_manifest.php"
 echo ""
 
+# Step 2.5: Release claims orphaned by crashed/interrupted jobs
+echo "[2.5/9] Releasing stale job claims..."
+php "$SCRIPT_DIR/reset_stale_claims.php"
+echo ""
+
 # Step 3: Download non-YouTube videos to S3 (parallel)
 # YouTube videos are skipped by VideoDownloadQueue — they're downloaded locally
 # via scripts/fetch_youtube_uploads.sh and staged in S3 uploads/ instead.
