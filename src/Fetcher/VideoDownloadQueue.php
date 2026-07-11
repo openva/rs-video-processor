@@ -22,12 +22,14 @@ class VideoDownloadQueue
         $sql = "SELECT id, chamber, committee_id, title, date, path, video_index_cache
             FROM files
             WHERE (path IS NULL OR path = '' OR (
-                path NOT LIKE 'https:///video.richmondsunlight.com/%'
+                path NOT LIKE 'https://video.richmondsunlight.com/%'
                 AND path NOT LIKE 'https://archive.org/%'
             ))
               AND (html IS NULL OR html = '')
               AND video_index_cache IS NOT NULL
               AND video_index_cache LIKE '{%'
+              AND video_index_cache NOT LIKE '%youtube.com%'
+              AND video_index_cache NOT LIKE '%youtu.be%'
             ORDER BY date DESC
             LIMIT :limit";
 

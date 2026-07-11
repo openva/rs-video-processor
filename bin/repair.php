@@ -71,9 +71,7 @@ Examples:
   php bin/repair.php --stage=duplicates --limit=100
 
 Note: For bill/speaker detection, use the detect scripts directly:
-  php bin/detect_bills.php --enqueue --limit=20
   php bin/detect_bills.php --limit=20
-  php bin/detect_speakers.php --enqueue --limit=20
   php bin/detect_speakers.php --limit=20
 
 HELP;

@@ -46,6 +46,27 @@ class SpeakerResultWriter
     }
 
     /**
+     * Record a terminal "no speakers found" sentinel. Any video_index row of
+     * type 'legislator' satisfies the job queue's NOT EXISTS check, so this
+     * stops the video from being re-processed on every pass. ignored='y'
+     * keeps it invisible to the website and to RawTextResolver.
+     */
+    public function recordNoneFound(int $fileId): void
+    {
+        $this->clearExisting($fileId);
+        $now = new DateTimeImmutable('now');
+        $stmt = $this->pdo->prepare('INSERT INTO video_index (file_id, time, screenshot, raw_text, type, linked_id, ignored, date_created) VALUES (:file_id, :time, :shot, :raw, :type, NULL, "y", :created)');
+        $stmt->execute([
+            ':file_id' => $fileId,
+            ':time' => '00:00:00',
+            ':shot' => '00000000',
+            ':raw' => '/none',
+            ':type' => 'legislator',
+            ':created' => $now->format('Y-m-d H:i:s'),
+        ]);
+    }
+
+    /**
      * @param array<int,array{name:string,start:float,legislator_id:?int}> $segments
      */
     public function write(int $fileId, array $segments): void

@@ -13,14 +13,12 @@ use RichmondSunlight\VideoProcessor\Analysis\Speakers\OcrSpeakerExtractor;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerChamberConfig;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerDetectionProcessor;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerJobQueue;
-use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerJobPayloadMapper;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerMetadataExtractor;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerNameOcrEngine;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerNameParser;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerResultWriter;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerTextExtractor;
 use RichmondSunlight\VideoProcessor\Bootstrap\AppBootstrap;
-use RichmondSunlight\VideoProcessor\Queue\JobType;
 use RichmondSunlight\VideoProcessor\Transcripts\AudioExtractor;
 
 $app = require __DIR__ . '/bootstrap.php';
@@ -36,15 +34,11 @@ foreach ($argv as $arg) {
         break;
     }
 }
-$mode = isset($options['enqueue']) ? 'enqueue' : 'worker';
-
 $log = $app->log;
 $pdo = $app->pdo;
-$dispatcher = $app->dispatcher;
 $pdoFactory = fn() => AppBootstrap::createFreshConnection();
 
 $queue = new SpeakerJobQueue($pdo);
-$mapper = new SpeakerJobPayloadMapper();
 $metadataExtractor = new SpeakerMetadataExtractor();
 $legislators = new LegislatorDirectory($pdo);
 $writer = new SpeakerResultWriter($pdo, $pdoFactory);
@@ -87,53 +81,16 @@ $ocrExtractor = new OcrSpeakerExtractor(
 
 $processor = new SpeakerDetectionProcessor($metadataExtractor, $diarizer, $ocrExtractor, $legislators, $writer, $log);
 
-if ($mode === 'enqueue') {
-    $jobs = $queue->fetch($limit);
-    if (empty($jobs)) {
-        $log->put('No files pending speaker detection.', 3);
-        exit(0);
-    }
-    if ($dispatcher->usesInMemoryQueue()) {
-        processSpeakerJobs($jobs, $processor, $log);
-        exit(0);
-    }
-    foreach ($jobs as $job) {
-        $dispatcher->dispatch($mapper->toPayload($job));
-    }
-    $log->put('Enqueued ' . count($jobs) . ' speaker-detection jobs.', 3);
-    exit(0);
+if (isset($options['enqueue'])) {
+    $log->put('--enqueue is deprecated (SQS removed); processing jobs directly from the database.', 2);
 }
 
-if ($dispatcher->usesInMemoryQueue()) {
-    $jobs = $queue->fetch($limit);
-    if (empty($jobs)) {
-        $log->put('No files pending speaker detection.', 3);
-        exit(0);
-    }
-    processSpeakerJobs($jobs, $processor, $log);
+$jobs = $queue->fetch($limit);
+if (empty($jobs)) {
+    $log->put('No files pending speaker detection.', 3);
     exit(0);
 }
-
-$messages = $dispatcher->receive($limit, 10);
-if (empty($messages)) {
-    $log->put('No speaker-detection jobs in queue.', 3);
-    exit(0);
-}
-
-foreach ($messages as $message) {
-    try {
-        if ($message->payload->type !== JobType::SPEAKER_DETECTION) {
-            $log->put('Skipping job of type ' . $message->payload->type, 4);
-            continue;
-        }
-        $job = $mapper->fromPayload($message->payload);
-        $processor->process($job);
-    } catch (Throwable $e) {
-        $log->put('Speaker detection failed for file #' . $message->payload->fileId . ': ' . $e->getMessage(), 6);
-    } finally {
-        $dispatcher->acknowledge($message);
-    }
-}
+processSpeakerJobs($jobs, $processor, $log);
 
 function processSpeakerJobs(array $jobs, SpeakerDetectionProcessor $processor, Log $log): void
 {

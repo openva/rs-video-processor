@@ -14,11 +14,11 @@ The worker stack mirrors the main `richmondsunlight.com` repo: PHP 8.x, Composer
 
 * **Scraper** (`bin/scrape.php`) — collects House/Senate metadata (floor + committee) from Granicus and YouTube, and persists JSON snapshots under `storage/scraper/`.
 * **Sync + fetchers** (`bin/fetch_videos.php`, `bin/generate_screenshots.php`) — reconcile scraped data against the `files` table, download MP4s to S3, and create screenshot manifests for downstream analysis.
-* **Analysis workers** (`bin/generate_transcripts.php`, `bin/detect_bills.php`, `bin/detect_speakers.php`) — populate `video_transcript` and `video_index` by parsing captions, OCRing chyrons, and mapping speakers. Each script understands both an enqueue mode (for the lightweight control plane) and a worker mode (for the GPU instance). Speaker detection uses AWS Transcribe for floor videos (House and Senate floor sessions) but skips diarization for committee videos due to cost constraints.
+* **Analysis workers** (`bin/generate_transcripts.php`, `bin/detect_bills.php`, `bin/detect_speakers.php`) — populate `video_transcript` and `video_index` by parsing captions, OCRing chyrons, and mapping speakers. Each script selects pending work directly from the database with `--limit=N`. Speaker detection uses AWS Transcribe for floor videos (House and Senate floor sessions) but skips diarization for committee videos due to cost constraints.
 * **Raw text resolution** (`bin/resolve_raw_text.php`) — resolves OCR-extracted text in `video_index` to database references using fuzzy matching for legislators and strict validation for bills. Runs after speaker/bill detection to link raw text entries to `people.id` and `bills.id`.
 * **Archival** (`bin/upload_archive.php`) — pushes S3-hosted assets and captions to the Internet Archive and updates `files.path` with the IA URL.
 
-Job orchestration is handled via `JobDispatcher`. In production the dispatcher speaks to the FIFO queue `rs-video-harvester.fifo` (SQS); in Docker/tests it falls back to an in-memory queue so the full pipeline can run locally without AWS credentials.
+Job orchestration is database-driven: each stage's job-queue class selects pending work with `FOR UPDATE SKIP LOCKED` and claims it (screenshot claims on `files`, bill/speaker placeholder rows in `video_index`), so parallel workers do not double-process. `bin/reset_stale_claims.php` releases claims orphaned by interrupted jobs. The `src/Queue/` SQS/in-memory classes are legacy and no longer used by the pipeline.
 
 When deployed, this will not run any video analysis unless `/home/ubuntu/video-processor.txt` is present (the contents of the file are immaterial). This is to allow it to run on a dual-server configuration, with the scraper etc. running on Machine, reserving video analysis for a more powerful instance.
 
@@ -32,12 +32,12 @@ Sample MP4 fixtures are pulled from `video.richmondsunlight.com/fixtures` (see `
 * Composer (for installing/updating dependencies under `includes/vendor`).
 * ffmpeg and curl for screenshot/transcription stages.
 * Docker (optional) for the provided test environment (`docker-run.sh`, `docker-tests.sh`).
-* AWS credentials (staging/production) for S3, SQS, and Transcribe (for speaker diarization of floor videos).
+* AWS credentials (staging/production) for S3 and Transcribe (for speaker diarization of floor videos).
 
 Environment constants mirror the main site and are declared in `includes/settings.inc.php`. At minimum define:
 
 * `PDO_DSN`, `PDO_USERNAME`, `PDO_PASSWORD` (point at staging DB for local work).
-* `AWS_ACCESS_KEY`, `AWS_SECRET_KEY`, `AWS_REGION`, `SQS_QUEUE_URL`.
+* `AWS_ACCESS_KEY`, `AWS_SECRET_KEY`, `AWS_REGION`.
 * `OPENAI_KEY` (for transcript generation fallback), `IA_ACCESS_KEY`, `IA_SECRET_KEY`, optional `SLACK_WEBHOOK`.
 
 For Docker development, override those values via environment variables or mount a tailored `includes/settings.inc.php`.
@@ -83,8 +83,9 @@ That script ensures the container is running, verifies dependencies, and launche
 
 * `bin/scrape.php` — gather fresh metadata from the public House/Senate sources (Granicus and YouTube).
 * `bin/fetch_videos.php --limit=N` — download any missing videos to S3 (`video.richmondsunlight.com`).
-* `bin/generate_screenshots.php --enqueue|--limit=N` — enqueue screenshot jobs (control plane) or run worker mode (analysis box).
-* `bin/generate_transcripts.php`, `bin/detect_bills.php`, `bin/detect_speakers.php` — same enqueue/worker pattern for analysis.
+* `bin/generate_screenshots.php --limit=N` — generate screenshots for videos that need them.
+* `bin/generate_transcripts.php`, `bin/detect_bills.php`, `bin/detect_speakers.php` — same `--limit=N` pattern for the other analysis stages.
+* `bin/reset_stale_claims.php` — release stale in-progress claims so interrupted jobs get retried (threshold via `STALE_CLAIM_MAX_AGE_HOURS`, default 3h).
 * `bin/resolve_raw_text.php --file-id=N|--limit=N|--dry-run` — resolve OCR text to database references (legislators, bills).
 * `bin/upload_archive.php --limit=N` — upload S3-hosted files + captions to the Internet Archive, updating the `files` table.
 * `bin/generate_upload_manifest.php` — writes a JSON manifest of Senate YouTube videos not yet on S3 to `uploads/manifest.json` in the video bucket. Runs automatically each pipeline pass.
@@ -126,13 +127,13 @@ YouTube throttles downloads when `yt-dlp`'s `n`-signature extraction fails. Upda
 yt-dlp -U
 ```
 
-All scripts bootstrap via `bin/bootstrap.php`, which wires up the shared `Log`, PDO connection, and `JobDispatcher`. Use the `--enqueue` flag when running on the lightweight instance so work is pushed to SQS; omit it on the worker to poll/process jobs directly.
+All scripts bootstrap via `bin/bootstrap.php`, which wires up the shared `Log` and PDO connection. Workers select pending work directly from the database (`FOR UPDATE SKIP LOCKED` plus claim markers); there is no queue service. The old `--enqueue` flag is accepted but deprecated and ignored.
 
 ---
 
 ## Parallel Processing
 
-To speed up video processing on GPU-capable instances, parallel worker scripts are available for each stage. These scripts launch multiple workers that pull jobs from the SQS queue simultaneously, dramatically reducing processing time.
+To speed up video processing on GPU-capable instances, parallel worker scripts are available for each stage. These scripts launch multiple workers that claim jobs from the database simultaneously (via `FOR UPDATE SKIP LOCKED` and claim markers), dramatically reducing processing time.
 
 ### Full Pipeline (Recommended)
 
@@ -188,7 +189,7 @@ Examples:
 wait
 ```
 
-**Note:** Parallel processing requires SQS in production. The in-memory queue (used in Docker/local development) does not support safe parallel processing, as it lacks message locking to prevent duplicate work.
+**Note:** Parallel workers coordinate through database row locks and claim markers, so no queue service is required. The transcript stage has no claim marker, so concurrent transcript workers can occasionally duplicate work (wasted API spend, not data corruption).
 
 ---
 

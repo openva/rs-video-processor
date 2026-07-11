@@ -38,6 +38,9 @@ class TranscriptWriter
         if (empty($segments)) {
             return;
         }
+        foreach ($segments as $i => $segment) {
+            $segments[$i]['text'] = $this->sanitizeForUtf8mb3($segment['text']);
+        }
         $now = new DateTimeImmutable('now');
         $this->pdo->beginTransaction();
 
@@ -124,5 +127,24 @@ class TranscriptWriter
         $secs = (int) $totalSeconds % 60;
         $millis = (int) (($totalSeconds - (int) $totalSeconds) * 1000);
         return sprintf('%02d:%02d:%02d.%03d', $hours, $minutes, $secs, $millis);
+    }
+
+    /**
+     * Production columns (video_transcript.text, files.transcript, files.webvtt)
+     * are utf8mb3, which rejects 4-byte Unicode (emoji, supplementary planes),
+     * malformed UTF-8, and null bytes. Malformed byte sequences are repaired
+     * (replaced with substitute characters) first — otherwise the /u regex below
+     * returns null on ill-formed input and silently strips nothing — then 4-byte
+     * characters and null bytes are removed so one emoji can't poison a
+     * transcript forever.
+     */
+    private function sanitizeForUtf8mb3(string $text): string
+    {
+        // Repair/replace ill-formed byte sequences first, so the /u regex below
+        // never fails on malformed input and silently no-ops. Malformed bytes are
+        // also rejected by MySQL's utf8mb3 validation, so this must run regardless.
+        $text = mb_convert_encoding($text, 'UTF-8', 'UTF-8');
+        $text = (string) preg_replace('/[\x{10000}-\x{10FFFF}]/u', '', $text);
+        return str_replace("\0", '', $text);
     }
 }

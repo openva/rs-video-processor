@@ -4,12 +4,9 @@
 declare(strict_types=1);
 
 use GuzzleHttp\Client;
-use RichmondSunlight\VideoProcessor\Queue\JobType;
 use RichmondSunlight\VideoProcessor\Transcripts\CaptionParser;
 use RichmondSunlight\VideoProcessor\Transcripts\OpenAITranscriber;
-use RichmondSunlight\VideoProcessor\Transcripts\TranscriptJob;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptJobQueue;
-use RichmondSunlight\VideoProcessor\Transcripts\TranscriptJobPayloadMapper;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptProcessor;
 use RichmondSunlight\VideoProcessor\Bootstrap\AppBootstrap;
 use RichmondSunlight\VideoProcessor\Contract\ContractValidator;
@@ -33,85 +30,27 @@ foreach ($argv as $arg) {
         break;
     }
 }
-$mode = isset($options['enqueue']) ? 'enqueue' : 'worker';
-
-$dispatcher = $app->dispatcher;
 $log = $app->log;
 $pdo = $app->pdo;
 $pdoFactory = fn() => AppBootstrap::createFreshConnection();
 $jobQueue = new TranscriptJobQueue($pdo);
-$mapper = new TranscriptJobPayloadMapper();
 $writer = new TranscriptWriter($pdo, $pdoFactory);
 $httpClient = new Client(['timeout' => 1800]);
 $transcriber = new OpenAITranscriber($httpClient, OPENAI_KEY);
 $processor = new TranscriptProcessor($writer, $transcriber, new CaptionParser(), null, $log);
 
-if ($mode === 'enqueue') {
-    $jobs = $jobQueue->fetch($limit);
-    if (empty($jobs)) {
-        $log->put('No files pending transcript generation.', 3);
-        exit(0);
-    }
-    if ($dispatcher->usesInMemoryQueue()) {
-        processTranscriptJobs($jobs, $processor, $log);
-        exit(0);
-    }
-    foreach ($jobs as $job) {
-        $dispatcher->dispatch($mapper->toPayload($job));
-    }
-    $log->put('Enqueued ' . count($jobs) . ' transcript jobs.', 3);
+if (isset($options['enqueue'])) {
+    $log->put('--enqueue is deprecated (SQS removed); processing jobs directly from the database.', 2);
+}
+
+// TranscriptJobQueue::fetch() already selects webvtt/srt, so there is no need
+// to re-fetch large columns from the DB (as the old SQS payload path did).
+$jobs = $jobQueue->fetch($limit);
+if (empty($jobs)) {
+    $log->put('No files pending transcript generation.', 3);
     exit(0);
 }
-
-if ($dispatcher->usesInMemoryQueue()) {
-    $jobs = $jobQueue->fetch($limit);
-    if (empty($jobs)) {
-        $log->put('No files pending transcript generation.', 3);
-        exit(0);
-    }
-    processTranscriptJobs($jobs, $processor, $log);
-    exit(0);
-}
-
-$messages = $dispatcher->receive($limit, 10);
-if (empty($messages)) {
-    $log->put('No transcript jobs in queue.', 3);
-    exit(0);
-}
-
-foreach ($messages as $message) {
-    try {
-        if ($message->payload->type !== JobType::TRANSCRIPT) {
-            $log->put('Skipping job of type ' . $message->payload->type, 4);
-            continue;
-        }
-        $job = $mapper->fromPayload($message->payload);
-
-        // Fetch webvtt/srt from database (not included in payload due to size)
-        // Use a fresh connection — previous job's transcription may have taken minutes.
-        $freshPdo = AppBootstrap::createFreshConnection();
-        $stmt = $freshPdo->prepare('SELECT webvtt, srt FROM files WHERE id = :id');
-        $stmt->execute([':id' => $job->fileId]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        if ($row) {
-            $job = new TranscriptJob(
-                $job->fileId,
-                $job->chamber,
-                $job->videoUrl,
-                $row['webvtt'] ?? null,
-                $row['srt'] ?? null,
-                $job->title
-            );
-        }
-
-        $processor->process($job);
-        validateTranscriptContract(AppBootstrap::createFreshConnection(), $job->fileId, $log);
-    } catch (Throwable $e) {
-        $log->put('Transcript generation failed for file #' . $message->payload->fileId . ': ' . $e->getMessage(), 6);
-    } finally {
-        $dispatcher->acknowledge($message);
-    }
-}
+processTranscriptJobs($jobs, $processor, $log);
 
 function processTranscriptJobs(array $jobs, TranscriptProcessor $processor, Log $log): void
 {

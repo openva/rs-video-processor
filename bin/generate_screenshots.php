@@ -9,13 +9,10 @@ use RichmondSunlight\VideoProcessor\Fetcher\CommitteeDirectory;
 use RichmondSunlight\VideoProcessor\Fetcher\S3KeyBuilder;
 use RichmondSunlight\VideoProcessor\Fetcher\S3Storage;
 use RichmondSunlight\VideoProcessor\Screenshots\ScreenshotGenerator;
-use RichmondSunlight\VideoProcessor\Screenshots\ScreenshotJobPayloadMapper;
 use RichmondSunlight\VideoProcessor\Screenshots\ScreenshotJobQueue;
 
 $app = require __DIR__ . '/bootstrap.php';
 $log = $app->log;
-$pdo = $app->pdo;
-$dispatcher = $app->dispatcher;
 
 $options = getopt('', ['limit::', 'enqueue']);
 $limit = isset($options['limit']) ? (int) $options['limit'] : 3;
@@ -28,7 +25,9 @@ foreach ($argv as $arg) {
         break;
     }
 }
-$mode = isset($options['enqueue']) ? 'enqueue' : 'worker';
+if (isset($options['enqueue'])) {
+    $log->put('--enqueue is deprecated (SQS removed); processing jobs directly from the database.', 2);
+}
 
 $s3Client = new S3Client([
     'key' => AWS_ACCESS_KEY,
@@ -40,36 +39,9 @@ $s3Client = new S3Client([
 $bucket = 'video.richmondsunlight.com';
 $storage = new S3Storage($s3Client, $bucket);
 $keyBuilder = new S3KeyBuilder();
-$mapper = new ScreenshotJobPayloadMapper();
-
-if ($mode === 'enqueue') {
-    $committeeDirectory = new CommitteeDirectory($pdo);
-    $generator = new ScreenshotGenerator($pdo, $storage, $committeeDirectory, $keyBuilder, $log);
-    $queue = new ScreenshotJobQueue($pdo);
-    $jobs = $queue->fetch($limit);
-    if (empty($jobs)) {
-        $log->put('No videos pending screenshot generation.', 3);
-        exit(0);
-    }
-    if ($dispatcher->usesInMemoryQueue()) {
-        foreach ($jobs as $job) {
-            try {
-                $generator->process($job);
-            } catch (Throwable $e) {
-                $log->put('Screenshot job failed for file #' . $job->id . ': ' . $e->getMessage(), 6);
-            }
-        }
-        exit(0);
-    }
-    foreach ($jobs as $job) {
-        $dispatcher->dispatch($mapper->toPayload($job));
-    }
-    $log->put('Enqueued ' . count($jobs) . ' screenshot jobs.', 3);
-    exit(0);
-}
 
 $processed = 0;
-while ($processed < $limit) {
+for ($i = 0; $i < $limit; $i++) {
     // Fresh connection before each job — screenshot jobs take minutes
     // (download from S3 + ffmpeg + upload frames) and the connection times out.
     $pdo = AppBootstrap::createFreshConnection();
@@ -80,13 +52,16 @@ while ($processed < $limit) {
 
     $jobs = $queue->fetch(1);
     if (empty($jobs)) {
-        $log->put("No more jobs after processing {$processed}.", 3);
+        $log->put("No more screenshot jobs after processing {$processed}.", 3);
         break;
     }
     try {
         $generator->process($jobs[0]);
         $processed++;
     } catch (Throwable $e) {
+        // The claim ('/pending') stays on this file; StaleClaimCleaner releases
+        // it after the stale-claim threshold so the job is retried in a later session.
         $log->put('Screenshot job failed for file #' . $jobs[0]->id . ': ' . $e->getMessage(), 6);
     }
 }
+$log->put("Processed {$processed} screenshot job(s).", 3);

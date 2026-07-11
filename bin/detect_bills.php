@@ -4,9 +4,7 @@
 declare(strict_types=1);
 
 use RichmondSunlight\VideoProcessor\Analysis\Bills\AgendaExtractor;
-use RichmondSunlight\VideoProcessor\Analysis\Bills\BillDetectionJob;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\BillDetectionJobQueue;
-use RichmondSunlight\VideoProcessor\Analysis\Bills\BillDetectionJobPayloadMapper;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\BillDetectionProcessor;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\BillParser;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\BillResultWriter;
@@ -16,12 +14,10 @@ use RichmondSunlight\VideoProcessor\Analysis\Bills\ScreenshotFetcher;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\ScreenshotManifestLoader;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\TesseractOcrEngine;
 use RichmondSunlight\VideoProcessor\Bootstrap\AppBootstrap;
-use RichmondSunlight\VideoProcessor\Queue\JobType;
 
 $app = require __DIR__ . '/bootstrap.php';
 $log = $app->log;
 $pdo = $app->pdo;
-$dispatcher = $app->dispatcher;
 
 $options = getopt('', ['limit::', 'enqueue']);
 $limit = isset($options['limit']) ? (int) $options['limit'] : 2;
@@ -34,11 +30,8 @@ foreach ($argv as $arg) {
         break;
     }
 }
-$mode = isset($options['enqueue']) ? 'enqueue' : 'worker';
-
 $pdoFactory = fn() => AppBootstrap::createFreshConnection();
 $queue = new BillDetectionJobQueue($pdo);
-$mapper = new BillDetectionJobPayloadMapper();
 
 $processor = new BillDetectionProcessor(
     new ScreenshotManifestLoader(),
@@ -51,53 +44,16 @@ $processor = new BillDetectionProcessor(
     $log
 );
 
-if ($mode === 'enqueue') {
-    $jobs = $queue->fetch($limit);
-    if (empty($jobs)) {
-        $log->put('No files pending bill detection.', 3);
-        exit(0);
-    }
-    if ($dispatcher->usesInMemoryQueue()) {
-        processBillJobs($jobs, $processor, $log);
-        exit(0);
-    }
-    foreach ($jobs as $job) {
-        $dispatcher->dispatch($mapper->toPayload($job));
-    }
-    $log->put('Enqueued ' . count($jobs) . ' bill-detection jobs.', 3);
-    exit(0);
+if (isset($options['enqueue'])) {
+    $log->put('--enqueue is deprecated (SQS removed); processing jobs directly from the database.', 2);
 }
 
-if ($dispatcher->usesInMemoryQueue()) {
-    $jobs = $queue->fetch($limit);
-    if (empty($jobs)) {
-        $log->put('No files pending bill detection.', 3);
-        exit(0);
-    }
-    processBillJobs($jobs, $processor, $log);
+$jobs = $queue->fetch($limit);
+if (empty($jobs)) {
+    $log->put('No files pending bill detection.', 3);
     exit(0);
 }
-
-$messages = $dispatcher->receive($limit, 10);
-if (empty($messages)) {
-    $log->put('No bill-detection jobs in queue.', 3);
-    exit(0);
-}
-
-foreach ($messages as $message) {
-    try {
-        if ($message->payload->type !== JobType::BILL_DETECTION) {
-            $log->put('Skipping job of type ' . $message->payload->type, 4);
-            continue;
-        }
-        $job = $mapper->fromPayload($message->payload);
-        $processor->process($job);
-    } catch (Throwable $e) {
-        $log->put('Bill detection failed for file #' . $message->payload->fileId . ': ' . $e->getMessage(), 6);
-    } finally {
-        $dispatcher->acknowledge($message);
-    }
-}
+processBillJobs($jobs, $processor, $log);
 
 function processBillJobs(array $jobs, BillDetectionProcessor $processor, Log $log): void
 {

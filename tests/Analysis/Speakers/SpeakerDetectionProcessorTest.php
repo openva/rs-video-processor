@@ -55,8 +55,76 @@ class SpeakerDetectionProcessorTest extends TestCase
         );
         $processor->process($job);
 
-        $count = $pdo->query('SELECT COUNT(*) FROM video_index')->fetchColumn();
-        $this->assertSame(0, (int) $count);
+        // Clean-empty (committee video, no metadata, diarization deliberately
+        // skipped): a terminal /none sentinel is recorded so the video isn't
+        // re-processed on every future pass.
+        $rows = $pdo->query("SELECT raw_text, ignored, type FROM video_index WHERE file_id = 1")->fetchAll(PDO::FETCH_ASSOC);
+        $this->assertCount(1, $rows);
+        $this->assertSame('/none', $rows[0]['raw_text']);
+        $this->assertSame('y', $rows[0]['ignored']);
+        $this->assertSame('legislator', $rows[0]['type']);
+    }
+
+    public function testRecordsNoneFoundSentinelWhenCleanlyEmpty(): void
+    {
+        $metadataExtractor = $this->createMock(SpeakerMetadataExtractor::class);
+        $metadataExtractor->method('extract')->willReturn([]);
+
+        $diarizer = $this->createMock(DiarizerInterface::class);
+        $diarizer->expects($this->never())->method('diarize');
+
+        $ocrExtractor = $this->createMock(OcrSpeakerExtractor::class);
+        $legislators = $this->createMock(LegislatorDirectory::class);
+
+        $writer = $this->createMock(SpeakerResultWriter::class);
+        $writer->expects($this->once())->method('recordNoneFound')->with(42);
+        $writer->expects($this->never())->method('write');
+
+        $processor = new SpeakerDetectionProcessor(
+            $metadataExtractor,
+            $diarizer,
+            $ocrExtractor,
+            $legislators,
+            $writer,
+            null
+        );
+
+        // Committee video (diarization is skipped for committees), no manifest
+        // (OCR is skipped), no metadata speakers: cleanly empty.
+        $job = new SpeakerJob(42, 'senate', 'https://video.richmondsunlight.com/senate/comm/20250101.mp4', null, 'committee', null, null);
+        $processor->process($job);
+    }
+
+    public function testLeavesClaimWhenDiarizationFails(): void
+    {
+        $metadataExtractor = $this->createMock(SpeakerMetadataExtractor::class);
+        $metadataExtractor->method('extract')->willReturn([]);
+
+        $diarizer = $this->createMock(DiarizerInterface::class);
+        $diarizer->method('diarize')->willThrowException(new \RuntimeException('AWS Transcribe unavailable'));
+
+        $ocrExtractor = $this->createMock(OcrSpeakerExtractor::class);
+        $legislators = $this->createMock(LegislatorDirectory::class);
+
+        $writer = $this->createMock(SpeakerResultWriter::class);
+        // Failure must NOT look like "no speakers": no sentinel, no clearing —
+        // the claim placeholder stays and StaleClaimCleaner releases it later.
+        $writer->expects($this->never())->method('recordNoneFound');
+        $writer->expects($this->never())->method('clearExisting');
+        $writer->expects($this->never())->method('write');
+
+        $processor = new SpeakerDetectionProcessor(
+            $metadataExtractor,
+            $diarizer,
+            $ocrExtractor,
+            $legislators,
+            $writer,
+            null
+        );
+
+        // Floor video with no metadata speakers and no manifest → diarization runs and throws.
+        $job = new SpeakerJob(43, 'house', 'https://video.richmondsunlight.com/house/floor/20250101.mp4', null, 'floor', null, null);
+        $processor->process($job);
     }
 
     public function testDiarizesFloorVideosWhenNoMetadata(): void

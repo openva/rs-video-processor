@@ -71,20 +71,20 @@ php bin/scrape.php
 # Download videos to S3
 php bin/fetch_videos.php --limit=N
 
-# Screenshot generation (enqueue mode for control plane)
-php bin/generate_screenshots.php --enqueue
-
-# Screenshot generation (worker mode for analysis box)
+# Screenshot generation
 php bin/generate_screenshots.php --limit=N
 
 # Transcript extraction
-php bin/generate_transcripts.php --enqueue|--limit=N
+php bin/generate_transcripts.php --limit=N
 
 # Bill detection via OCR
-php bin/detect_bills.php --enqueue|--limit=N
+php bin/detect_bills.php --limit=N
 
 # Speaker identification
-php bin/detect_speakers.php --enqueue|--limit=N
+php bin/detect_speakers.php --limit=N
+
+# Release stale in-progress claims so interrupted jobs get retried
+php bin/reset_stale_claims.php
 
 # Upload to Internet Archive
 php bin/upload_archive.php --limit=N
@@ -102,7 +102,7 @@ The system runs across two server configurations:
 1. **Lightweight Control Plane** (EC2 Micro instance, shared with rs-machine)
    - Scraping and metadata collection
    - Video downloading to S3
-   - Job enqueueing for analysis tasks
+   - (Analysis work is claimed directly from the database by the workers below — there is no separate enqueue step.)
 
 2. **Heavy Analysis Workers** (GPU-capable EC2 instance)
    - Screenshot generation (ffmpeg)
@@ -114,12 +114,14 @@ The system runs across two server configurations:
 
 ### Queue System
 
-Production uses AWS SQS FIFO queue (`rs-video-harvester.fifo`). In Docker/tests, falls back to an in-memory queue automatically.
+The pipeline is database-driven. Each stage's `*JobQueue` class selects pending work directly from MariaDB using `FOR UPDATE SKIP LOCKED` and claims it so parallel workers don't double-process:
 
-```php
-// Queue selection is automatic via QueueFactory
-$queue = $factory->build($queueUrl, $config);
-```
+- **Screenshots:** claimed files get `capture_directory='/pending'`, `capture_rate=0`.
+- **Bills/speakers:** a placeholder row is inserted into `video_index` with `ignored='y'`, `raw_text='/pending'`, so other workers' `NOT EXISTS` checks skip the file.
+
+`bin/reset_stale_claims.php` releases claims older than a configurable threshold (`STALE_CLAIM_MAX_AGE_HOURS`, default 3 hours) so crashed or interrupted jobs get retried. A terminal row with `raw_text='/none'`, `ignored='y'` means "the stage ran and found nothing — do not retry."
+
+The `src/Queue/` classes (SQS/in-memory `QueueFactory`, `JobDispatcher`) are legacy and are no longer used by the pipeline workers.
 
 ### Directory Structure
 
@@ -210,8 +212,8 @@ flowchart TD
 Each analysis step has a dedicated processor class that handles job orchestration, execution, and result persistence.
 
 **Idempotency:**
-- Enqueue mode is safe to run repeatedly
-- Worker mode acknowledges jobs only after successful processing
+- Every stage is safe to run repeatedly — job queues re-select unfinished work each run
+- Claims (`capture_directory='/pending'`, or `video_index` `/pending` placeholders) prevent duplicate concurrent processing; stale claims are released for retry by `bin/reset_stale_claims.php`
 - Database prevents duplicate inserts
 
 ### Database Integration
@@ -238,7 +240,7 @@ PDO_DSN, PDO_USERNAME, PDO_PASSWORD
 
 // AWS
 AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION
-VIDEO_SQS_URL  // rs-video-harvester.fifo queue URL
+VIDEO_SQS_URL  // Legacy — no longer used by the pipeline (SQS removed)
 
 // APIs
 OPENAI_KEY              // For transcription fallback
@@ -343,7 +345,7 @@ Audio is resampled to MP3 (mono, 32 Kbps, 16 kHz, <25 MB chunks) before API subm
 
 ### Production Infrastructure
 
-- Scraping/enqueueing runs on rs-machine EC2 instance (always-on, low-cost)
+- Scraping and metadata collection run on the rs-machine EC2 instance (always-on, low-cost)
 - Analysis workers run on separate GPU-capable instance (started on-demand)
 - Deployed via GitHub Actions → AWS CodeDeploy
 - Gated by presence of `/home/ubuntu/video-processor.txt`
@@ -368,7 +370,7 @@ This runs every 30 minutes during legislative hours (noon-9 PM) via crontab.
 ## Development Tips
 
 - **Always use Docker for testing** - ensures ffmpeg and other dependencies are available
-- **Queue fallback is automatic** - in-memory queue used when SQS unavailable
+- **Workers read straight from the database** - no queue service to configure; claims plus `bin/reset_stale_claims.php` handle coordination and recovery
 - **Test fixtures are large** - run `bin/fetch_test_fixtures.php` to download sample videos
 - **Check the gating file** - analysis won't run without `/home/ubuntu/video-processor.txt`
 - **Scraper output is JSON** - check `storage/scraper/` for debugging metadata collection
