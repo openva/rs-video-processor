@@ -36,6 +36,12 @@ composer install
 ### video_index.ignored flag
 `video_index.ignored` is `'y'`/`'n'`. Job queues insert placeholder rows with `ignored='y'` before work begins. **Every query that selects from `video_index` for processing should add `AND ignored != 'y'`** — otherwise placeholders are processed as real data.
 
+Two kinds of `ignored='y'` rows exist, distinguished by `raw_text`:
+- `raw_text='/pending'` — a transient claim marker inserted at fetch time. Released by `bin/reset_stale_claims.php` once older than `STALE_CLAIM_MAX_AGE_HOURS` (default 3h), so an interrupted job is retried.
+- `raw_text='/none'` — a permanent "stage ran, found nothing" sentinel. It satisfies the queue's `NOT EXISTS` check so the video is not re-processed forever.
+
+Both must be excluded from any query that reads `video_index` as real results.
+
 ### S3KeyBuilder and NULL committee_id
 `S3KeyBuilder::build()` returns `chamber/floor/YYYYMMDD.mp4` when `committeeShortname` is null. If a video has `committee_id = NULL` due to classification failure, it will collide with the floor video path. When uploading, always re-derive the committee from `video_index_cache` fields (`committee_name`, `event_type`) rather than trusting the DB's `committee_id`.
 
