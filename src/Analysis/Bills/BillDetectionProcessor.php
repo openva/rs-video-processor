@@ -47,37 +47,81 @@ class BillDetectionProcessor
             return;
         }
 
-        // OCR is about to run: clear the placeholder and any stale results.
-        $this->writer->clearExisting($job->fileId);
-
         $agenda = $this->agendaExtractor->extract($job->metadata);
 
-        $recorded = 0;
+        // OCR every screenshot, tolerating per-frame failures — a corrupt frame
+        // or a transient S3 fetch error must not abort the whole job. Results are
+        // collected and only committed after the loop, so the placeholder claim
+        // is never cleared unless we have a usable result. Clearing it before the
+        // loop (as this once did) meant a mid-loop exception could either mark the
+        // video "done" with partial data or wipe the claim and lose the retry.
+        $collected = [];
+        $attempted = 0;
+        $failed = 0;
         foreach ($manifest as $entry) {
-            $imagePath = $this->screenshotFetcher->fetch($entry['full']);
+            $attempted++;
             try {
-                $text = $this->textExtractor->extract($job->chamber, $imagePath, $crop);
-            } finally {
-                @unlink($imagePath);
+                $imagePath = $this->screenshotFetcher->fetch($entry['full']);
+                try {
+                    $text = $this->textExtractor->extract($job->chamber, $imagePath, $crop);
+                } finally {
+                    @unlink($imagePath);
+                }
+            } catch (\Throwable $e) {
+                $this->logger?->put('Screenshot processing failed for file #' . $job->fileId . ' (' . $entry['full'] . '): ' . $e->getMessage(), 4);
+                $failed++;
+                continue;
             }
             $bills = $this->parser->parse($text);
             if (empty($bills) && !empty($agenda)) {
                 $bills = $this->matchAgenda($agenda, $entry['timestamp']);
             }
-            $screenshotFilename = basename($entry['full']);
-            $this->writer->record($job->fileId, $entry['timestamp'], $bills, $screenshotFilename);
-            $recorded += count($bills);
+            $collected[] = [
+                'timestamp' => $entry['timestamp'],
+                'bills' => $bills,
+                'screenshot' => basename($entry['full']),
+            ];
         }
 
-        if ($recorded === 0) {
-            // OCR genuinely found nothing. Record a terminal sentinel so this
-            // video isn't re-OCRed on every future pass.
-            $this->writer->recordNoneFound($job->fileId);
-            $this->logger?->put('No bills detected for file #' . $job->fileId . '; recorded none-found sentinel.', 3);
+        $totalBills = 0;
+        foreach ($collected as $item) {
+            $totalBills += count($item['bills']);
+        }
+
+        // If we found no bills AND some screenshots failed, we did not actually
+        // get to look at the whole video — do NOT finalize it as "none found".
+        // Leave the claim placeholder intact so StaleClaimCleaner releases it for
+        // a bounded retry (this also covers the all-screenshots-failed case).
+        if ($totalBills === 0 && $failed > 0) {
+            $this->logger?->put(
+                'Bill detection incomplete for file #' . $job->fileId
+                . ' (' . $failed . '/' . $attempted . ' screenshots failed, no bills found); leaving claim for later retry.',
+                4
+            );
             return;
         }
 
-        $this->logger?->put('Finished bill detection for file #' . $job->fileId, 3);
+        // Commit: clear the placeholder (and any stale results) and write fresh.
+        $this->writer->clearExisting($job->fileId);
+        foreach ($collected as $item) {
+            $this->writer->record($job->fileId, $item['timestamp'], $item['bills'], $item['screenshot']);
+        }
+
+        if ($totalBills === 0) {
+            // Every screenshot was processed and genuinely no bills were found
+            // (or the manifest was empty). Record a terminal sentinel so this
+            // video isn't re-OCRed on every future pass.
+            $reason = $attempted === 0 ? 'manifest was empty' : 'processed ' . $attempted . ' screenshot(s), found none';
+            $this->writer->recordNoneFound($job->fileId);
+            $this->logger?->put('No bills detected for file #' . $job->fileId . ' (' . $reason . '); recorded none-found sentinel.', 3);
+            return;
+        }
+
+        $this->logger?->put(
+            'Finished bill detection for file #' . $job->fileId
+            . ($failed > 0 ? ' (' . $failed . '/' . $attempted . ' screenshots failed, kept partial results)' : ''),
+            3
+        );
     }
 
     private function matchAgenda(array $agenda, int $timestamp): array

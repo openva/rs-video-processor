@@ -498,7 +498,11 @@ Current behavior in `BillDetectionProcessor::process()`: it deletes the claim pl
 
 New semantics:
 - **Early failure** (no manifest, manifest load error, no crop): return *without* touching the placeholder. The claim blocks re-fetch until the threshold (default 3h) passes, then `StaleClaimCleaner` releases it → bounded retries.
-- **OCR ran, zero bills found**: record one `raw_text='/none', ignored='y'` sentinel row. The queue's `NOT EXISTS` then treats the video as done, permanently. (`RawTextResolver` already filters `ignored != 'y'` — verified at `src/Resolution/RawTextResolver.php:242,274` — so sentinels never reach bill resolution, and the website convention is that `ignored='y'` rows are invisible.)
+- **Per-screenshot failure inside the OCR loop** (transient S3 fetch error, corrupt frame, OCR crash): caught per-frame, logged, and skipped — one bad frame must not abort the whole job. Results are collected and only committed after the loop, so the placeholder is never cleared before we have a usable result. Decision after the loop, computed from what we actually processed:
+  - Some bills found → commit them (clear placeholder, write rows); if some frames failed, this is a logged partial result, still marked done (real bills are better kept than lost to endless re-OCR).
+  - Zero bills found **and** at least one frame failed → we did not fully look, so **leave the placeholder** for a bounded retry (do *not* write `/none`). This also covers the all-frames-failed case.
+  - Zero bills found and **every** frame processed cleanly (or the manifest was empty) → write the `/none` sentinel (terminal).
+- **OCR ran on the whole manifest, zero bills found**: record one `raw_text='/none', ignored='y'` sentinel row. The queue's `NOT EXISTS` then treats the video as done, permanently. (`RawTextResolver` already filters `ignored != 'y'` — verified at `src/Resolution/RawTextResolver.php:242,274` — so sentinels never reach bill resolution, and the website convention is that `ignored='y'` rows are invisible.)
 
 **Files:**
 - Modify: `src/Analysis/Bills/BillResultWriter.php` (add `recordNoneFound()`)
