@@ -345,7 +345,7 @@ Audio is resampled to MP3 (mono, 32 Kbps, 16 kHz, <25 MB chunks) before API subm
 
 ### Production Infrastructure
 
-- Scraping/enqueueing runs on rs-machine EC2 instance (always-on, low-cost)
+- Scraping and metadata collection run on the rs-machine EC2 instance (always-on, low-cost)
 - Analysis workers run on separate GPU-capable instance (started on-demand)
 - Deployed via GitHub Actions → AWS CodeDeploy
 - Gated by presence of `/home/ubuntu/video-processor.txt`
@@ -370,7 +370,7 @@ This runs every 30 minutes during legislative hours (noon-9 PM) via crontab.
 ## Development Tips
 
 - **Always use Docker for testing** - ensures ffmpeg and other dependencies are available
-- **Queue fallback is automatic** - in-memory queue used when SQS unavailable
+- **Workers read straight from the database** - no queue service to configure; claims plus `bin/reset_stale_claims.php` handle coordination and recovery
 - **Test fixtures are large** - run `bin/fetch_test_fixtures.php` to download sample videos
 - **Check the gating file** - analysis won't run without `/home/ubuntu/video-processor.txt`
 - **Scraper output is JSON** - check `storage/scraper/` for debugging metadata collection

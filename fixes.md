@@ -25,7 +25,7 @@ Diagnosis of the production pipeline found these root causes. Each task below fi
 **Explicitly out of scope for this plan** (known issues, tracked separately):
 - `SenateYouTubeScraper::extractCommitteeFromTitle()` doesn't handle the real colon-separated title format (documented in `CLAUDE.md`).
 - `ScreenshotGenerator::uploadFramesParallel()` is actually sequential (performance, not correctness).
-- The transcript stage has no claim marker, so a persistently failing transcript still retries each pass (bounded once Task 2 removes the main deterministic failure).
+- The transcript stage has no claim marker, so a persistently failing transcript still retries each pass (bounded once Task 2 removes the main deterministic failure). This also means concurrent transcript workers (drain mode runs 3) can occasionally fetch the same videos — `FOR UPDATE SKIP LOCKED` only dedupes while the fetch transactions overlap — duplicating Whisper API spend. Not data corruption (`TranscriptWriter::write()` is delete-then-insert); accepted as a cost risk, with a placeholder-claim pattern as the follow-up fix if it proves expensive.
 - Deleting `src/Queue/` and the dispatcher from `bin/bootstrap.php` — left in place, unused by the pipeline, still used by `bin/verify_classification.php`.
 
 **Conventions used throughout:**
@@ -216,16 +216,22 @@ Add this private method to the class:
      * Production columns (video_transcript.text, files.transcript, files.webvtt)
      * are utf8mb3, which rejects 4-byte Unicode (emoji, supplementary planes)
      * and null bytes. Strip them so one emoji can't poison a transcript forever.
+     * Malformed UTF-8 is repaired (substitute characters) before stripping.
      */
     private function sanitizeForUtf8mb3(string $text): string
     {
-        $stripped = preg_replace('/[\x{10000}-\x{10FFFF}]/u', '', $text);
-        if ($stripped !== null) {
-            $text = $stripped;
-        }
+        // Repair/replace ill-formed byte sequences first, so the /u regex below
+        // never fails on malformed input and silently no-ops. Malformed bytes are
+        // also rejected by MySQL's utf8mb3 validation, so this must run regardless.
+        $text = mb_convert_encoding($text, 'UTF-8', 'UTF-8');
+        $text = (string) preg_replace('/[\x{10000}-\x{10FFFF}]/u', '', $text);
         return str_replace("\0", '', $text);
     }
 ```
+
+The `mb_convert_encoding` repair-first step matters: `preg_replace` with `/u` returns null for the ENTIRE string if it contains any ill-formed UTF-8 byte anywhere, which would otherwise silently skip the emoji strip exactly when input is garbled (and malformed bytes are themselves rejected by utf8mb3).
+
+Also add two more tests: one for a string containing both an invalid byte sequence and an emoji — e.g. `"Hello \xC3\x28 \u{1F600} world"` — asserting the emoji is stripped and the stored value round-trips as valid UTF-8; and one asserting legitimate ≤3-byte multibyte text like `"Café 你好世界"` survives verbatim.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -292,9 +298,10 @@ class StaleClaimCleanerTest extends TestCase
 
     public function testResetsStaleScreenshotClaimsOnly(): void
     {
-        $fresh = date('Y-m-d H:i:s');
+        // Fresh rows use the DB clock (datetime('now'), UTC in SQLite) to match
+        // the DB-side cutoff; a PHP-local date() would be on a different clock.
         $this->pdo->exec("INSERT INTO files (capture_directory, capture_rate, date_modified) VALUES ('/pending', 0, '2020-01-01 00:00:00')");
-        $this->pdo->exec("INSERT INTO files (capture_directory, capture_rate, date_modified) VALUES ('/pending', 0, '$fresh')");
+        $this->pdo->exec("INSERT INTO files (capture_directory, capture_rate, date_modified) VALUES ('/pending', 0, datetime('now'))");
         $this->pdo->exec("INSERT INTO files (capture_directory, capture_rate, date_modified) VALUES ('/house/floor/20250101/', 60, '2020-01-01 00:00:00')");
 
         $cleaner = new StaleClaimCleaner($this->pdo);
@@ -320,12 +327,11 @@ class StaleClaimCleanerTest extends TestCase
 
     public function testDeletesStalePlaceholdersButKeepsSentinelsAndResults(): void
     {
-        $fresh = date('Y-m-d H:i:s');
         // Stale claim placeholders (should be deleted)
         $this->pdo->exec("INSERT INTO video_index (file_id, raw_text, type, ignored, date_created) VALUES (1, '/pending', 'bill', 'y', '2020-01-01 00:00:00')");
         $this->pdo->exec("INSERT INTO video_index (file_id, raw_text, type, ignored, date_created) VALUES (2, '/pending', 'legislator', 'y', '2020-01-01 00:00:00')");
-        // Fresh claim placeholder (should be kept)
-        $this->pdo->exec("INSERT INTO video_index (file_id, raw_text, type, ignored, date_created) VALUES (3, '/pending', 'bill', 'y', '$fresh')");
+        // Fresh claim placeholder (should be kept) — DB clock to match the cutoff.
+        $this->pdo->exec("INSERT INTO video_index (file_id, raw_text, type, ignored, date_created) VALUES (3, '/pending', 'bill', 'y', datetime('now'))");
         // Terminal none-found sentinel (should be kept)
         $this->pdo->exec("INSERT INTO video_index (file_id, raw_text, type, ignored, date_created) VALUES (4, '/none', 'bill', 'y', '2020-01-01 00:00:00')");
         // Real result (should be kept)
@@ -372,6 +378,15 @@ use PDO;
  *
  * Terminal '/none' sentinel rows (written when a stage legitimately finds
  * nothing) are deliberately NOT touched.
+ *
+ * Caveat — files.date_modified is a shared ON UPDATE column: it is defined
+ * `timestamp ... ON UPDATE current_timestamp()`, so ANY write to a '/pending'
+ * file row (e.g. TranscriptWriter, committee_id repair scripts) bumps it. A
+ * dedicated claim-timestamp column would be cleaner, but this project does no
+ * schema migrations, so we accept this. It fails SAFE: a shared write can only
+ * make a claim look NEWER, so the cleaner may DELAY recovery of a stuck
+ * screenshot claim but will never prematurely reset a still-live one. The
+ * bills/speakers half is immune: video_index.date_created has no ON UPDATE.
  */
 class StaleClaimCleaner
 {
@@ -384,16 +399,27 @@ class StaleClaimCleaner
      */
     public function clean(int $maxAgeHours = 3): array
     {
-        $cutoff = date('Y-m-d H:i:s', time() - ($maxAgeHours * 3600));
+        $driver = $this->pdo->getAttribute(\PDO::ATTR_DRIVER_NAME);
+
+        // Build the cutoff DB-side so it shares the database's clock/timezone
+        // with the CURRENT_TIMESTAMP / NOW() values stored in date_modified and
+        // date_created. A PHP-computed cutoff (date()) would use PHP's timezone,
+        // which can differ from the MySQL server's, silently offsetting every
+        // comparison by hours. $maxAgeHours is an int, so interpolation is safe.
+        if ($driver === 'sqlite') {
+            $cutoffExpr = "datetime('now', '-{$maxAgeHours} hours')";
+        } else {
+            $cutoffExpr = "(NOW() - INTERVAL {$maxAgeHours} HOUR)";
+        }
 
         // date_modified IS NULL covers claims made before claims were timestamped.
         $stmt = $this->pdo->prepare(
             "UPDATE files
              SET capture_directory = NULL, capture_rate = NULL
              WHERE capture_directory = '/pending'
-               AND (date_modified IS NULL OR date_modified < :cutoff)"
+               AND (date_modified IS NULL OR date_modified < {$cutoffExpr})"
         );
-        $stmt->execute([':cutoff' => $cutoff]);
+        $stmt->execute();
         $screenshotClaims = $stmt->rowCount();
 
         $stmt = $this->pdo->prepare(
@@ -401,9 +427,9 @@ class StaleClaimCleaner
              WHERE raw_text = '/pending'
                AND ignored = 'y'
                AND type IN ('bill', 'legislator')
-               AND date_created < :cutoff"
+               AND date_created < {$cutoffExpr}"
         );
-        $stmt->execute([':cutoff' => $cutoff]);
+        $stmt->execute();
         $indexPlaceholders = $stmt->rowCount();
 
         return [
@@ -699,41 +725,89 @@ Replace the entire `process()` method in `src/Analysis/Bills/BillDetectionProces
             return;
         }
 
-        // OCR is about to run: clear the placeholder and any stale results.
-        $this->writer->clearExisting($job->fileId);
-
         $agenda = $this->agendaExtractor->extract($job->metadata);
 
-        $recorded = 0;
+        // OCR every screenshot, tolerating per-frame failures — a corrupt frame
+        // or a transient S3 fetch error must not abort the whole job. Results are
+        // collected and only committed after the loop, so the placeholder claim
+        // is never cleared unless we have a usable result. Clearing it before the
+        // loop (as this once did) meant a mid-loop exception could either mark the
+        // video "done" with partial data or wipe the claim and lose the retry.
+        $collected = [];
+        $attempted = 0;
+        $failed = 0;
         foreach ($manifest as $entry) {
-            $imagePath = $this->screenshotFetcher->fetch($entry['full']);
+            $attempted++;
             try {
-                $text = $this->textExtractor->extract($job->chamber, $imagePath, $crop);
-            } finally {
-                @unlink($imagePath);
+                $imagePath = $this->screenshotFetcher->fetch($entry['full']);
+                try {
+                    $text = $this->textExtractor->extract($job->chamber, $imagePath, $crop);
+                } finally {
+                    @unlink($imagePath);
+                }
+            } catch (\Throwable $e) {
+                $this->logger?->put('Screenshot processing failed for file #' . $job->fileId . ' (' . $entry['full'] . '): ' . $e->getMessage(), 4);
+                $failed++;
+                continue;
             }
             $bills = $this->parser->parse($text);
             if (empty($bills) && !empty($agenda)) {
                 $bills = $this->matchAgenda($agenda, $entry['timestamp']);
             }
-            $screenshotFilename = basename($entry['full']);
-            $this->writer->record($job->fileId, $entry['timestamp'], $bills, $screenshotFilename);
-            $recorded += count($bills);
+            $collected[] = [
+                'timestamp' => $entry['timestamp'],
+                'bills' => $bills,
+                'screenshot' => basename($entry['full']),
+            ];
         }
 
-        if ($recorded === 0) {
-            // OCR genuinely found nothing. Record a terminal sentinel so this
-            // video isn't re-OCRed on every future pass.
-            $this->writer->recordNoneFound($job->fileId);
-            $this->logger?->put('No bills detected for file #' . $job->fileId . '; recorded none-found sentinel.', 3);
+        $totalBills = 0;
+        foreach ($collected as $item) {
+            $totalBills += count($item['bills']);
+        }
+
+        // If we found no bills AND some screenshots failed, we did not actually
+        // get to look at the whole video — do NOT finalize it as "none found".
+        // Leave the claim placeholder intact so StaleClaimCleaner releases it for
+        // a bounded retry (this also covers the all-screenshots-failed case).
+        if ($totalBills === 0 && $failed > 0) {
+            $this->logger?->put(
+                'Bill detection incomplete for file #' . $job->fileId
+                . ' (' . $failed . '/' . $attempted . ' screenshots failed, no bills found); leaving claim for later retry.',
+                4
+            );
             return;
         }
 
-        $this->logger?->put('Finished bill detection for file #' . $job->fileId, 3);
+        // Commit: clear the placeholder (and any stale results) and write fresh.
+        // Reconnect first — the OCR loop above does no DB work and can run for
+        // hours on a long video, so the connection from the top of process()
+        // is almost certainly dead by now ("MySQL server has gone away").
+        $this->writer->reconnect();
+        $this->writer->clearExisting($job->fileId);
+        foreach ($collected as $item) {
+            $this->writer->record($job->fileId, $item['timestamp'], $item['bills'], $item['screenshot']);
+        }
+
+        if ($totalBills === 0) {
+            // Every screenshot was processed and genuinely no bills were found
+            // (or the manifest was empty). Record a terminal sentinel so this
+            // video isn't re-OCRed on every future pass.
+            $reason = $attempted === 0 ? 'manifest was empty' : 'processed ' . $attempted . ' screenshot(s), found none';
+            $this->writer->recordNoneFound($job->fileId);
+            $this->logger?->put('No bills detected for file #' . $job->fileId . ' (' . $reason . '); recorded none-found sentinel.', 3);
+            return;
+        }
+
+        $this->logger?->put(
+            'Finished bill detection for file #' . $job->fileId
+            . ($failed > 0 ? ' (' . $failed . '/' . $attempted . ' screenshots failed, kept partial results)' : ''),
+            3
+        );
     }
 ```
 
-(`matchAgenda()` and the constructor are unchanged.)
+(`matchAgenda()` and the constructor are unchanged. In addition to the two tests in Step 1, add tests covering the per-frame failure paths: partial results kept when some screenshots fail but bills were found; claim left intact when all screenshots fail with no bills; and the writer reconnecting a second time before the post-loop commit.)
 
 - [ ] **Step 5: Run tests to verify they pass**
 
