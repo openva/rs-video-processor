@@ -302,6 +302,66 @@ class BillDetectionProcessorTest extends TestCase
         $this->assertSame(['/pending'], $rows);
     }
 
+    public function testReconnectsBeforeCommittingResults(): void
+    {
+        // The OCR loop does no DB work and can run for hours; the writer must
+        // get a fresh connection both at job start and again before the
+        // post-loop commit writes, or the commit hits a dead connection.
+        $pdo = new PDO('sqlite::memory:');
+        $pdo->exec('CREATE TABLE video_index (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_id INTEGER,
+            time TEXT,
+            screenshot TEXT,
+            raw_text TEXT,
+            type TEXT,
+            linked_id INTEGER,
+            ignored TEXT,
+            date_created TEXT
+        )');
+
+        $reconnects = 0;
+        $writer = new BillResultWriter($pdo, function () use ($pdo, &$reconnects) {
+            $reconnects++;
+            return $pdo;
+        });
+
+        // Empty manifest: loop is skipped, commit path writes a /none sentinel.
+        $loader = $this->createMock(ScreenshotManifestLoader::class);
+        $loader->method('load')->willReturn([]);
+
+        $ocr = new class implements OcrEngineInterface {
+            public function extractText(string $imagePath): string
+            {
+                return '';
+            }
+        };
+
+        $processor = new BillDetectionProcessor(
+            $loader,
+            $this->createMock(ScreenshotFetcher::class),
+            new BillTextExtractor($ocr),
+            new BillParser(),
+            $writer,
+            new ChamberConfig(),
+            new AgendaExtractor(),
+            null
+        );
+
+        $job = new BillDetectionJob(
+            1,
+            'senate',
+            null,
+            'floor',
+            'https://video.richmondsunlight.com/senate/floor/20250101/',
+            'https://video.richmondsunlight.com/senate/floor/20250101/manifest.json',
+            null
+        );
+        $processor->process($job);
+
+        $this->assertSame(2, $reconnects, 'Writer must reconnect at job start AND again before the post-loop commit.');
+    }
+
     public function testLeavesClaimPlaceholderWhenManifestMissing(): void
     {
         $pdo = new PDO('sqlite::memory:');

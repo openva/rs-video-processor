@@ -102,6 +102,10 @@ class BillDetectionProcessor
         }
 
         // Commit: clear the placeholder (and any stale results) and write fresh.
+        // Reconnect first — the OCR loop above does no DB work and can run for
+        // hours on a long video, so the connection from the top of process()
+        // is almost certainly dead by now ("MySQL server has gone away").
+        $this->writer->reconnect();
         $this->writer->clearExisting($job->fileId);
         foreach ($collected as $item) {
             $this->writer->record($job->fileId, $item['timestamp'], $item['bills'], $item['screenshot']);
