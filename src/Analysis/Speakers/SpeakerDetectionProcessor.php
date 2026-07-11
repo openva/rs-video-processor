@@ -24,6 +24,8 @@ class SpeakerDetectionProcessor
         // minutes and the connection times out between jobs.
         $this->writer->reconnect();
 
+        $hadError = false;
+
         $segments = $this->metadataExtractor->extract($job->metadata);
         if (empty($segments)) {
             if ($job->manifestUrl && $job->eventType) {
@@ -37,6 +39,7 @@ class SpeakerDetectionProcessor
                     );
                 } catch (\Throwable $e) {
                     $this->logger?->put('OCR extraction failed for file #' . $job->fileId . ': ' . $e->getMessage(), 4);
+                    $hadError = true;
                     $segments = [];
                 }
             }
@@ -48,6 +51,7 @@ class SpeakerDetectionProcessor
                     $segments = $this->diarizer->diarize($job->videoUrl);
                 } catch (\Throwable $e) {
                     $this->logger?->put('Diarization failed for file #' . $job->fileId . ': ' . $e->getMessage(), 4);
+                    $hadError = true;
                     $segments = [];
                 }
             } else {
@@ -56,8 +60,18 @@ class SpeakerDetectionProcessor
         }
 
         if (empty($segments)) {
-            $this->logger?->put('Unable to determine speakers for file #' . $job->fileId, 4);
-            $this->writer->clearExisting($job->fileId);
+            if ($hadError) {
+                // An extraction step failed — leave the claim placeholder from the
+                // job queue in place. StaleClaimCleaner releases it after the
+                // stale-claim threshold, giving a bounded retry instead of an
+                // every-pass loop.
+                $this->logger?->put('Speaker extraction errored for file #' . $job->fileId . '; leaving claim for later retry.', 4);
+                return;
+            }
+            // Extraction ran cleanly and found nothing — record it permanently
+            // so this video isn't re-processed on every pass.
+            $this->logger?->put('No speakers found for file #' . $job->fileId . '; recorded none-found sentinel.', 3);
+            $this->writer->recordNoneFound($job->fileId);
             return;
         }
 
