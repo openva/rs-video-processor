@@ -1,8 +1,10 @@
 [Unit]
 Description=Richmond Sunlight Video Processing Pipeline
+# Order after the code-update service, but only Wants= (not Requires=): a
+# best-effort code update must never be a hard gate that blocks an already-
+# deployed pipeline. If update-from-s3.service fails, systemd still runs us.
 After=network-online.target update-from-s3.service
-Wants=network-online.target
-Requires=update-from-s3.service
+Wants=network-online.target update-from-s3.service
 ConditionPathExists=/home/ubuntu/video-processor.txt
 
 [Service]

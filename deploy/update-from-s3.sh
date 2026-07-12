@@ -76,16 +76,21 @@ find "$APP_DIR" -type f -name '*.sh' -print0 | xargs -0 chmod +x
 echo "Installing Composer dependencies..."
 composer install --no-interaction --prefer-dist --no-dev --optimize-autoloader
 
-# Save the ETag so we know what version we're running
-echo "$REMOTE_ETAG" > "$ETAG_FILE"
-
 # Run the deploy script if it exists (for any post-update configuration)
 if [[ -x "${APP_DIR}/deploy/deploy.sh" ]]; then
   echo "Running deploy script..."
   "${APP_DIR}/deploy/deploy.sh"
 fi
 
+# Save the ETag only after a fully successful update (including deploy.sh), so a
+# failed deploy retries on the next boot instead of being masked as "already
+# latest". The ETag write used to sit before deploy.sh, silently hiding deploy
+# failures — the box would report "no update needed" while never finishing one.
+echo "$REMOTE_ETAG" > "$ETAG_FILE"
+
 echo "Update complete (now running: ${REMOTE_ETAG})."
+# Best-effort logging only — a failed Log write (DB/Slack down) must not fail the
+# unit and, under the old Requires=, block the pipeline from ever starting.
 if command -v php >/dev/null 2>&1; then
-  php -r "require '${APP_DIR}/includes/settings.inc.php'; require '${APP_DIR}/includes/class.Log.php'; (new Log())->put('Update complete (now running: ${REMOTE_ETAG}).', 3);"
+  php -r "require '${APP_DIR}/includes/settings.inc.php'; require '${APP_DIR}/includes/class.Log.php'; (new Log())->put('Update complete (now running: ${REMOTE_ETAG}).', 3);" || true
 fi
