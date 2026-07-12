@@ -24,13 +24,23 @@ if ! grep -q swap /etc/fstab; then
     echo "/var/swap.1   swap    swap    defaults        0   0" | sudo tee -a /etc/fstab
 fi
 
-# Update the OS and repositories (need ondrej/php for PHP 8.x)
-sudo apt-get update
+# OS provisioning below is best-effort: on an already-provisioned box these are
+# no-ops, and a transient apt/PPA/network failure here must NOT block the service
+# installation at the end of this script (which is the part deploys actually
+# need). errexit is restored before that critical section.
+set +e
+
+# Update the OS and repositories (need ondrej/php for PHP 8.x).
+# --allow-releaseinfo-change: the ondrej/php PPA periodically changes its repo
+# Label/Origin (it now redirects to packages.sury.org), which makes a plain
+# `apt-get update` exit 100 until the change is acknowledged — that exit code
+# previously aborted the whole deploy.
+sudo apt-get update --allow-releaseinfo-change
 sudo apt-get install -y unattended-upgrades
 sudo unattended-upgrades --verbose
 sudo apt-get install -y software-properties-common
 sudo add-apt-repository -y ppa:ondrej/php
-sudo apt-get update
+sudo apt-get update --allow-releaseinfo-change
 
 # Install necessary packages.
 sudo apt-get install -y \
@@ -85,6 +95,10 @@ fi
 if [[ -x "$LOCAL_BIN/yt-dlp" ]]; then
   sudo ln -sf "$LOCAL_BIN/yt-dlp" /usr/local/bin/yt-dlp
 fi
+
+# Re-enable errexit: OS provisioning is done (best-effort above); the service
+# installation below is critical and must fail loudly if anything goes wrong.
+set -e
 
 # Install one-shot updater (runs on boot) when enabled via guard file.
 echo "Installing update-from-s3 service..."
