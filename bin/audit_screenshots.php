@@ -9,7 +9,7 @@
 
 declare(strict_types=1);
 
-use Aws\S3\S3Client;
+use RichmondSunlight\VideoProcessor\Fetcher\S3ClientFactory;
 
 $app = require __DIR__ . '/bootstrap.php';
 $pdo = $app->pdo;
@@ -18,12 +18,7 @@ $options = getopt('', ['fix', 'limit::']);
 $fix = isset($options['fix']);
 $limit = isset($options['limit']) ? (int) $options['limit'] : 0;
 
-$s3 = new S3Client([
-    'key' => AWS_ACCESS_KEY,
-    'secret' => AWS_SECRET_KEY,
-    'region' => 'us-east-1',
-    'version' => '2006-03-01',
-]);
+$s3 = S3ClientFactory::create(AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION);
 $bucket = 'video.richmondsunlight.com';
 
 $sql = "SELECT id, capture_directory, date

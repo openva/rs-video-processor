@@ -11,7 +11,7 @@
 
 declare(strict_types=1);
 
-use Aws\S3\S3Client;
+use RichmondSunlight\VideoProcessor\Fetcher\S3ClientFactory;
 
 $app = require __DIR__ . '/bootstrap.php';
 $pdo = $app->pdo;
@@ -71,12 +71,7 @@ $manifest = [
     'videos'       => $videos,
 ];
 
-$s3Client = new S3Client([
-    'key'     => AWS_ACCESS_KEY,
-    'secret'  => AWS_SECRET_KEY,
-    'region'  => AWS_REGION,
-    'version' => '2006-03-01',
-]);
+$s3Client = S3ClientFactory::create(AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION);
 
 $s3Client->putObject([
     'Bucket'      => 'video.richmondsunlight.com',

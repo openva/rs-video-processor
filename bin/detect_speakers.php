@@ -3,7 +3,7 @@
 
 declare(strict_types=1);
 
-use Aws\S3\S3Client;
+use RichmondSunlight\VideoProcessor\Fetcher\S3ClientFactory;
 use Aws\TranscribeService\TranscribeServiceClient;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\ScreenshotFetcher;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\ScreenshotManifestLoader;
@@ -45,12 +45,7 @@ $writer = new SpeakerResultWriter($pdo, $pdoFactory);
 $minSegmentSeconds = getenv('SPEAKER_OCR_MIN_SEGMENT_SECONDS');
 $minSegmentSeconds = is_numeric($minSegmentSeconds) ? (int) $minSegmentSeconds : 3;
 
-$s3Client = new S3Client([
-    'key' => AWS_ACCESS_KEY,
-    'secret' => AWS_SECRET_KEY,
-    'region' => AWS_REGION,
-    'version' => '2006-03-01',
-]);
+$s3Client = S3ClientFactory::create(AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION);
 
 $transcribeClient = new TranscribeServiceClient([
     'credentials' => [

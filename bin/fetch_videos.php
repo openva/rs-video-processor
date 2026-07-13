@@ -3,7 +3,7 @@
 
 declare(strict_types=1);
 
-use Aws\S3\S3Client;
+use RichmondSunlight\VideoProcessor\Fetcher\S3ClientFactory;
 use RichmondSunlight\VideoProcessor\Fetcher\CommitteeDirectory;
 use RichmondSunlight\VideoProcessor\Fetcher\S3Storage;
 use RichmondSunlight\VideoProcessor\Fetcher\S3KeyBuilder;
@@ -25,12 +25,7 @@ foreach ($argv as $arg) {
     }
 }
 
-$s3Client = new S3Client([
-    'key' => AWS_ACCESS_KEY,
-    'secret' => AWS_SECRET_KEY,
-    'region' => AWS_REGION,
-    'version' => '2006-03-01',
-]);
+$s3Client = S3ClientFactory::create(AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION);
 
 $bucket = 'video.richmondsunlight.com';
 $storage = new S3Storage($s3Client, $bucket);

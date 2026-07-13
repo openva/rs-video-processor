@@ -14,6 +14,7 @@
 declare(strict_types=1);
 
 use Aws\S3\S3Client;
+use RichmondSunlight\VideoProcessor\Fetcher\S3ClientFactory;
 use RichmondSunlight\VideoProcessor\Fetcher\S3Storage;
 
 $app = require __DIR__ . '/bootstrap.php';
@@ -68,14 +69,7 @@ if (empty($files)) {
 $log?->put(sprintf('Checking %d file(s) for missing manifests', count($files)), 3);
 
 // Initialize S3 client
-$s3Client = new S3Client([
-    'version' => 'latest',
-    'region' => AWS_REGION ?? 'us-east-1',
-    'credentials' => [
-        'key' => AWS_ACCESS_KEY,
-        'secret' => AWS_SECRET_KEY,
-    ],
-]);
+$s3Client = S3ClientFactory::create(AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION);
 
 $storage = new S3Storage($s3Client, 'video.richmondsunlight.com');
 
