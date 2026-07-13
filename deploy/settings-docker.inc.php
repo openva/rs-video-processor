@@ -1,125 +1,41 @@
 <?php
 
 ###
-# Site Settings
+# Docker / CI test-environment settings.
 #
-# PURPOSE
-# All the constants intended to be accessible throughout the site.
+# This file previously hand-duplicated the entire ~120-line constant list from
+# settings-default.inc.php, and the two had drifted (stale session values,
+# missing newer constants). To keep them from diverging, define ONLY the values
+# that must differ for the containerised test environment, then pull in the
+# shared base for everything else.
 #
+# define() runs before the base's rs_define() (which is "define-if-not-set"),
+# so these overrides win while every other constant is inherited from the single
+# source of truth. settings-default.inc.php is placed in includes/ by
+# docker-setup.sh (copied from the richmondsunlight.com repo) before this file
+# is ever loaded as includes/settings.inc.php.
 ###
 
-# THE CURRENT SESSION
-# As defined by Richmond Sunlight's database
-define('SESSION_ID', 31);
+# This is the test/dev environment, not production.
+define('IS_PRODUCTION', false);
 
-# Is this the main session or a special session? As defined by Richmond Sunlight's database.
-define('SESSION_SUFFIX', '');
-
-# As defined by the GA LIS' database.
-define('SESSION_LIS_ID', '251');
-
-# As defined by the year.
-define('SESSION_YEAR', 2025);
-
-# Start and end of this session.
-define('SESSION_START', '2025-01-08');
-define('SESSION_END', '2025-02-21');
-
-# Set the FTP auth pair for legislative data.
-define('LIS_FTP_USERNAME', '');
-define('LIS_FTP_PASSWORD', '');
-
-# The DSN to connect to MySQL.
+# Database: the "db" service defined in docker-compose.yml.
 define('PDO_DSN', 'mysql:host=db;dbname=richmondsunlight');
 define('PDO_SERVER', 'db');
 define('PDO_USERNAME', 'ricsun');
 define('PDO_PASSWORD', 'password');
 define('MYSQL_DATABASE', 'richmondsunlight');
 
-# The API URL.
-define('API_URL', 'https://api.richmondsunlight.com/');
-
-# Specify how to connect to Memcached.
+# No Memcached container in the test env; keep the host local.
 define('MEMCACHED_SERVER', 'localhost');
-define('MEMCACHED_PORT', '11211');
 
-# The House Speaker's IDs. This is used in update_vote.php to translate votes credited to
-# "H0000," which bizarrely indicates the speaker, to that legislator's ID, and in
-# Video::identify_speakers to match the speaker to her identity. Here, H322 and 455 indicate
-# Don Scott.
-define('HOUSE_SPEAKER_LIS_ID', 'H322');
-define('HOUSE_SPEAKER_ID', '455');
-
-# Set the directory to look to for cache data.
-define('CACHE_DIR', sys_get_temp_dir());
-
-# ESTABLISH API KEYS
-
-# Google Maps
-define('GMAPS_KEY', '');
-
-# Open States API Key
-define('OPENSTATES_KEY', '');
-
-# Open Virginia / Virginia Decoded API Key
-# (We're inconsistent in our nomenclature.)
-define('OPENVA_KEY', '');
-define('VA_DECODED_KEY', '');
-
-# Mapbox API access token
-define('MAPBOX_TOKEN', '');
-
-# LIS API token
-define('LIS_KEY', '');
-
-# Logging verbosity, on a scale of 1–8
-define('LOG_VERBOSITY', 3);
-
-# Slack API URL
-define('SLACK_WEBHOOK', '');
-
-# OpenAI API key
-define('OPENAI_KEY', '');
-
-# Internet Archive S3-style auth info
-define('IA_ACCESS_KEY', '');
-define('IA_SECRET_KEY', '');
-
-# AWS auth info
-define('AWS_REGION', 'us-east-1');
-define('AWS_ACCESS_KEY', '');
-define('AWS_SECRET_KEY', '');
-
-# Video SQS URL
+# No SQS in the test env.
 define('VIDEO_SQS_URL', '');
 
-# The list of words that, when used, will lead to instant blacklisting. They're rot 13ed here.
-$GLOBALS['banned_words'] = array('fuvg','shpx','nffubyr','chffl','phag','shpxre','zbgureshpxre',
-    'shpxvat','pbpxfhpxre','gjng','qvpxurnq');
-foreach ($GLOBALS['banned_words'] as &$word) {
-    $word = str_rot13($word);
-}
-
-# Format money for the U.S.
-setlocale(LC_MONETARY, 'en_US');
-
-# Set the timezone.
-date_default_timezone_set('America/New_York');
-
-/*
- * Dynamically determine whether the legislature is in session and whether it's legislative season.
- */
-if (
-    time() >= strtotime(SESSION_START)
-    &&
-    time() <= strtotime(SESSION_END)
-) {
-    define('IN_SESSION', true);
-} else {
-    define('IN_SESSION', false);
-}
-if (date('n') >= 11 || date('n') <= 4) {
-    define('LEGISLATIVE_SEASON', true);
-} else {
-    define('LEGISLATIVE_SEASON', false);
-}
+# The shared base configures Memcached-backed PHP sessions for production; the
+# test container has no memcached extension, so silence the resulting ini_set
+# warning while still inheriting every constant defined during the require.
+$rs_prev_error_reporting = error_reporting();
+error_reporting($rs_prev_error_reporting & ~E_WARNING);
+require __DIR__ . '/settings-default.inc.php';
+error_reporting($rs_prev_error_reporting);
