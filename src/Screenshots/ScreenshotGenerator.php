@@ -95,7 +95,7 @@ class ScreenshotGenerator
             $this->validateVideo($destination);
             return;
         }
-        $response = $this->http->get($url, ['sink' => $destination]);
+        $response = $this->http->get($this->encodeUrlPath($url), ['sink' => $destination]);
         if ($response->getStatusCode() >= 400) {
             throw new RuntimeException('Unable to download video for screenshots.');
         }
@@ -121,6 +121,49 @@ class ScreenshotGenerator
 
     /** A real session video is never smaller than this; anything less is an error page. */
     private const MIN_VIDEO_BYTES = 3 * 1024 * 1024;
+
+
+    /**
+     * Percent-escape each path segment of an S3 URL.
+     *
+     * Committee names were run through urlencode() when these objects were
+     * uploaded, so the encoded form became the literal key: the key really
+     * contains '+' and '%' characters. Requesting it over HTTPS therefore means
+     * escaping those again ('+' -> %2B, '%' -> %25) or S3 resolves a different
+     * key and returns NoSuchKey. Verified against
+     * senate/committee/courts+of+justice+%28sr+a%29-+january+29%2C+2018/,
+     * which 404s as stored and returns the video once escaped.
+     *
+     * Only the path is touched; scheme, host and query string are left alone so
+     * presigned URLs and file:// fixtures still work.
+     */
+    private function encodeUrlPath(string $url): string
+    {
+        $parts = parse_url($url);
+        if ($parts === false || !isset($parts['scheme'], $parts['host'], $parts['path'])) {
+            return $url;
+        }
+        if (!in_array(strtolower($parts['scheme']), ['http', 'https'], true)) {
+            return $url;
+        }
+
+        $encoded = implode('/', array_map('rawurlencode', explode('/', $parts['path'])));
+
+        $result = $parts['scheme'] . '://';
+        if (isset($parts['user'])) {
+            $result .= $parts['user'] . (isset($parts['pass']) ? ':' . $parts['pass'] : '') . '@';
+        }
+        $result .= $parts['host'];
+        if (isset($parts['port'])) {
+            $result .= ':' . $parts['port'];
+        }
+        $result .= $encoded;
+        if (isset($parts['query'])) {
+            $result .= '?' . $parts['query'];
+        }
+
+        return $result;
+    }
 
     /**
      * Verify the downloaded file is genuinely a video before handing it to ffmpeg.

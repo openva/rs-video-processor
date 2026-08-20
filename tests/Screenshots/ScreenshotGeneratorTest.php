@@ -123,6 +123,58 @@ class ScreenshotGeneratorTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
+
+    /**
+     * Some S3 keys contain literal '+' and '%' characters, because committee
+     * names were passed through urlencode() at upload time and the encoded form
+     * became the actual key. Fetching those over HTTPS requires escaping again:
+     * '+' -> %2B and '%' -> %25, i.e. rawurlencode() per path segment.
+     *
+     * Real example (file #899): the stored path 404s as-is but returns the
+     * 1.36 GB video once escaped.
+     */
+    public function testEscapesPlusAndPercentInS3Keys(): void
+    {
+        $stored = 'https://video.richmondsunlight.com/senate/committee/'
+            . 'courts+of+justice+%28sr+a%29-+january+29%2C+2018/20180129.mp4';
+        $expected = 'https://video.richmondsunlight.com/senate/committee/'
+            . 'courts%2Bof%2Bjustice%2B%2528sr%2Ba%2529-%2Bjanuary%2B29%252C%2B2018/20180129.mp4';
+
+        $generator = $this->makeGenerator();
+        $method = new \ReflectionMethod($generator, 'encodeUrlPath');
+        $method->setAccessible(true);
+
+        $this->assertSame($expected, $method->invoke($generator, $stored));
+    }
+
+    /** A path with no special characters must pass through untouched. */
+    public function testLeavesOrdinaryS3KeysUnchanged(): void
+    {
+        $url = 'https://video.richmondsunlight.com/house/floor/20260313.mp4';
+
+        $generator = $this->makeGenerator();
+        $method = new \ReflectionMethod($generator, 'encodeUrlPath');
+        $method->setAccessible(true);
+
+        $this->assertSame($url, $method->invoke($generator, $url));
+    }
+
+    /** Query strings and file:// fixtures must not be mangled. */
+    public function testLeavesNonHttpAndQueryStringsIntact(): void
+    {
+        $generator = $this->makeGenerator();
+        $method = new \ReflectionMethod($generator, 'encodeUrlPath');
+        $method->setAccessible(true);
+
+        $this->assertSame('file:///tmp/x.mp4', $method->invoke($generator, 'file:///tmp/x.mp4'));
+        // The path's '+' is escaped (it is a literal key character); the query
+        // string is left byte-for-byte intact so signatures stay valid.
+        $this->assertSame(
+            'https://example.test/a%2Bb/c.mp4?sig=x%2By&t=1',
+            $method->invoke($generator, 'https://example.test/a+b/c.mp4?sig=x%2By&t=1')
+        );
+    }
+
     private function makeGenerator(): ScreenshotGenerator
     {
         $pdo = new PDO('sqlite::memory:');
