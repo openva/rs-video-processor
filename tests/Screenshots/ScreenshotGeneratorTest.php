@@ -69,6 +69,88 @@ class ScreenshotGeneratorTest extends TestCase
         $this->assertSame(60, (int) $file['capture_rate']);
     }
 
+
+    /**
+     * Regression: video.richmondsunlight.com holds IIS 502 error pages saved as
+     * .mp4 (18 of them, all exactly 1477 bytes, from a January 2020 outage).
+     * They are served with HTTP 200 and Content-Type: video/mp4, and at 1477
+     * bytes they clear the old 1024-byte size floor, so they reached ffmpeg and
+     * failed there with "moov atom not found".
+     */
+    public function testRejectsHtmlErrorPageSavedAsMp4(): void
+    {
+        $this->requireFfmpeg();
+
+        $fixture = $this->getVideoFixture('gateway-502-error.mp4');
+        $generator = $this->makeGenerator();
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/not a valid video/i');
+
+        $this->invokeValidate($generator, $fixture);
+    }
+
+    /**
+     * ffprobe -select_streams v:0 exits 0 on a file with no video stream at all,
+     * so the old check passed WebVTT and JSON payloads as valid videos.
+     */
+    public function testRejectsNonVideoPayloadThatFfprobeParsesCleanly(): void
+    {
+        $this->requireFfmpeg();
+
+        $path = tempnam(sys_get_temp_dir(), 'novideo') . '.mp4';
+        file_put_contents($path, "WEBVTT\n\n00:00:20.960 --> 00:00:25.020\n" . str_repeat("caption text\n", 500));
+
+        $generator = $this->makeGenerator();
+
+        try {
+            $this->expectException(\RuntimeException::class);
+            $this->expectExceptionMessageMatches('/not a valid video/i');
+            $this->invokeValidate($generator, $path);
+        } finally {
+            @unlink($path);
+        }
+    }
+
+    public function testAcceptsRealVideo(): void
+    {
+        $this->requireFfmpeg();
+
+        $fixture = $this->getVideoFixture('house-floor.mp4');
+        $generator = $this->makeGenerator();
+
+        $this->invokeValidate($generator, $fixture);
+        $this->addToAssertionCount(1);
+    }
+
+    private function makeGenerator(): ScreenshotGenerator
+    {
+        $pdo = new PDO('sqlite::memory:');
+        $pdo->exec('CREATE TABLE committees (id INTEGER PRIMARY KEY, name TEXT, shortname TEXT, chamber TEXT, parent_id INTEGER)');
+        $storage = new class implements StorageInterface {
+            public function upload(string $localPath, string $key): string
+            {
+                return 'https://example.test/' . $key;
+            }
+        };
+
+        return new ScreenshotGenerator(
+            $pdo,
+            $storage,
+            new CommitteeDirectory($pdo),
+            new S3KeyBuilder(),
+            null,
+            sys_get_temp_dir()
+        );
+    }
+
+    private function invokeValidate(ScreenshotGenerator $generator, string $path): void
+    {
+        $method = new \ReflectionMethod($generator, 'validateVideo');
+        $method->setAccessible(true);
+        $method->invoke($generator, $path);
+    }
+
     private function getVideoFixture(string $filename): string
     {
         $path = __DIR__ . '/../fixtures/' . $filename;

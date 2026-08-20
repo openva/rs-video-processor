@@ -99,34 +99,74 @@ class ScreenshotGenerator
         if ($response->getStatusCode() >= 400) {
             throw new RuntimeException('Unable to download video for screenshots.');
         }
+
+        // A wrong or stale key can return HTTP 200 with a caption file, a JSON
+        // manifest, or an HTML error page. Reject those before ffmpeg sees them.
+        // Note S3 serves the known-bad 2020 objects as video/mp4, so this is a
+        // guard for the general case, not a substitute for validateVideo().
+        $contentType = strtolower(trim(explode(';', $response->getHeaderLine('Content-Type'))[0]));
+        if (
+            $contentType !== '' && !str_starts_with($contentType, 'video/')
+            && $contentType !== 'application/octet-stream' && $contentType !== 'binary/octet-stream'
+        ) {
+            throw new RuntimeException(sprintf(
+                'Downloaded file is not a valid video: server returned Content-Type "%s" for %s.',
+                $contentType,
+                $url
+            ));
+        }
+
         $this->validateVideo($destination);
     }
 
+    /** A real session video is never smaller than this; anything less is an error page. */
+    private const MIN_VIDEO_BYTES = 3 * 1024 * 1024;
+
     /**
-     * Run ffprobe to verify the downloaded file is a valid, complete MP4.
-     * Catches corrupt/truncated uploads before wasting time on ffmpeg extraction.
+     * Verify the downloaded file is genuinely a video before handing it to ffmpeg.
+     *
+     * Three things have masqueraded as videos here:
+     *  - IIS "502 Bad Gateway" HTML pages saved as .mp4 during a January 2020
+     *    outage. S3 still serves 18 of them, all 1477 bytes, as video/mp4.
+     *  - WebVTT caption files and JSON manifests fetched from a wrong key.
+     *  - Truncated uploads with no moov atom.
+     *
+     * `ffprobe -select_streams v:0` cannot catch the middle case: selecting a
+     * stream that does not exist exits 0, so a caption file reads as valid.
+     * Requiring at least one video stream in the output is what makes this real.
      */
     private function validateVideo(string $path): void
     {
         $size = @filesize($path);
-        if ($size === false || $size < 1024) {
+        if ($size === false || $size < self::MIN_VIDEO_BYTES) {
             throw new RuntimeException(sprintf(
-                'Downloaded video is too small (%s bytes) — source file is likely corrupt.',
-                $size === false ? '0' : (string) $size
+                'Downloaded file is not a valid video: %s bytes is below the %d-byte minimum '
+                . '(source is likely an error page rather than a video).',
+                $size === false ? '0' : (string) $size,
+                self::MIN_VIDEO_BYTES
             ));
         }
 
         $cmd = sprintf(
-            'ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 %s 2>&1',
+            'ffprobe -v error -show_entries stream=codec_type -of csv=p=0 %s 2>&1',
             escapeshellarg($path)
         );
         exec($cmd, $output, $status);
+        $detail = trim(implode(' ', $output));
+
         if ($status !== 0) {
-            $detail = trim(implode(' ', $output));
             throw new RuntimeException(sprintf(
-                'Source video is not a valid MP4 (ffprobe exit %d): %s',
+                'Downloaded file is not a valid video (ffprobe exit %d): %s',
                 $status,
                 $detail ?: 'no output'
+            ));
+        }
+
+        // ffprobe exits 0 on files it can open but that hold no video stream.
+        if (!in_array('video', array_map('trim', $output), true)) {
+            throw new RuntimeException(sprintf(
+                'Downloaded file is not a valid video: no video stream found (ffprobe reported: %s).',
+                $detail !== '' ? $detail : 'no streams'
             ));
         }
     }
