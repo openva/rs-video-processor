@@ -11,6 +11,7 @@ APP_DIR="${APP_DIR:-/home/ubuntu/video-processor}"
 GUARD_FILE="${GUARD_FILE:-/home/ubuntu/video-processor.txt}"
 MAX_RUNTIME_SECONDS="${MAX_RUNTIME_SECONDS:-6600}"  # 1 hour 50 minutes default
 MAX_DRAIN_RUNTIME_SECONDS="${MAX_DRAIN_RUNTIME_SECONDS:-21600}"  # 6 hours default
+IDLE_CONFIRM_SECONDS="${IDLE_CONFIRM_SECONDS:-60}"  # pause between the two idle checks
 DRAIN_MODE=false
 
 # Parse arguments
@@ -163,6 +164,26 @@ else
     if [[ $ELAPSED -ge $MAX_RUNTIME_SECONDS ]]; then
       echo "Time limit reached after $pass_count pipeline pass(es)"
       break
+    fi
+
+    # Exit as soon as there is nothing left to do, rather than idling out the
+    # full time limit on an expensive instance. A queue can read as empty for a
+    # moment mid-flight (e.g. a video downloaded but not yet screenshot-queued),
+    # so require two empty checks separated by a pause before believing it.
+    echo ""
+    echo "Checking for remaining work..."
+    PENDING_COUNT=$(check_pending)
+    if [[ "$PENDING_COUNT" -eq 0 ]]; then
+      echo "No pending work found; re-checking in ${IDLE_CONFIRM_SECONDS}s to confirm."
+      sleep "$IDLE_CONFIRM_SECONDS"
+      PENDING_COUNT=$(check_pending)
+      if [[ "$PENDING_COUNT" -eq 0 ]]; then
+        echo "All queues empty on two consecutive checks — pipeline complete after $pass_count pass(es)."
+        break
+      fi
+      echo "Work appeared on re-check ($PENDING_COUNT items); continuing."
+    else
+      echo "$PENDING_COUNT items still pending."
     fi
 
     # Brief pause between passes to avoid hammering the system
