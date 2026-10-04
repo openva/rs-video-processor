@@ -18,14 +18,12 @@ concurrency:
 
 jobs:
   build:
-    name: Build
+    name: Build and deploy
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: Firenza/secrets-to-env@v1.2.0
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          secrets: ${{ toJSON(secrets) }}
+          persist-credentials: false
 
       - name: Install system dependencies
         run: |
@@ -34,8 +32,8 @@ jobs:
       
       - name : Fetch Richmond Sunlight includes
         run: |
-          git clone -b deploy https://github.com/openva/richmondsunlight.com.git
-          cd richmondsunlight.com && composer install --no-interaction --no-progress --prefer-dist && cd ..
+          git clone --depth 1 -b deploy https://github.com/openva/richmondsunlight.com.git
+          echo "Using richmondsunlight.com deploy@$(git -C richmondsunlight.com rev-parse HEAD)"
           mkdir includes/
           cp richmondsunlight.com/htdocs/includes/*.php includes/
           rm -Rf richmondsunlight.com
@@ -52,36 +50,36 @@ jobs:
       - name: Make sure there are no fatal errors in PHP
         run: find *.php -print0 |xargs -0 -n1 -P8 php -l
 
-      - name: Build artifact
+      # Everything below runs only for deploys. The bundle contains production
+      # secrets, so it goes straight to the private S3 bucket and must never be
+      # published as a GitHub Actions artifact (artifacts on a public repo are
+      # downloadable by anyone).
+      - name: Build deploy bundle
+        if: github.event_name != 'pull_request'
+        env:
+          AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
+          AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
+          PDO_DSN: ${{ secrets.PDO_DSN }}
+          PDO_SERVER: ${{ secrets.PDO_SERVER }}
+          PDO_USERNAME: ${{ secrets.PDO_USERNAME }}
+          PDO_PASSWORD: ${{ secrets.PDO_PASSWORD }}
+          MEMCACHED_SERVER: ${{ secrets.MEMCACHED_SERVER }}
+          MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
         run: |
           ./deploy/config_variables.sh
-          ./deploy/aws_credentials.sh
           mkdir -p upload
           zip -qr upload/latest.zip . -x '*.git*' '*.scannerwork*' 'upload/*'
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: codebase
-          path: .
-
-  deploy:
-    name: Deploy
-    runs-on: ubuntu-24.04
-    needs: build
-    if: github.event_name != 'pull_request'
-    steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: codebase
-
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        if: github.event_name != 'pull_request'
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
           aws-region: us-east-1
 
       - name: Copy file to S3
+        if: github.event_name != 'pull_request'
         run: aws s3 cp upload/latest.zip s3://deploy.richmondsunlight.com/rs-video-processor-master.zip

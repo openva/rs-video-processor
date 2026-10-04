@@ -1,8 +1,8 @@
 #!/bin/bash
 #==================================================================================
-# Uses environment variables within Travis CI to populate includes/settings.inc.php
-# prior to deployment. This allows secrets (e.g., API keys) to be stored in Travis,
-# while the settings file is stored on GitHub.
+# Uses environment variables within GitHub Actions to populate
+# includes/settings.inc.php prior to deployment. This allows secrets (e.g., API keys)
+# to be stored in GitHub Actions, while the settings file is stored on GitHub.
 #==================================================================================
 
 # Define the list of environmental variables that we need to populate during deployment.
@@ -28,9 +28,21 @@ do
 	fi
 done
 
-# Now iterate over again and perform the replacement.
+# Now perform the replacement. This is done in PHP rather than sed so that each value
+# is written as a correctly escaped PHP string literal (var_export) -- a secret that
+# contains |, &, ', or \ would otherwise corrupt the settings file.
 cp includes/settings-default.inc.php includes/settings.inc.php
-for i in "${variables[@]}"
-do
-	sed -i -e "s|define('$i', '')|define('$i', '${!i}')|g" includes/settings.inc.php
-done
+php -- "${variables[@]}" <<'PHP'
+<?php
+$file = 'includes/settings.inc.php';
+$settings = file_get_contents($file);
+foreach (array_slice($argv, 1) as $name) {
+    $placeholder = "define('$name', '')";
+    $settings = str_replace($placeholder, "define('$name', " . var_export(getenv($name), true) . ')', $settings, $count);
+    if ($count === 0) {
+        fwrite(STDERR, "No placeholder for $name in $file -- aborting\n");
+        exit(1);
+    }
+}
+file_put_contents($file, $settings);
+PHP
