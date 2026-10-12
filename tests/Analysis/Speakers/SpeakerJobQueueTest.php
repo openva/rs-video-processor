@@ -2,6 +2,7 @@
 
 namespace RichmondSunlight\VideoProcessor\Tests\Analysis\Speakers;
 
+use RichmondSunlight\VideoProcessor\Tests\Support\TestDatabaseFactory;
 use PDO;
 use PHPUnit\Framework\TestCase;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerJobQueue;
@@ -21,6 +22,7 @@ class SpeakerJobQueueTest extends TestCase
             date TEXT,
             date_created TEXT
         )');
+        TestDatabaseFactory::addPipelineTables($pdo);
         $pdo->exec('CREATE TABLE video_index (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             file_id INTEGER,

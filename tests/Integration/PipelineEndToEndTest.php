@@ -2,6 +2,7 @@
 
 namespace RichmondSunlight\VideoProcessor\Tests\Integration;
 
+use RichmondSunlight\VideoProcessor\Jobs\JobLedger;
 use PDO;
 use PHPUnit\Framework\TestCase;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\AgendaExtractor;
@@ -359,6 +360,8 @@ class PipelineEndToEndTest extends TestCase
             $this->pdo,
             $this->logger
         );
+        // The fetch above claimed the job. Release it so the processor can fetch it itself.
+        (new JobLedger($this->pdo))->reset(1, JobLedger::STAGE_ARCHIVE);
         $archiveProcessor->run(1);
 
         $fileRow = $this->pdo->query('SELECT path FROM files WHERE id = 1')->fetch(PDO::FETCH_ASSOC);

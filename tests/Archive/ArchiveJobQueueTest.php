@@ -2,6 +2,7 @@
 
 namespace RichmondSunlight\VideoProcessor\Tests\Archive;
 
+use RichmondSunlight\VideoProcessor\Tests\Support\TestDatabaseFactory;
 use PDO;
 use PHPUnit\Framework\TestCase;
 use RichmondSunlight\VideoProcessor\Archive\ArchiveJobQueue;
@@ -65,6 +66,7 @@ class ArchiveJobQueueTest extends TestCase
             video_index_cache TEXT,
             date_created TEXT
         )');
+        TestDatabaseFactory::addPipelineTables($pdo);
         $pdo->exec('CREATE TABLE committees (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT,

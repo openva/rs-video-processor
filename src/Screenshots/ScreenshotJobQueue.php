@@ -3,6 +3,7 @@
 namespace RichmondSunlight\VideoProcessor\Screenshots;
 
 use PDO;
+use RichmondSunlight\VideoProcessor\Jobs\JobLedger;
 
 class ScreenshotJobQueue
 {
@@ -10,28 +11,48 @@ class ScreenshotJobQueue
     {
     }
 
+    private function pendingWhere(): string
+    {
+        return "f.path LIKE 'https://video.richmondsunlight.com/%'
+            AND (f.capture_directory IS NULL OR f.capture_directory = ''
+                 OR (f.capture_directory NOT LIKE '/%' AND f.capture_directory NOT LIKE 'https://%')
+                 OR f.capture_rate IS NULL)
+            AND " . JobLedger::eligibleSql(JobLedger::STAGE_SCREENSHOTS);
+    }
+
+    public function countPending(): int
+    {
+        $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM files f WHERE ' . $this->pendingWhere());
+        foreach (JobLedger::eligibleParams() as $name => $value) {
+            $stmt->bindValue($name, $value);
+        }
+        $stmt->execute();
+
+        return (int) $stmt->fetchColumn();
+    }
+
     /**
      * @return ScreenshotJob[]
      */
     public function fetch(int $limit = 5): array
     {
-        $sql = "SELECT id, chamber, committee_id, title, date, path, capture_directory
-            FROM files
-            WHERE path LIKE 'https://video.richmondsunlight.com/%'
-              AND (capture_directory IS NULL OR capture_directory = ''
-                   OR (capture_directory NOT LIKE '/%' AND capture_directory NOT LIKE 'https://%')
-                   OR capture_rate IS NULL)
-            ORDER BY date DESC
-            LIMIT :limit";
+        $sql = 'SELECT f.id, f.chamber, f.committee_id, f.title, f.date, f.path, f.capture_directory
+            FROM files f
+            WHERE ' . $this->pendingWhere() . '
+            ORDER BY f.date DESC
+            LIMIT :limit';
 
         $driver = $this->pdo->getAttribute(\PDO::ATTR_DRIVER_NAME);
         if (in_array($driver, ['mysql', 'pgsql'], true)) {
-            $sql .= " FOR UPDATE SKIP LOCKED";
+            $sql .= ' FOR UPDATE SKIP LOCKED';
             $this->pdo->beginTransaction();
         }
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        foreach (JobLedger::eligibleParams() as $name => $value) {
+            $stmt->bindValue($name, $value);
+        }
         $stmt->execute();
 
         $jobs = [];

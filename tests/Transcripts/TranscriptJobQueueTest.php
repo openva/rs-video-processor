@@ -2,6 +2,7 @@
 
 namespace RichmondSunlight\VideoProcessor\Tests\Transcripts;
 
+use RichmondSunlight\VideoProcessor\Tests\Support\TestDatabaseFactory;
 use PDO;
 use PHPUnit\Framework\TestCase;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptJobQueue;
@@ -22,6 +23,7 @@ class TranscriptJobQueueTest extends TestCase
             date TEXT,
             date_created TEXT
         )');
+        TestDatabaseFactory::addPipelineTables($pdo);
         $pdo->exec('CREATE TABLE video_transcript (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             file_id INTEGER,

@@ -2,6 +2,7 @@
 
 namespace RichmondSunlight\VideoProcessor\Tests\Screenshots;
 
+use RichmondSunlight\VideoProcessor\Tests\Support\TestDatabaseFactory;
 use PDO;
 use PHPUnit\Framework\TestCase;
 use RichmondSunlight\VideoProcessor\Screenshots\ScreenshotJobQueue;
@@ -23,6 +24,7 @@ class ScreenshotJobQueueTest extends TestCase
             capture_rate INTEGER,
             date_created TEXT
         )');
+        TestDatabaseFactory::addPipelineTables($pdo);
 
         $stmt = $pdo->prepare('INSERT INTO files (chamber, committee_id, title, date, path, capture_directory, capture_rate, date_created) VALUES (:chamber, :committee_id, :title, :date, :path, :capture_directory, :capture_rate, :created)');
 

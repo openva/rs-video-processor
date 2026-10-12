@@ -3,6 +3,7 @@
 namespace RichmondSunlight\VideoProcessor\Analysis\Bills;
 
 use PDO;
+use RichmondSunlight\VideoProcessor\Jobs\JobLedger;
 
 class BillDetectionJobQueue
 {
@@ -10,23 +11,40 @@ class BillDetectionJobQueue
     {
     }
 
+    private function pendingWhere(): string
+    {
+        return "f.capture_directory IS NOT NULL AND f.capture_directory != ''
+            AND (f.capture_directory LIKE '/%' OR f.capture_directory LIKE 'https://%')
+            AND f.capture_directory != '/pending'
+            AND f.date >= '2020-01-01'
+            AND NOT EXISTS (
+                SELECT 1 FROM video_index vi
+                WHERE vi.file_id = f.id AND vi.type = 'bill'
+            )
+            AND " . JobLedger::eligibleSql(JobLedger::STAGE_BILLS);
+    }
+
+    public function countPending(): int
+    {
+        $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM files f WHERE ' . $this->pendingWhere());
+        foreach (JobLedger::eligibleParams() as $name => $value) {
+            $stmt->bindValue($name, $value);
+        }
+        $stmt->execute();
+
+        return (int) $stmt->fetchColumn();
+    }
+
     /**
      * @return BillDetectionJob[]
      */
     public function fetch(int $limit = 3): array
     {
-        $sql = "SELECT f.id, f.chamber, f.committee_id, f.capture_directory, f.video_index_cache, f.date
+        $sql = 'SELECT f.id, f.chamber, f.committee_id, f.capture_directory, f.video_index_cache, f.date
             FROM files f
-            WHERE f.capture_directory IS NOT NULL AND f.capture_directory != ''
-              AND (f.capture_directory LIKE '/%' OR f.capture_directory LIKE 'https://%')
-              AND f.capture_directory != '/pending'
-              AND f.date >= '2020-01-01'
-              AND NOT EXISTS (
-                SELECT 1 FROM video_index vi
-                WHERE vi.file_id = f.id AND vi.type = 'bill'
-              )
+            WHERE ' . $this->pendingWhere() . '
             ORDER BY f.date DESC
-            LIMIT :limit";
+            LIMIT :limit';
 
         $driver = $this->pdo->getAttribute(\PDO::ATTR_DRIVER_NAME);
         if (in_array($driver, ['mysql', 'pgsql'], true)) {
@@ -36,6 +54,9 @@ class BillDetectionJobQueue
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        foreach (JobLedger::eligibleParams() as $name => $value) {
+            $stmt->bindValue($name, $value);
+        }
         $stmt->execute();
 
         $jobs = [];

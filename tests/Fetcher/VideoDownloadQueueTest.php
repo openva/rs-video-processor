@@ -2,6 +2,7 @@
 
 namespace RichmondSunlight\VideoProcessor\Tests\Fetcher;
 
+use RichmondSunlight\VideoProcessor\Tests\Support\TestDatabaseFactory;
 use PDO;
 use PHPUnit\Framework\TestCase;
 use RichmondSunlight\VideoProcessor\Fetcher\VideoDownloadQueue;
@@ -24,6 +25,7 @@ class VideoDownloadQueueTest extends TestCase
             video_index_cache TEXT,
             date_created TEXT
         )');
+        TestDatabaseFactory::addPipelineTables($this->pdo);
     }
 
     public function testFetchReturnsJobsWithMetadata(): void

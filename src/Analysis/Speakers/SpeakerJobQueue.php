@@ -3,6 +3,7 @@
 namespace RichmondSunlight\VideoProcessor\Analysis\Speakers;
 
 use PDO;
+use RichmondSunlight\VideoProcessor\Jobs\JobLedger;
 
 class SpeakerJobQueue
 {
@@ -10,23 +11,40 @@ class SpeakerJobQueue
     {
     }
 
+    private function pendingWhere(): string
+    {
+        return "(f.path LIKE 'https://video.richmondsunlight.com/%'
+              OR f.path LIKE 'https://archive.org/%')
+            AND f.date >= '2020-01-01'
+            AND (f.capture_directory IS NULL OR f.capture_directory != '/pending')
+            AND NOT EXISTS (
+                SELECT 1 FROM video_index vi
+                WHERE vi.file_id = f.id AND vi.type = 'legislator'
+            )
+            AND " . JobLedger::eligibleSql(JobLedger::STAGE_SPEAKERS);
+    }
+
+    public function countPending(): int
+    {
+        $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM files f WHERE ' . $this->pendingWhere());
+        foreach (JobLedger::eligibleParams() as $name => $value) {
+            $stmt->bindValue($name, $value);
+        }
+        $stmt->execute();
+
+        return (int) $stmt->fetchColumn();
+    }
+
     /**
      * @return SpeakerJob[]
      */
     public function fetch(int $limit = 3): array
     {
-        $sql = "SELECT f.id, f.chamber, f.path, f.capture_directory, f.video_index_cache, f.date
+        $sql = 'SELECT f.id, f.chamber, f.path, f.capture_directory, f.video_index_cache, f.date
             FROM files f
-            WHERE (f.path LIKE 'https://video.richmondsunlight.com/%'
-              OR f.path LIKE 'https://archive.org/%')
-              AND f.date >= '2020-01-01'
-              AND (f.capture_directory IS NULL OR f.capture_directory != '/pending')
-              AND NOT EXISTS (
-                SELECT 1 FROM video_index vi
-                WHERE vi.file_id = f.id AND vi.type = 'legislator'
-              )
+            WHERE ' . $this->pendingWhere() . '
             ORDER BY f.date DESC
-            LIMIT :limit";
+            LIMIT :limit';
 
         $driver = $this->pdo->getAttribute(\PDO::ATTR_DRIVER_NAME);
         if (in_array($driver, ['mysql', 'pgsql'], true)) {
@@ -36,6 +54,9 @@ class SpeakerJobQueue
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        foreach (JobLedger::eligibleParams() as $name => $value) {
+            $stmt->bindValue($name, $value);
+        }
         $stmt->execute();
 
         $jobs = [];
