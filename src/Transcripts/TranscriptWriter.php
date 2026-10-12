@@ -53,7 +53,8 @@ class TranscriptWriter
             try {
                 $stmt->execute([
                     ':file_id' => $fileId,
-                    ':text' => $segment['text'],
+                    // The column is TINYTEXT: 255 bytes. Cut on a character boundary.
+                    ':text' => mb_strcut($segment['text'], 0, 255, 'UTF-8'),
                     ':start' => $this->formatTime($segment['start']),
                     ':end' => $this->formatTime($segment['end']),
                     ':new_speaker' => 'n',

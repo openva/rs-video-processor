@@ -86,6 +86,59 @@ class TranscriptProcessorTest extends TestCase
         $this->assertSame(1, (int) $count);
     }
 
+    public function testChunkOffsetsAreAddedToSegmentTimes(): void
+    {
+        $pdo = new PDO('sqlite::memory:');
+        $pdo->exec('CREATE TABLE video_transcript (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_id INTEGER,
+            text TEXT,
+            time_start TEXT,
+            time_end TEXT,
+            new_speaker TEXT,
+            legislator_id INTEGER,
+            date_created TEXT
+        )');
+        $pdo->exec('CREATE TABLE files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            transcript TEXT,
+            webvtt TEXT,
+            date_modified TIMESTAMP
+        )');
+        $pdo->exec('INSERT INTO files (id) VALUES (1)');
+
+        $first = tempnam(sys_get_temp_dir(), 'chunk_');
+        $second = tempnam(sys_get_temp_dir(), 'chunk_');
+
+        $extractor = new class ($first, $second) extends AudioExtractor {
+            public function __construct(private string $first, private string $second)
+            {
+                parent::__construct();
+            }
+
+            public function extractChunks(string $videoUrl, int $segmentSeconds = 1200): array
+            {
+                return [
+                    ['path' => $this->first, 'offset' => 0.0],
+                    ['path' => $this->second, 'offset' => 1200.0],
+                ];
+            }
+        };
+
+        $transcriber = $this->createMock(OpenAITranscriber::class);
+        $transcriber->expects($this->exactly(2))->method('transcribe')->willReturn([
+            ['start' => 5.0, 'end' => 9.0, 'text' => 'Hello'],
+        ]);
+
+        $processor = new TranscriptProcessor(new TranscriptWriter($pdo), $transcriber, new CaptionParser(), $extractor, null);
+        $processor->process(new TranscriptJob(1, 'house', 'file://unused', '', '', null));
+
+        $starts = $pdo->query('SELECT time_start FROM video_transcript ORDER BY id')->fetchAll(PDO::FETCH_COLUMN);
+        $this->assertSame(['00:00:05', '00:20:05'], $starts);
+        $this->assertFileDoesNotExist($first, 'Chunk files must be deleted after use.');
+        $this->assertFileDoesNotExist($second);
+    }
+
     private function getVideoFixture(string $filename): string
     {
         $path = __DIR__ . '/../fixtures/' . $filename;

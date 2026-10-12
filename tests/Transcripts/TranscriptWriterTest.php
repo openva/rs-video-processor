@@ -182,4 +182,42 @@ class TranscriptWriterTest extends TestCase
         $this->assertStringContainsString('Café', $text);
         $this->assertStringContainsString('你好世界', $text);
     }
+
+    /**
+     * video_transcript.text is TINYTEXT (255 bytes) in production. A longer
+     * segment must be cut on a character boundary, not rejected.
+     */
+    public function testLongSegmentIsCutToFitTheColumn(): void
+    {
+        $pdo = new \PDO('sqlite::memory:');
+        $pdo->exec('CREATE TABLE video_transcript (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_id INTEGER,
+            text TEXT,
+            time_start TEXT,
+            time_end TEXT,
+            new_speaker TEXT,
+            legislator_id INTEGER,
+            date_created TEXT
+        )');
+        $pdo->exec('CREATE TABLE files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            transcript TEXT,
+            webvtt TEXT,
+            date_modified TIMESTAMP
+        )');
+        $pdo->exec('INSERT INTO files (id) VALUES (1)');
+
+        $long = str_repeat('é', 300); // 600 bytes
+        (new \RichmondSunlight\VideoProcessor\Transcripts\TranscriptWriter($pdo))->write(1, [
+            ['start' => 0.0, 'end' => 1.0, 'text' => $long],
+        ]);
+
+        $stored = $pdo->query('SELECT text FROM video_transcript')->fetchColumn();
+        $this->assertLessThanOrEqual(255, strlen($stored));
+        $this->assertTrue(mb_check_encoding($stored, 'UTF-8'));
+
+        $full = $pdo->query('SELECT transcript FROM files WHERE id = 1')->fetchColumn();
+        $this->assertSame($long, $full, 'The full text is kept in files.transcript.');
+    }
 }

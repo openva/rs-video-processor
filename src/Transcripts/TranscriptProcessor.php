@@ -57,11 +57,29 @@ class TranscriptProcessor
      */
     private function transcribe(string $videoUrl): array
     {
-        $audio = $this->audioExtractor->extract($videoUrl);
+        $chunks = $this->audioExtractor->extractChunks($videoUrl);
+        $segments = [];
+
         try {
-            return $this->transcriber->transcribe($audio);
+            foreach ($chunks as $chunk) {
+                // Each piece is timed from zero; shift it to its place in the video.
+                foreach ($this->transcriber->transcribe($chunk['path']) as $segment) {
+                    $segments[] = [
+                        'start' => $segment['start'] + $chunk['offset'],
+                        'end' => $segment['end'] + $chunk['offset'],
+                        'text' => $segment['text'],
+                    ];
+                }
+            }
         } finally {
-            @unlink($audio);
+            foreach ($chunks as $chunk) {
+                @unlink($chunk['path']);
+            }
+            if (!empty($chunks)) {
+                @rmdir(dirname($chunks[0]['path']));
+            }
         }
+
+        return $segments;
     }
 }

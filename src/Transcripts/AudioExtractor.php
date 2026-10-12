@@ -11,7 +11,8 @@ class AudioExtractor
 
     public function __construct(private ?string $workingDir = null)
     {
-        $this->http = new Client(['timeout' => 600]);
+        // Videos run to several GB; ten minutes was not always enough.
+        $this->http = new Client(['timeout' => 3600, 'connect_timeout' => 30]);
         $this->workingDir = $workingDir ?? sys_get_temp_dir();
     }
 
@@ -27,6 +28,52 @@ class AudioExtractor
         $this->runCommand($cmd, 'Failed to convert audio for transcription.');
         @unlink($videoPath);
         return $audioPath;
+    }
+
+    /**
+     * Extract the audio as a series of MP3 files of at most $segmentSeconds each.
+     *
+     * OpenAI's transcription endpoint rejects files over 25 MB. At 32 kbps a
+     * whole meeting passes that after about 1h44m; a 20-minute piece is under 5 MB.
+     *
+     * @return array<int,array{path:string,offset:float}> in order; offset is the piece's
+     *         start time in the original video, in seconds. The caller deletes the files.
+     */
+    public function extractChunks(string $videoUrl, int $segmentSeconds = 1200): array
+    {
+        $videoPath = $this->downloadVideo($videoUrl);
+        $dir = $this->workingDir . '/transcript_chunks_' . uniqid('', true);
+        if (!mkdir($dir, 0775, true) && !is_dir($dir)) {
+            @unlink($videoPath);
+            throw new RuntimeException('Unable to create a working directory for audio chunks.');
+        }
+
+        try {
+            $cmd = sprintf(
+                'ffmpeg -y -loglevel error -i %s -vn -ar 16000 -ac 1 -b:a 32k '
+                . '-f segment -segment_time %d -reset_timestamps 1 %s',
+                escapeshellarg($videoPath),
+                $segmentSeconds,
+                escapeshellarg($dir . '/chunk_%05d.mp3')
+            );
+            $this->runCommand($cmd, 'Failed to convert audio for transcription.');
+        } finally {
+            @unlink($videoPath);
+        }
+
+        $files = glob($dir . '/chunk_*.mp3') ?: [];
+        sort($files);
+        if (empty($files)) {
+            @rmdir($dir);
+            throw new RuntimeException('ffmpeg produced no audio for transcription.');
+        }
+
+        $chunks = [];
+        foreach ($files as $index => $file) {
+            $chunks[] = ['path' => $file, 'offset' => (float) ($index * $segmentSeconds)];
+        }
+
+        return $chunks;
     }
 
     private function downloadVideo(string $url): string
