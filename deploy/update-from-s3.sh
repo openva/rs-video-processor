@@ -55,7 +55,10 @@ mkdir -p "${TMP_DIR}/unpacked"
 echo "Unpacking artifact..."
 unzip -q "$ZIP_PATH" -d "${TMP_DIR}/unpacked"
 
-# The zip is created from the repo root; sync everything except local config/state.
+# The zip is created from the repo root; sync everything except local state.
+# includes/settings.inc.php is deliberately NOT excluded: CI builds it from
+# GitHub Secrets, and excluding it left this machine on a deleted AWS key after
+# a rotation. Anything edited by hand in that file is overwritten on each update.
 echo "Syncing files into ${APP_DIR}..."
 rsync -a --delete \
   --exclude '.git' \
@@ -63,7 +66,6 @@ rsync -a --delete \
   --exclude 'upload' \
   --exclude 'logs' \
   --exclude 'storage' \
-  --exclude 'includes/settings.inc.php' \
   --exclude '.deploy-etag' \
   "${TMP_DIR}/unpacked/" "$APP_DIR/"
 
