@@ -11,6 +11,9 @@ use RuntimeException;
 
 class VideoImporter
 {
+    /** Two rows for one chamber, date and committee are the same meeting if their lengths are this close. */
+    private const DUPLICATE_DURATION_TOLERANCE_SECONDS = 300;
+
     public function __construct(
         private PDO $pdo,
         private CommitteeDirectory $committees,
@@ -39,8 +42,10 @@ class VideoImporter
             )'
         );
 
+        $sources = new VideoSourceRegistry($this->pdo);
         $count = 0;
         $skipped = 0;
+        $failed = 0;
 
         foreach ($records as $record) {
             $payload = $this->buildPayload($record);
@@ -49,29 +54,23 @@ class VideoImporter
                 continue;
             }
 
-            // Check if this video already exists
-            if ($payload['committee_id'] === null) {
-                // Floor session: dedup by chamber + date + title
-                $checkSql = 'SELECT id FROM files WHERE chamber = ? AND date = ? AND title = ? AND (committee_id IS NULL OR committee_id = \'\') LIMIT 1';
-                $checkStmt = $this->pdo->prepare($checkSql);
-                $checkStmt->execute([$payload['chamber'], $payload['date'], $payload['title']]);
-            } elseif ($payload['committee_id'] === 0) {
-                // Unresolved committee: dedup by path (URL is unique per video)
-                $checkSql = 'SELECT id FROM files WHERE path = ? LIMIT 1';
-                $checkStmt = $this->pdo->prepare($checkSql);
-                $checkStmt->execute([$payload['path']]);
-            } else {
-                // Known committee: dedup by chamber + date + committee_id
-                $checkSql = 'SELECT id FROM files WHERE chamber = ? AND date = ? AND committee_id = ? LIMIT 1';
-                $checkStmt = $this->pdo->prepare($checkSql);
-                $checkStmt->execute([$payload['chamber'], $payload['date'], $payload['committee_id']]);
+            // The upstream ID is exact. Fall back to resemblance only when it is
+            // unknown, and remember the match so the fallback is not needed again.
+            $identity = VideoSourceRegistry::identityOf($record);
+            $existingId = $identity ? $sources->findFileId($identity['source'], $identity['source_id']) : null;
+            if ($existingId === null) {
+                $existingId = $this->findLikelyDuplicate($payload, VideoRecordNormalizer::deriveDurationSeconds($record));
+                if ($existingId !== null && $identity) {
+                    $sources->register($existingId, $identity['source'], $identity['source_id']);
+                }
             }
 
-            if ($checkStmt->fetch()) {
+            if ($existingId !== null) {
                 $skipped++;
                 $this->logger?->put(
                     sprintf(
-                        'Skipping duplicate: %s %s %s',
+                        'Skipping duplicate of file #%d: %s %s %s',
+                        $existingId,
                         $payload['chamber'],
                         $payload['date'],
                         $payload['title']
@@ -81,24 +80,31 @@ class VideoImporter
                 continue;
             }
 
+            // One bad record must not stop the rest of the batch from importing.
             try {
                 if ($insert->execute($payload) === false) {
                     throw new RuntimeException('Failed to insert video record into files table.');
                 }
+                $fileId = (int) $this->pdo->lastInsertId();
+                if ($identity) {
+                    $sources->register($fileId, $identity['source'], $identity['source_id']);
+                }
             } catch (\Throwable $e) {
-                $path = $payload['path'] ?? '';
-                $title = $payload['title'] ?? '';
+                $failed++;
+                // A statement that failed must be reset before it is executed again.
+                $insert->closeCursor();
                 $this->logger?->put(
                     sprintf(
-                        'Insert failed. Title length=%d Title sample=%s | Path length=%d Path sample=%s',
-                        strlen((string) $title),
-                        substr((string) $title, 0, 200),
-                        strlen((string) $path),
-                        substr((string) $path, 0, 200)
+                        'Insert failed (%s). Title length=%d Title sample=%s | Path length=%d Path sample=%s',
+                        $e->getMessage(),
+                        strlen((string) ($payload['title'] ?? '')),
+                        substr((string) ($payload['title'] ?? ''), 0, 200),
+                        strlen((string) ($payload['path'] ?? '')),
+                        substr((string) ($payload['path'] ?? ''), 0, 200)
                     ),
                     6
                 );
-                throw $e;
+                continue;
             }
 
             $count++;
@@ -107,8 +113,65 @@ class VideoImporter
         if ($skipped > 0) {
             $this->logger?->put(sprintf('Skipped %d duplicate record(s)', $skipped), 2);
         }
+        if ($failed > 0) {
+            $this->logger?->put(sprintf('Failed to import %d record(s)', $failed), 5);
+        }
 
         return $count;
+    }
+
+    /**
+     * Look for an existing row that is probably the same meeting, for records
+     * whose upstream ID has not been seen. A committee can meet twice in a day
+     * and the floor can sit twice, so chamber, date and committee alone are not
+     * enough: the lengths must also be close, or one of them unknown.
+     *
+     * @param array<string,mixed> $payload
+     */
+    private function findLikelyDuplicate(array $payload, ?int $durationSeconds): ?int
+    {
+        if ($payload['committee_id'] === 0) {
+            // Unresolved committee: nothing to compare but the source URL.
+            $stmt = $this->pdo->prepare('SELECT id FROM files WHERE path = ? LIMIT 1');
+            $stmt->execute([$payload['path']]);
+            $id = $stmt->fetchColumn();
+            return $id === false ? null : (int) $id;
+        }
+
+        if ($payload['committee_id'] === null) {
+            $stmt = $this->pdo->prepare(
+                'SELECT id, length FROM files WHERE chamber = ? AND date = ? AND title = ?
+                 AND (committee_id IS NULL OR committee_id = \'\')'
+            );
+            $stmt->execute([$payload['chamber'], $payload['date'], $payload['title']]);
+        } else {
+            $stmt = $this->pdo->prepare(
+                'SELECT id, length FROM files WHERE chamber = ? AND date = ? AND committee_id = ?'
+            );
+            $stmt->execute([$payload['chamber'], $payload['date'], $payload['committee_id']]);
+        }
+
+        foreach ($stmt->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            $existingSeconds = $this->parseDuration($row['length'] ?? null);
+            if (
+                $durationSeconds === null
+                || $existingSeconds === null
+                || abs($existingSeconds - $durationSeconds) <= self::DUPLICATE_DURATION_TOLERANCE_SECONDS
+            ) {
+                return (int) $row['id'];
+            }
+        }
+
+        return null;
+    }
+
+    private function parseDuration(?string $length): ?int
+    {
+        if ($length === null || !preg_match('/^(\d+):(\d{2}):(\d{2})/', $length, $m)) {
+            return null;
+        }
+
+        return ((int) $m[1] * 3600) + ((int) $m[2] * 60) + (int) $m[3];
     }
 
     /**

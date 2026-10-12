@@ -123,13 +123,11 @@ foreach ($files as $file) {
         // Build new title
         $chamberName = ucfirst($chamber);
         $newTitle = sprintf('%s %s', $chamberName, $committeeName);
-
     } else {
         // Floor session
         $newCommitteeId = null;
         $chamberName = ucfirst($chamber);
         $newTitle = sprintf('%s Session', $chamberName);
-
     }
 
     // Check if anything changed
@@ -164,7 +162,6 @@ foreach ($files as $file) {
     if ($dryRun) {
         echo "  [DRY-RUN] Would update\n";
     } else {
-
         $updateStmt->execute([
             ':committee_id' => $newCommitteeId,
             ':title' => $newTitle,

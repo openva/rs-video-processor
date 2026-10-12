@@ -14,6 +14,7 @@
 declare(strict_types=1);
 
 use RichmondSunlight\VideoProcessor\Bootstrap\AppBootstrap;
+use RichmondSunlight\VideoProcessor\Sync\VideoSourceBackfill;
 
 require_once __DIR__ . '/../includes/settings.inc.php';
 require_once __DIR__ . '/../includes/vendor/autoload.php';
@@ -38,6 +39,20 @@ foreach (['video_sources', 'video_jobs'] as $table) {
         );
         exit(1);
     }
+}
+
+// Register the source IDs of videos imported before video_sources existed.
+// Runs once: after it, the table is never empty again.
+if ((int) $pdo->query('SELECT COUNT(*) FROM video_sources')->fetchColumn() === 0) {
+    $result = (new VideoSourceBackfill($pdo))->run();
+    $log->put(
+        sprintf(
+            'Registered source IDs for %d existing video(s); %d row(s) duplicate an earlier one.',
+            $result['registered'],
+            count($result['duplicates'])
+        ),
+        3
+    );
 }
 
 echo "Pipeline tables are present.\n";

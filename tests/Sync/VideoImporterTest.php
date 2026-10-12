@@ -6,6 +6,7 @@ use PDO;
 use PHPUnit\Framework\TestCase;
 use RichmondSunlight\VideoProcessor\Fetcher\CommitteeDirectory;
 use RichmondSunlight\VideoProcessor\Sync\VideoImporter;
+use RichmondSunlight\VideoProcessor\Tests\Support\TestDatabaseFactory;
 
 class VideoImporterTest extends TestCase
 {
@@ -46,6 +47,7 @@ class VideoImporterTest extends TestCase
             parent_id INTEGER
         )');
         $this->pdo->exec("INSERT INTO committees (id, name, shortname, chamber, parent_id) VALUES (1, 'Appropriations', 'finance', 'house', NULL)");
+        TestDatabaseFactory::addPipelineTables($this->pdo);
     }
 
     public function testInsertsRecords(): void
@@ -275,5 +277,95 @@ class VideoImporterTest extends TestCase
         $this->assertArrayHasKey('committee_name', $rawMetadata);
         $this->assertSame('house', $rawMetadata['chamber']);
         $this->assertSame('https://example.com/video.mp4', $rawMetadata['video_url']);
+    }
+
+    public function testSameSourceIdIsNotReimportedAfterPathChanges(): void
+    {
+        $importer = new VideoImporter($this->pdo, new CommitteeDirectory($this->pdo));
+        $record = [
+            'source' => 'house',
+            'content_id' => 555,
+            'chamber' => 'house',
+            'meeting_date' => '2026-08-17',
+            'duration_seconds' => 3600,
+            'committee_name' => 'Joint Subcommittee on Something Unlisted',
+            'event_type' => 'committee',
+            'video_url' => 'https://sg001-harmony.sliq.net/00304/Harmony/en/x.mp4',
+        ];
+
+        $this->assertSame(1, $importer->import([$record]));
+
+        // What the download stage does: path becomes the S3 URL, length comes from ffprobe.
+        $this->pdo->exec(
+            "UPDATE files SET path = 'https://video.richmondsunlight.com/house/floor/20260817-1.mp4', length = '01:00:07'"
+        );
+
+        $this->assertSame(0, $importer->import([$record]));
+        $this->assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM files')->fetchColumn());
+    }
+
+    public function testSecondMeetingOfOneCommitteeOnOneDayIsImported(): void
+    {
+        $importer = new VideoImporter($this->pdo, new CommitteeDirectory($this->pdo));
+        $base = [
+            'source' => 'house',
+            'chamber' => 'house',
+            'meeting_date' => '2026-02-10',
+            'committee_name' => 'Appropriations',
+            'event_type' => 'committee',
+        ];
+
+        $morning = $base + ['content_id' => 1, 'duration_seconds' => 3600, 'video_url' => 'https://example.com/1.mp4'];
+        $evening = $base + ['content_id' => 2, 'duration_seconds' => 9000, 'video_url' => 'https://example.com/2.mp4'];
+
+        $this->assertSame(2, $importer->import([$morning, $evening]));
+    }
+
+    public function testSecondFloorSessionOnOneDayIsImported(): void
+    {
+        $importer = new VideoImporter($this->pdo, new CommitteeDirectory($this->pdo));
+        $base = ['source' => 'house', 'chamber' => 'house', 'meeting_date' => '2026-02-10', 'event_type' => 'floor'];
+
+        $first = $base + ['content_id' => 3, 'duration_seconds' => 1800, 'video_url' => 'https://example.com/3.mp4'];
+        $second = $base + ['content_id' => 4, 'duration_seconds' => 7200, 'video_url' => 'https://example.com/4.mp4'];
+
+        $this->assertSame(2, $importer->import([$first, $second]));
+    }
+
+    public function testSameMeetingFromTwoSourcesIsImportedOnce(): void
+    {
+        $importer = new VideoImporter($this->pdo, new CommitteeDirectory($this->pdo));
+        $base = [
+            'chamber' => 'house',
+            'meeting_date' => '2026-02-10',
+            'committee_name' => 'Appropriations',
+            'event_type' => 'committee',
+        ];
+
+        $one = $base + ['source' => 'house', 'content_id' => 7, 'duration_seconds' => 3600, 'video_url' => 'https://example.com/7.mp4'];
+        $two = $base + ['source' => 'other', 'video_id' => 'abc', 'duration_seconds' => 3700, 'video_url' => 'https://example.com/abc.mp4'];
+
+        $this->assertSame(1, $importer->import([$one]));
+        $this->assertSame(0, $importer->import([$two]));
+
+        // Both IDs now point at the one row, so neither is looked up by guesswork again.
+        $owners = $this->pdo->query('SELECT file_id FROM video_sources ORDER BY source')->fetchAll(PDO::FETCH_COLUMN);
+        $this->assertSame([1, 1], array_map('intval', $owners));
+    }
+
+    public function testOneBadRecordDoesNotAbortTheBatch(): void
+    {
+        $this->pdo->exec(
+            "CREATE TRIGGER reject_boom BEFORE INSERT ON files WHEN NEW.description = 'BOOM'
+             BEGIN SELECT RAISE(ABORT, 'boom'); END"
+        );
+        $importer = new VideoImporter($this->pdo, new CommitteeDirectory($this->pdo));
+        $base = ['source' => 'house', 'chamber' => 'house', 'event_type' => 'floor', 'duration_seconds' => 600];
+
+        $bad = $base + ['content_id' => 8, 'meeting_date' => '2026-03-01', 'description' => 'BOOM', 'video_url' => 'https://example.com/8.mp4'];
+        $good = $base + ['content_id' => 9, 'meeting_date' => '2026-03-02', 'video_url' => 'https://example.com/9.mp4'];
+
+        $this->assertSame(1, $importer->import([$bad, $good]));
+        $this->assertSame(1, (int) $this->pdo->query('SELECT COUNT(*) FROM files')->fetchColumn());
     }
 }
