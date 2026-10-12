@@ -86,6 +86,15 @@ php bin/detect_speakers.php --limit=N
 # Release stale in-progress claims so interrupted jobs get retried
 php bin/reset_stale_claims.php
 
+# Show pending work and the jobs the pipeline has given up on
+php bin/job_status.php
+
+# List rows that share a video or screenshot directory (read-only)
+php bin/report_shared_media.php
+
+# Send a video through the whole pipeline again
+php bin/requeue_video.php --id=N --apply
+
 # Upload to Internet Archive
 php bin/upload_archive.php --limit=N
 
@@ -104,7 +113,7 @@ The system runs across two server configurations:
    - Video downloading to S3
    - (Analysis work is claimed directly from the database by the workers below — there is no separate enqueue step.)
 
-2. **Heavy Analysis Workers** (GPU-capable EC2 instance)
+2. **Heavy Analysis Workers** (CPU-optimized EC2 instance; nothing here uses a GPU)
    - Screenshot generation (ffmpeg)
    - Transcript processing (OpenAI Whisper)
    - Bill detection (Tesseract OCR)
@@ -114,12 +123,25 @@ The system runs across two server configurations:
 
 ### Queue System
 
-The pipeline is database-driven. Each stage's `*JobQueue` class selects pending work directly from MariaDB using `FOR UPDATE SKIP LOCKED` and claims it so parallel workers don't double-process:
+The pipeline is database-driven. Each stage's `*JobQueue` class decides what is pending from the `files`, `video_index` and `video_transcript` tables. Two tables used only by this repository add the state those cannot express.
+
+Both are defined with the rest of the shared schema, in the `richmondsunlight.com` repository. This repository never creates tables; `bin/check_schema.php` stops the pipeline if either is missing.
+
+- **`video_jobs`** — one row per video and stage, managed by `JobLedger`. Statuses: `running` (claimed; released after 3 hours), `retry` (failed; hidden until `next_attempt_at`), `failed` (given up after 3 attempts; hidden until reset), `done`.
+- **`video_sources`** — the upstream ID of each video, managed by `VideoSourceRegistry`. Imports dedupe on it.
+
+Every queue appends `JobLedger::eligibleSql()` to its `WHERE` clause and exposes `countPending()`. `PendingWork` sums those counts; it is the only definition of "pending", used by `deploy/check-pending-work.sh` and by the `rs-machine` trigger.
+
+Every worker script runs through `StageRunner`: fetch one job, count the attempt, do the work, record the outcome. A stage stops after three consecutive failures, so an outage does not spend an attempt on every pending video.
+
+Two older claim markers remain alongside the ledger:
 
 - **Screenshots:** claimed files get `capture_directory='/pending'`, `capture_rate=0`.
-- **Bills/speakers:** a placeholder row is inserted into `video_index` with `ignored='y'`, `raw_text='/pending'`, so other workers' `NOT EXISTS` checks skip the file.
+- **Bills/speakers:** a placeholder row is inserted into `video_index` with `ignored='y'`, `raw_text='/pending'`.
 
-`bin/reset_stale_claims.php` releases claims older than a configurable threshold (`STALE_CLAIM_MAX_AGE_HOURS`, default 3 hours) so crashed or interrupted jobs get retried. A terminal row with `raw_text='/none'`, `ignored='y'` means "the stage ran and found nothing — do not retry."
+`bin/reset_stale_claims.php` releases those after `STALE_CLAIM_MAX_AGE_HOURS` (default 3). A terminal row with `raw_text='/none'`, `ignored='y'` means "the stage ran and found nothing — do not retry."
+
+`php bin/job_status.php` lists what is pending and what has been given up on, with the last error. `--reset-failed` retries everything given up on.
 
 The `src/Queue/` classes (SQS/in-memory `QueueFactory`, `JobDispatcher`) are legacy and are no longer used by the pipeline workers.
 
@@ -226,7 +248,7 @@ Uses the same MariaDB schema as `richmondsunlight.com`. Key tables:
 - `people` - Legislator directory for speaker matching
 - `committees` - Committee metadata
 
-**No schema migrations required** - works with existing richmondsunlight.com definitions.
+The shared tables above are used as richmondsunlight.com defines them. Two of the shared schema's tables, `video_sources` and `video_jobs`, are used only by this repository. Like every other table they are defined in the `richmondsunlight.com` repository; `bin/check_schema.php` confirms they exist at the start of every pipeline run.
 
 ## Configuration
 
@@ -260,15 +282,17 @@ Videos and screenshots are stored in `video.richmondsunlight.com`:
 video.richmondsunlight.com/
 ├── house/
 │   ├── floor/
-│   │   └── YYYYMMDD/
-│   │       ├── video.mp4
-│   │       └── screenshots/
-│   └── {committee}/
-│       └── YYYYMMDD/
+│   │   ├── YYYYMMDD-<file id>.mp4
+│   │   └── YYYYMMDD-<file id>/        (screenshots and manifest.json)
+│   └── committee/{shortname}/
+│       ├── YYYYMMDD-<file id>.mp4
+│       └── YYYYMMDD-<file id>/
 └── senate/
     ├── floor/
-    └── {committee}/
+    └── committee/{shortname}/
 ```
+
+The file ID in the key is what keeps two videos from one chamber, committee and day from overwriting each other. Older objects without an ID still exist. `capture_directory` is written once and never moved.
 
 ## Coding Standards
 
@@ -323,7 +347,7 @@ Legacy code in `includes/` uses require/include.
 1. Existing WebVTT/SRT captions (preferred - reduces API costs)
 2. OpenAI Whisper API fallback
 
-Audio is resampled to MP3 (mono, 32 Kbps, 16 kHz, <25 MB chunks) before API submission.
+Audio is resampled to MP3 (mono, 32 kbps, 16 kHz) and split into 20-minute pieces before API submission, because the API rejects files over 25 MB. Each piece's start time is added to its segments.
 
 ### Bill Detection
 
@@ -346,7 +370,7 @@ Audio is resampled to MP3 (mono, 32 Kbps, 16 kHz, <25 MB chunks) before API subm
 ### Production Infrastructure
 
 - Scraping and metadata collection run on the rs-machine EC2 instance (always-on, low-cost)
-- Analysis workers run on separate GPU-capable instance (started on-demand)
+- Analysis workers run on a separate CPU-optimized instance (started on-demand)
 - Deployed via GitHub Actions → AWS CodeDeploy
 - Gated by presence of `/home/ubuntu/video-processor.txt`
 
@@ -354,11 +378,14 @@ Audio is resampled to MP3 (mono, 32 Kbps, 16 kHz, <25 MB chunks) before API subm
 
 The video processor EC2 instance is expensive and only started when there's work to do. The `rs-machine` repository contains a cron script (`cron/start_video_processor.php`) that:
 
-1. Checks for videos needing processing (download, screenshots, transcripts, bill detection, speaker detection, archive)
-2. Queries the instance state via AWS EC2 API
-3. Starts the instance only if work is pending and it's not already running
+1. Scrapes the House and Senate listings and compares them with its last snapshot
+2. Counts pending work with `PendingWork` (the same counts the workers use)
+3. Starts the instance if there is a new video or any pending work, and it is not already running
+4. Once a day, warns if work is pending and no job has been touched for three days
 
-This runs every 30 minutes during legislative hours (noon-9 PM) via crontab.
+On boot the instance runs `deploy/run-pipeline.sh --drain`: it makes passes until nothing is pending, the 6-hour limit is reached, or the pending count stops dropping, then shuts itself down.
+
+Worker counts for drain mode, and the switch for paid speaker diarization, are in `deploy/video-processor.env`.
 
 ### CI/CD Pipeline
 
@@ -387,11 +414,11 @@ This runs every 30 minutes during legislative hours (noon-9 PM) via crontab.
 
 ### Duplicate Video Detection
 
-Videos are deduplicated using a composite key of `chamber|date|duration_seconds`. This is handled by:
-- `ExistingFilesRepository` - reads existing videos from database, builds keys from `length` column
-- `MissingVideoFilter` - compares scraped records against existing keys
+A video is identified by its upstream ID: `content_id` for House, `clip_id` for Senate Granicus, `youtube_id` for Senate YouTube, stored in `video_sources`. `VideoImporter` checks that first.
 
-The duration (in seconds) is used rather than video URL because URLs can change between scrapes while the video content remains the same.
+Only when the ID has not been seen does it fall back to resemblance: same chamber, date and committee, with lengths within five minutes of each other. A committee can meet twice in one day, so chamber, date and committee alone are not treated as a match.
+
+`MissingVideoFilter` still pre-filters on `chamber|date|duration_seconds` to avoid re-examining videos that are obviously present.
 
 ### Speaker Metadata Formats
 

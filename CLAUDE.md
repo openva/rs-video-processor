@@ -43,7 +43,8 @@ Two kinds of `ignored='y'` rows exist, distinguished by `raw_text`:
 Both must be excluded from any query that reads `video_index` as real results.
 
 ### S3KeyBuilder and NULL committee_id
-`S3KeyBuilder::build()` returns `chamber/floor/YYYYMMDD.mp4` when `committeeShortname` is null. If a video has `committee_id = NULL` due to classification failure, it will collide with the floor video path. When uploading, always re-derive the committee from `video_index_cache` fields (`committee_name`, `event_type`) rather than trusting the DB's `committee_id`.
+
+`S3KeyBuilder::build()` takes the file ID as its fourth argument and puts it in the key (`chamber/floor/YYYYMMDD-<id>.mp4`). Always pass it. Without it, every video with an unresolved committee on one day gets the same key, and they overwrite each other; that happened in production. `capture_directory` is written once by `ScreenshotGenerator` and must never be moved or recomputed.
 
 ### MySQL utf8mb3 and 4-byte Unicode
 The `webvtt` column (and others) uses `utf8mb3`, which rejects 4-byte Unicode sequences (emoji, supplementary characters) and null bytes. Strip them before inserting:
@@ -54,6 +55,12 @@ $captionContents = preg_replace('/[\x{10000}-\x{10FFFF}]/u', '', $captionContent
 
 ### SenateYouTubeScraper title format
 Real Senate YouTube titles use `"Senate of Virginia: {body} on YYYY-MM-DD [Status]"` format with colon separators — **not** the dash-separated format that `extractCommitteeFromTitle()` currently handles. This is a known bug: the method needs to be updated to handle the colon-prefix format. See the plan file for details.
+
+### Job state lives in video_jobs
+
+Do not add a new "is this pending?" query anywhere. Ask the queue class (`countPending()`) or `PendingWork`. Do not write a worker loop by hand; use `StageRunner`, which counts attempts and records failures in `video_jobs` through `JobLedger`.
+
+New SQL in `src/` must run on SQLite as well as MariaDB, because the unit tests use SQLite: no `NOW()`, no `ON DUPLICATE KEY`. `tests/Integration/MariaDbQueueTest.php` runs the queues on MariaDB, inside Docker only.
 
 ## Manual YouTube Upload Pipeline
 
