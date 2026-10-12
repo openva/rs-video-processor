@@ -122,6 +122,27 @@ if [[ -f /home/ubuntu/video-processor.txt ]]; then
 
   sudo systemctl daemon-reload
 
+  # The `ia` command that uploads to the Internet Archive reads its credentials
+  # from ia.ini, not from settings.inc.php. Write it from the settings when it is
+  # missing, so a new instance can archive without anyone running `ia configure`.
+  IA_CONFIG="$HOME/.config/internetarchive/ia.ini"
+  if [[ ! -f "$IA_CONFIG" ]]; then
+    mkdir -p "$(dirname "$IA_CONFIG")"
+    if php -r '
+      require "includes/settings.inc.php";
+      if (!defined("IA_ACCESS_KEY") || IA_ACCESS_KEY === "" || !defined("IA_SECRET_KEY") || IA_SECRET_KEY === "") {
+          exit(1);
+      }
+      file_put_contents($argv[1], "[s3]\naccess = " . IA_ACCESS_KEY . "\nsecret = " . IA_SECRET_KEY . "\n");
+    ' "$IA_CONFIG"; then
+      chmod 600 "$IA_CONFIG"
+      echo "Wrote Internet Archive credentials to ${IA_CONFIG}."
+    else
+      rm -f "$IA_CONFIG"
+      echo "WARNING: IA_ACCESS_KEY / IA_SECRET_KEY are not set; archiving will not run until ${IA_CONFIG} exists."
+    fi
+  fi
+
   # Enable services to run on boot
   sudo systemctl enable video-pipeline.service
   # The pipeline generates screenshots itself. The standalone worker competed
