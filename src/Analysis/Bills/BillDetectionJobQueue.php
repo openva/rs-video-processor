@@ -13,9 +13,9 @@ class BillDetectionJobQueue
 
     private function pendingWhere(): string
     {
-        return "f.capture_directory IS NOT NULL AND f.capture_directory != ''
-            AND (f.capture_directory LIKE '/%' OR f.capture_directory LIKE 'https://%')
-            AND f.capture_directory != '/pending'
+        // '/%/%' matches real directories and excludes the one-slash markers
+        // '/pending' and '/deleted-source'.
+        return "(f.capture_directory LIKE '/%/%' OR f.capture_directory LIKE 'https://%')
             AND f.date >= '2020-01-01'
             AND NOT EXISTS (
                 SELECT 1 FROM video_index vi

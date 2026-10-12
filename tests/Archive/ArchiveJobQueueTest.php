@@ -48,6 +48,26 @@ class ArchiveJobQueueTest extends TestCase
         $this->assertCount(0, $jobs);
     }
 
+    /**
+     * '/pending' means a screenshot job is in flight or has failed. Archiving
+     * then would move the video to archive.org, out of the screenshot queue's reach.
+     */
+    public function testExcludesRowsWhoseScreenshotsAreNotFinished(): void
+    {
+        $pdo = $this->createTestDatabase();
+
+        foreach (['/pending', '/deleted-source'] as $marker) {
+            $pdo->prepare(
+                'INSERT INTO files (chamber,title,date,path,webvtt,capture_directory,transcript,date_created)
+                 VALUES ("house","Floor","2025-01-01","https://video.richmondsunlight.com/house/floor/20250101.mp4","WEBVTT",:dir,"Some transcript","2025-01-01")'
+            )->execute([':dir' => $marker]);
+        }
+
+        $queue = new ArchiveJobQueue($pdo);
+        $this->assertCount(0, $queue->fetch());
+        $this->assertSame(0, $queue->countPending());
+    }
+
     private function createTestDatabase(): PDO
     {
         $pdo = new PDO('sqlite::memory:');

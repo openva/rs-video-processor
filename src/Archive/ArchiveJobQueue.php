@@ -13,9 +13,12 @@ class ArchiveJobQueue
 
     private function pendingWhere(): string
     {
+        // A real screenshot directory has at least two slashes. The markers
+        // '/pending' and '/deleted-source' have one and must not pass: archiving
+        // moves the video to archive.org, after which it cannot be screenshotted.
         return "f.path LIKE 'https://video.richmondsunlight.com/%'
             AND (f.webvtt IS NOT NULL OR f.srt IS NOT NULL)
-            AND f.capture_directory IS NOT NULL AND f.capture_directory != ''
+            AND (f.capture_directory LIKE '/%/%' OR f.capture_directory LIKE 'https://%')
             AND f.transcript IS NOT NULL
             AND " . JobLedger::eligibleSql(JobLedger::STAGE_ARCHIVE);
     }

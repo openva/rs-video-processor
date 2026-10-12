@@ -13,7 +13,10 @@ class ScreenshotJobQueue
 
     private function pendingWhere(): string
     {
-        return "f.path LIKE 'https://video.richmondsunlight.com/%'
+        // Videos archived before their screenshots existed are still wanted,
+        // from 2020 on (the earliest date bill and speaker detection cover).
+        return "(f.path LIKE 'https://video.richmondsunlight.com/%'
+                 OR (f.path LIKE 'https://archive.org/download/%' AND f.date >= '2020-01-01'))
             AND (f.capture_directory IS NULL OR f.capture_directory = ''
                  OR (f.capture_directory NOT LIKE '/%' AND f.capture_directory NOT LIKE 'https://%')
                  OR f.capture_rate IS NULL)

@@ -71,4 +71,28 @@ class BillDetectionJobQueueTest extends TestCase
             $jobs[0]->manifestUrl
         );
     }
+
+    public function testSkipsDeletedSourceMarker(): void
+    {
+        $pdo = new PDO('sqlite::memory:');
+        $pdo->exec('CREATE TABLE files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chamber TEXT,
+            committee_id INTEGER,
+            capture_directory TEXT,
+            video_index_cache TEXT,
+            date TEXT,
+            date_created TEXT
+        )');
+        \RichmondSunlight\VideoProcessor\Tests\Support\TestDatabaseFactory::addPipelineTables($pdo);
+        $pdo->exec('CREATE TABLE video_index (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_id INTEGER,
+            type TEXT
+        )');
+        $pdo->exec('INSERT INTO files (chamber, committee_id, capture_directory, date, date_created)
+            VALUES ("house", NULL, "/deleted-source", "2020-01-10", "2020-01-10")');
+
+        $this->assertCount(0, (new BillDetectionJobQueue($pdo))->fetch());
+    }
 }

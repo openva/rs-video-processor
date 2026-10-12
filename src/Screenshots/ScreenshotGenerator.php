@@ -30,7 +30,8 @@ class ScreenshotGenerator
         ?\Closure $pdoFactory = null
     ) {
         $this->pdoFactory = $pdoFactory;
-        $this->http = $http ?? new Client(['timeout' => 600]);
+        // Videos run to several GB and archive.org is slow; ten minutes was not enough.
+        $this->http = $http ?? new Client(['timeout' => 3600, 'connect_timeout' => 30]);
         $this->workingDir = $workingDir ?? __DIR__ . '/../../storage/screenshots';
         if (!is_dir($this->workingDir)) {
             mkdir($this->workingDir, 0775, true);
@@ -95,7 +96,10 @@ class ScreenshotGenerator
             $this->validateVideo($destination);
             return;
         }
-        $response = $this->http->get($this->encodeUrlPath($url), ['sink' => $destination]);
+        // Only our own bucket holds keys with literal '+' and '%' that need
+        // escaping again. archive.org URLs are already correctly encoded.
+        $fetchUrl = str_contains($url, '://video.richmondsunlight.com/') ? $this->encodeUrlPath($url) : $url;
+        $response = $this->http->get($fetchUrl, ['sink' => $destination]);
         if ($response->getStatusCode() >= 400) {
             throw new RuntimeException('Unable to download video for screenshots.');
         }

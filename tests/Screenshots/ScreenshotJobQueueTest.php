@@ -87,4 +87,39 @@ class ScreenshotJobQueueTest extends TestCase
         $this->assertSame('house', strtolower($jobs[2]->chamber));
         $this->assertSame('2025-01-31', $jobs[2]->date);
     }
+
+    /**
+     * Videos archived before their screenshots were made must still be reachable.
+     */
+    public function testFetchesArchivedVideosThatHaveNoScreenshots(): void
+    {
+        $pdo = new PDO('sqlite::memory:');
+        $pdo->exec('CREATE TABLE files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chamber TEXT,
+            committee_id INTEGER,
+            title TEXT,
+            date TEXT,
+            path TEXT,
+            html TEXT,
+            capture_directory TEXT,
+            capture_rate INTEGER,
+            date_created TEXT
+        )');
+        \RichmondSunlight\VideoProcessor\Tests\Support\TestDatabaseFactory::addPipelineTables($pdo);
+
+        $stmt = $pdo->prepare('INSERT INTO files (chamber, title, date, path, date_created)
+            VALUES ("senate", "Floor", :date, :path, "2021-01-01 00:00:00")');
+        // Eligible: a direct download URL, from 2020 onward.
+        $stmt->execute([':date' => '2021-02-03', ':path' => 'https://archive.org/download/rs-senate-20210203/video.mp4']);
+        // Not eligible: the details page is HTML, not a video.
+        $stmt->execute([':date' => '2021-02-04', ':path' => 'https://archive.org/details/rs-senate-20210204']);
+        // Not eligible: before 2020 there is no bill or speaker detection to feed.
+        $stmt->execute([':date' => '2015-02-03', ':path' => 'https://archive.org/download/rs-senate-20150203/video.mp4']);
+
+        $jobs = (new ScreenshotJobQueue($pdo))->fetch(10);
+
+        $this->assertCount(1, $jobs);
+        $this->assertSame('https://archive.org/download/rs-senate-20210203/video.mp4', $jobs[0]->videoPath);
+    }
 }
