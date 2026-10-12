@@ -28,7 +28,7 @@ class SpeakerDetectionProcessorTest extends TestCase
         $processor = new SpeakerDetectionProcessor($metadataExtractor, $diarizer, $ocrExtractor, $legislators, $writer, null);
 
         $job = new SpeakerJob(1, 'house', 'file://example', ['Speakers' => [['text' => 'Smith', 'startTime' => '00:00:10']]]);
-        $processor->process($job);
+        $this->assertTrue($processor->process($job));
 
         $count = $pdo->query('SELECT COUNT(*) FROM video_index')->fetchColumn();
         $this->assertSame(1, (int) $count);
@@ -92,7 +92,7 @@ class SpeakerDetectionProcessorTest extends TestCase
         // Committee video (diarization is skipped for committees), no manifest
         // (OCR is skipped), no metadata speakers: cleanly empty.
         $job = new SpeakerJob(42, 'senate', 'https://video.richmondsunlight.com/senate/comm/20250101.mp4', null, 'committee', null, null);
-        $processor->process($job);
+        $this->assertTrue($processor->process($job));
     }
 
     public function testLeavesClaimWhenDiarizationFails(): void
@@ -124,7 +124,7 @@ class SpeakerDetectionProcessorTest extends TestCase
 
         // Floor video with no metadata speakers and no manifest → diarization runs and throws.
         $job = new SpeakerJob(43, 'house', 'https://video.richmondsunlight.com/house/floor/20250101.mp4', null, 'floor', null, null);
-        $processor->process($job);
+        $this->assertFalse($processor->process($job));
     }
 
     public function testDiarizesFloorVideosWhenNoMetadata(): void

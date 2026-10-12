@@ -18,7 +18,11 @@ class SpeakerDetectionProcessor
     ) {
     }
 
-    public function process(SpeakerJob $job): void
+    /**
+     * @return bool true when detection finished (speakers or a none-found
+     *         sentinel were written); false when it could not finish and should be retried
+     */
+    public function process(SpeakerJob $job): bool
     {
         // Get a fresh DB connection before each job — diarization and OCR take
         // minutes and the connection times out between jobs.
@@ -66,13 +70,13 @@ class SpeakerDetectionProcessor
                 // stale-claim threshold, giving a bounded retry instead of an
                 // every-pass loop.
                 $this->logger?->put('Speaker extraction errored for file #' . $job->fileId . '; leaving claim for later retry.', 4);
-                return;
+                return false;
             }
             // Extraction ran cleanly and found nothing — record it permanently
             // so this video isn't re-processed on every pass.
             $this->logger?->put('No speakers found for file #' . $job->fileId . '; recorded none-found sentinel.', 3);
             $this->writer->recordNoneFound($job->fileId);
-            return;
+            return true;
         }
 
         $mapped = array_map(function ($segment) use ($job) {
@@ -86,6 +90,8 @@ class SpeakerDetectionProcessor
 
         $this->writer->write($job->fileId, $mapped);
         $this->logger?->put('Stored speaker data for file #' . $job->fileId, 3);
+
+        return true;
     }
 
     private function isFloorVideo(?array $metadata, ?string $eventType = null): bool

@@ -18,7 +18,11 @@ class BillDetectionProcessor
     ) {
     }
 
-    public function process(BillDetectionJob $job): void
+    /**
+     * @return bool true when detection finished (bills or a none-found sentinel
+     *         were written); false when it could not finish and should be retried
+     */
+    public function process(BillDetectionJob $job): bool
     {
         // Get a fresh DB connection before each job — bill detection takes minutes
         // (downloading + OCR on every screenshot) and the connection times out.
@@ -31,20 +35,20 @@ class BillDetectionProcessor
 
         if (!$job->manifestUrl) {
             $this->logger?->put('No manifest available for file #' . $job->fileId . '; leaving claim for later retry.', 4);
-            return;
+            return false;
         }
 
         try {
             $manifest = $this->manifestLoader->load($job->manifestUrl);
         } catch (\Throwable $e) {
             $this->logger?->put('Manifest load failed for file #' . $job->fileId . ': ' . $e->getMessage() . '; leaving claim for later retry.', 4);
-            return;
+            return false;
         }
 
         $crop = $this->chamberConfig->getCrop($job->chamber, $job->eventType, $job->date);
         if (!$crop) {
             $this->logger?->put('No crop configuration for chamber ' . $job->chamber . '; leaving claim for later retry.', 4);
-            return;
+            return false;
         }
 
         $agenda = $this->agendaExtractor->extract($job->metadata);
@@ -98,7 +102,7 @@ class BillDetectionProcessor
                 . ' (' . $failed . '/' . $attempted . ' screenshots failed, no bills found); leaving claim for later retry.',
                 4
             );
-            return;
+            return false;
         }
 
         // Commit: clear the placeholder (and any stale results) and write fresh.
@@ -118,7 +122,7 @@ class BillDetectionProcessor
             $reason = $attempted === 0 ? 'manifest was empty' : 'processed ' . $attempted . ' screenshot(s), found none';
             $this->writer->recordNoneFound($job->fileId);
             $this->logger?->put('No bills detected for file #' . $job->fileId . ' (' . $reason . '); recorded none-found sentinel.', 3);
-            return;
+            return true;
         }
 
         $this->logger?->put(
@@ -126,6 +130,8 @@ class BillDetectionProcessor
             . ($failed > 0 ? ' (' . $failed . '/' . $attempted . ' screenshots failed, kept partial results)' : ''),
             3
         );
+
+        return true;
     }
 
     private function matchAgenda(array $agenda, int $timestamp): array

@@ -80,7 +80,7 @@ class BillDetectionProcessorTest extends TestCase
             'https://video.richmondsunlight.com/senate/floor/20250101/manifest.json',
             null
         );
-        $processor->process($job);
+        $this->assertTrue($processor->process($job));
 
         $row = $pdo->query('SELECT screenshot, raw_text, type FROM video_index')->fetch(PDO::FETCH_ASSOC);
         $this->assertSame('00000000', $row['screenshot']);
@@ -153,7 +153,7 @@ class BillDetectionProcessorTest extends TestCase
             'https://video.richmondsunlight.com/senate/floor/20250101/manifest.json',
             null
         );
-        $processor->process($job);
+        $this->assertTrue($processor->process($job));
 
         $rows = $pdo->query("SELECT raw_text, ignored FROM video_index WHERE file_id = 1")->fetchAll(PDO::FETCH_ASSOC);
         $this->assertCount(1, $rows, 'Placeholder must be replaced by exactly one sentinel row.');
@@ -231,7 +231,7 @@ class BillDetectionProcessorTest extends TestCase
             'https://video.richmondsunlight.com/senate/floor/20250101/manifest.json',
             null
         );
-        $processor->process($job);
+        $this->assertTrue($processor->process($job));
 
         // A real bill was found on the first screenshot, so the pass is committed:
         // the /pending placeholder is cleared and the bill kept. No /none sentinel.
@@ -295,7 +295,7 @@ class BillDetectionProcessorTest extends TestCase
             'https://video.richmondsunlight.com/senate/floor/20250101/manifest.json',
             null
         );
-        $processor->process($job);
+        $this->assertFalse($processor->process($job));
 
         // Claim placeholder must survive so StaleClaimCleaner releases it for retry.
         $rows = $pdo->query("SELECT raw_text FROM video_index WHERE file_id = 1")->fetchAll(PDO::FETCH_COLUMN);
@@ -400,7 +400,7 @@ class BillDetectionProcessorTest extends TestCase
         // manifestUrl = null → early return; the claim must survive so the video
         // is retried after StaleClaimCleaner releases it, instead of looping now.
         $job = new BillDetectionJob(1, 'senate', null, 'floor', '', null, null);
-        $processor->process($job);
+        $this->assertFalse($processor->process($job));
 
         $row = $pdo->query("SELECT raw_text FROM video_index WHERE file_id = 1")->fetch(PDO::FETCH_ASSOC);
         $this->assertNotFalse($row, 'Claim placeholder must NOT be deleted on early failure.');

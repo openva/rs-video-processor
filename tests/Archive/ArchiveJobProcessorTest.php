@@ -73,6 +73,57 @@ class ArchiveJobProcessorTest extends TestCase
         $this->assertContains('Uploaded file #1 to https://archive.org/details/test-1', $messages);
     }
 
+    public function testProcessJobThrowsWhenUploadReturnsNothing(): void
+    {
+        $pdo = $this->createDatabase();
+        $pdo->exec("INSERT INTO files (id, path) VALUES (1, 'https://video.richmondsunlight.com/house/floor/file.mp4')");
+
+        $job = new ArchiveJob(
+            1,
+            'house',
+            'Floor Session',
+            '2025-01-01',
+            'https://video.richmondsunlight.com/house/floor/file.mp4',
+            'WEBVTT',
+            null,
+            null,
+            null
+        );
+
+        $uploader = new class extends InternetArchiveUploader {
+            public function __construct()
+            {
+                parent::__construct(null);
+            }
+
+            public function upload(ArchiveJob $job, array $metadata): ?string
+            {
+                return null;
+            }
+        };
+
+        $processor = new ArchiveJobProcessor(
+            $this->queue([]),
+            new MetadataBuilder(),
+            $uploader,
+            $pdo,
+            new ArchiveJobProcessorTestLogger()
+        );
+
+        try {
+            $processor->processJob($job);
+            $this->fail('processJob must throw when the upload fails.');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('Internet Archive', $e->getMessage());
+        }
+
+        $this->assertSame(
+            'https://video.richmondsunlight.com/house/floor/file.mp4',
+            $pdo->query('SELECT path FROM files WHERE id = 1')->fetchColumn(),
+            'A failed upload must not change the path.'
+        );
+    }
+
     public function testLogsWhenNoJobsAvailable(): void
     {
         $pdo = $this->createDatabase();
