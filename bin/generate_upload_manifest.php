@@ -21,7 +21,10 @@ $stmt = $pdo->query("
     SELECT id, title, date, video_index_cache
     FROM files
     WHERE chamber = 'senate'
-      AND (path IS NULL OR path = '' OR path NOT LIKE 'https://video.richmondsunlight.com/%')
+      AND (path IS NULL OR path = '' OR (
+            path NOT LIKE 'https://video.richmondsunlight.com/%'
+            AND path NOT LIKE 'https://archive.org/%'
+      ))
       AND (html IS NULL OR html = '')
       AND video_index_cache IS NOT NULL
       AND video_index_cache LIKE '%senate-youtube%'

@@ -28,7 +28,8 @@ class InternetArchiveUploader
             $temp = tempnam(sys_get_temp_dir(), 'ia_video_');
             $tempWithExt = $temp . '.mp4';
             rename($temp, $tempWithExt);
-            $cmd = sprintf('curl -L %s -o %s', escapeshellarg($url), escapeshellarg($tempWithExt));
+            // -f: fail on an HTTP error instead of saving the error page as the video.
+            $cmd = sprintf('curl -fL --retry 3 --silent --show-error %s -o %s', escapeshellarg($url), escapeshellarg($tempWithExt));
             exec($cmd, $out, $status);
             if ($status !== 0) {
                 throw new RuntimeException('Unable to download video for Internet Archive.');

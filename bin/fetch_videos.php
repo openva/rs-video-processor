@@ -12,6 +12,7 @@ use RichmondSunlight\VideoProcessor\Fetcher\VideoDownloadJob;
 use RichmondSunlight\VideoProcessor\Fetcher\VideoDownloadProcessor;
 use RichmondSunlight\VideoProcessor\Fetcher\VideoDownloadQueue;
 use RichmondSunlight\VideoProcessor\Fetcher\VideoMetadataExtractor;
+use RichmondSunlight\VideoProcessor\Fetcher\VideoValidator;
 use RichmondSunlight\VideoProcessor\Jobs\JobLedger;
 use RichmondSunlight\VideoProcessor\Jobs\StageRunner;
 
@@ -46,7 +47,9 @@ $downloaded = $runner->run(
             new VideoMetadataExtractor(),
             new S3KeyBuilder(),
             null,
-            $log
+            $log,
+            null,
+            new VideoValidator()
         );
         $processor->process($job);
     }

@@ -20,7 +20,8 @@ class VideoDownloadProcessor
         private S3KeyBuilder $keyBuilder,
         private ?MetadataIndexer $metadataIndexer = null,
         private ?Log $logger = null,
-        ?string $downloadDir = null
+        ?string $downloadDir = null,
+        private ?VideoValidator $validator = null
     ) {
         $this->downloadDir = $downloadDir ?? __DIR__ . '/../../storage/downloads';
         if (!is_dir($this->downloadDir)) {
@@ -45,6 +46,17 @@ class VideoDownloadProcessor
 
         try {
             $localVideo = $this->downloadVideo($job);
+
+            // Reject error pages and truncated files here, before they are
+            // stored on S3 as if they were the video.
+            if ($this->validator) {
+                try {
+                    $this->validator->assertValid($localVideo);
+                } catch (\Throwable $e) {
+                    @unlink($localVideo);
+                    throw $e;
+                }
+            }
             $captionPath = $this->downloadCaptions($job);
 
             $meta = $this->metadataExtractor->extract($localVideo);

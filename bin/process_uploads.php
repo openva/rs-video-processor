@@ -21,6 +21,7 @@ use RichmondSunlight\VideoProcessor\Fetcher\CommitteeDirectory;
 use RichmondSunlight\VideoProcessor\Fetcher\S3KeyBuilder;
 use RichmondSunlight\VideoProcessor\Fetcher\S3Storage;
 use RichmondSunlight\VideoProcessor\Fetcher\VideoMetadataExtractor;
+use RichmondSunlight\VideoProcessor\Fetcher\VideoValidator;
 
 $app = require __DIR__ . '/bootstrap.php';
 $pdo = $app->pdo;
@@ -65,7 +66,10 @@ foreach ($mp4s as $object) {
         SELECT id, chamber, committee_id, date, video_index_cache
         FROM files
         WHERE video_index_cache LIKE :pattern
-          AND (path IS NULL OR path = '' OR path NOT LIKE 'https://video.richmondsunlight.com/%')
+          AND (path IS NULL OR path = '' OR (
+                path NOT LIKE 'https://video.richmondsunlight.com/%'
+                AND path NOT LIKE 'https://archive.org/%'
+          ))
         LIMIT 1
     ");
     $stmt->execute([':pattern' => '%"youtube_id": "' . $youtubeId . '"%']);
@@ -95,6 +99,10 @@ foreach ($mp4s as $object) {
     try {
         // Download video from uploads/ to local temp
         $s3Client->getObject(['Bucket' => $bucket, 'Key' => $uploadKey, 'SaveAs' => $localVideo]);
+
+
+        // A bad manual upload stays in uploads/ and is reported each pass until removed.
+        (new VideoValidator())->assertValid($localVideo);
 
         // Extract ffprobe metadata
         $meta = $metadataExtractor->extract($localVideo);

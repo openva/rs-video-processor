@@ -10,6 +10,7 @@ use RichmondSunlight\VideoProcessor\Fetcher\StorageInterface;
 use RichmondSunlight\VideoProcessor\Fetcher\VideoDownloadJob;
 use RichmondSunlight\VideoProcessor\Fetcher\VideoDownloadProcessor;
 use RichmondSunlight\VideoProcessor\Fetcher\VideoMetadataExtractor;
+use RichmondSunlight\VideoProcessor\Fetcher\VideoValidator;
 
 class VideoDownloadProcessorTest extends TestCase
 {
@@ -124,6 +125,43 @@ class VideoDownloadProcessorTest extends TestCase
         $this->assertSame('https://example.test/house/committee/finance/20250305-2.mp4', $record['path']);
     }
 
+    public function testAFileThatIsNotAVideoIsNeverUploaded(): void
+    {
+        $pdo = $this->createDatabase();
+        $pdo->exec("INSERT INTO files (id, chamber, committee_id, path, capture_directory, date_created, date_modified) VALUES (4, 'house', NULL, '', '', '2025-01-01', '2025-01-01')");
+
+        $validator = new class extends VideoValidator {
+            public function assertValid(string $path): void
+            {
+                throw new \RuntimeException('Downloaded file is not a valid video: test.');
+            }
+        };
+
+        $storage = new InMemoryStorage();
+        $processor = new TestableVideoDownloadProcessor(
+            $pdo,
+            $storage,
+            new CommitteeDirectory($pdo),
+            new StubMetadataExtractor(),
+            new S3KeyBuilder(),
+            null,
+            null,
+            $validator
+        );
+
+        $job = new VideoDownloadJob(4, 'house', null, '2025-04-10', 'https://example.com/error-page.mp4', [], 'Test');
+
+        try {
+            $processor->process($job);
+            $this->fail('An invalid download must throw.');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('not a valid video', $e->getMessage());
+        }
+
+        $this->assertSame([], $storage->uploads);
+        $this->assertSame('', $pdo->query('SELECT path FROM files WHERE id = 4')->fetchColumn());
+    }
+
     private function createDatabase(): PDO
     {
         $pdo = new PDO('sqlite::memory:');
@@ -167,9 +205,20 @@ class TestableVideoDownloadProcessor extends VideoDownloadProcessor
         VideoMetadataExtractor $metadataExtractor,
         S3KeyBuilder $keyBuilder,
         ?\Log $logger = null,
-        ?string $downloadDir = null
+        ?string $downloadDir = null,
+        ?VideoValidator $validator = null
     ) {
-        parent::__construct($pdo, $storage, $committeeDirectory, $metadataExtractor, $keyBuilder, $logger, $downloadDir);
+        parent::__construct(
+            $pdo,
+            $storage,
+            $committeeDirectory,
+            $metadataExtractor,
+            $keyBuilder,
+            null,
+            $logger,
+            $downloadDir,
+            $validator
+        );
         $this->dummyVideo = $this->createDummyVideo();
     }
 
