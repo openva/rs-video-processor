@@ -266,7 +266,8 @@ VIDEO_SQS_URL  // Legacy — no longer used by the pipeline (SQS removed)
 
 // APIs
 OPENAI_KEY              // For transcription fallback
-IA_ACCESS_KEY, IA_SECRET_KEY  // Internet Archive
+IA_ACCESS_KEY, IA_SECRET_KEY  // Internet Archive; deploy.sh writes them to ~/.config/internetarchive/ia.ini
+YOUTUBE_API_KEY               // Senate YouTube scraper
 
 // Optional
 SLACK_WEBHOOK           // Logging integration

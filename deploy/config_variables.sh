@@ -17,6 +17,9 @@ variables=(
 	MYSQL_DATABASE
 	SLACK_WEBHOOK
 	OPENAI_KEY
+	IA_ACCESS_KEY
+	IA_SECRET_KEY
+	YOUTUBE_API_KEY
 )
 
 # Iterate over the variables and make sure that they're all populated.
