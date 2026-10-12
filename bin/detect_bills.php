@@ -4,6 +4,7 @@
 declare(strict_types=1);
 
 use RichmondSunlight\VideoProcessor\Analysis\Bills\AgendaExtractor;
+use RichmondSunlight\VideoProcessor\Analysis\Bills\BillDetectionJob;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\BillDetectionJobQueue;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\BillDetectionProcessor;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\BillParser;
@@ -14,10 +15,11 @@ use RichmondSunlight\VideoProcessor\Analysis\Bills\ScreenshotFetcher;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\ScreenshotManifestLoader;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\TesseractOcrEngine;
 use RichmondSunlight\VideoProcessor\Bootstrap\AppBootstrap;
+use RichmondSunlight\VideoProcessor\Jobs\JobLedger;
+use RichmondSunlight\VideoProcessor\Jobs\StageRunner;
 
 $app = require __DIR__ . '/bootstrap.php';
 $log = $app->log;
-$pdo = $app->pdo;
 
 $options = getopt('', ['limit::', 'enqueue']);
 $limit = isset($options['limit']) ? (int) $options['limit'] : 2;
@@ -30,38 +32,28 @@ foreach ($argv as $arg) {
         break;
     }
 }
-$pdoFactory = fn() => AppBootstrap::createFreshConnection();
-$queue = new BillDetectionJobQueue($pdo);
+
+$pdoFactory = AppBootstrap::connectionFactory();
 
 $processor = new BillDetectionProcessor(
     new ScreenshotManifestLoader(),
     new ScreenshotFetcher(),
     new BillTextExtractor(new TesseractOcrEngine()),
     new BillParser(),
-    new BillResultWriter($pdo, $pdoFactory),
+    new BillResultWriter($app->pdo, $pdoFactory),
     new ChamberConfig(),
     new AgendaExtractor(),
     $log
 );
 
-if (isset($options['enqueue'])) {
-    $log->put('--enqueue is deprecated (SQS removed); processing jobs directly from the database.', 2);
-}
+$runner = new StageRunner(new JobLedger($app->pdo, $pdoFactory), JobLedger::STAGE_BILLS, $log);
 
-$jobs = $queue->fetch($limit);
-if (empty($jobs)) {
-    $log->put('No files pending bill detection.', 3);
-    exit(0);
-}
-processBillJobs($jobs, $processor, $log);
+$processed = $runner->run(
+    $limit,
+    static fn() => (new BillDetectionJobQueue($pdoFactory()))->fetch(1)[0] ?? null,
+    static fn(BillDetectionJob $job): int => $job->fileId,
+    // process() returns false when it could not finish; StageRunner counts that as a failure.
+    static fn(BillDetectionJob $job): bool => $processor->process($job)
+);
 
-function processBillJobs(array $jobs, BillDetectionProcessor $processor, Log $log): void
-{
-    foreach ($jobs as $job) {
-        try {
-            $processor->process($job);
-        } catch (Throwable $e) {
-            $log->put('Bill detection failed for file #' . $job->fileId . ': ' . $e->getMessage(), 6);
-        }
-    }
-}
+$log->put("Finished bill detection for {$processed} file(s).", 3);

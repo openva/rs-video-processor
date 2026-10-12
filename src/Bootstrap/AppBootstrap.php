@@ -57,6 +57,23 @@ class AppBootstrap
     }
 
     /**
+     * A closure that opens a new connection each time it is called, for work
+     * that outlasts the database's idle timeout.
+     *
+     * @return \Closure(): \PDO
+     */
+    public static function connectionFactory(): \Closure
+    {
+        return static function (): \PDO {
+            $pdo = self::createFreshConnection();
+            if (!$pdo instanceof \PDO) {
+                throw new RuntimeException('Unable to connect to database.');
+            }
+            return $pdo;
+        };
+    }
+
+    /**
      * @return \PDO|false
      */
     private static function createNonPersistentConnection()

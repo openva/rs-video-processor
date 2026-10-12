@@ -4,15 +4,19 @@
 declare(strict_types=1);
 
 use GuzzleHttp\Client;
-use RichmondSunlight\VideoProcessor\Transcripts\CaptionParser;
-use RichmondSunlight\VideoProcessor\Transcripts\OpenAITranscriber;
-use RichmondSunlight\VideoProcessor\Transcripts\TranscriptJobQueue;
-use RichmondSunlight\VideoProcessor\Transcripts\TranscriptProcessor;
 use RichmondSunlight\VideoProcessor\Bootstrap\AppBootstrap;
 use RichmondSunlight\VideoProcessor\Contract\ContractValidator;
+use RichmondSunlight\VideoProcessor\Jobs\JobLedger;
+use RichmondSunlight\VideoProcessor\Jobs\StageRunner;
+use RichmondSunlight\VideoProcessor\Transcripts\CaptionParser;
+use RichmondSunlight\VideoProcessor\Transcripts\OpenAITranscriber;
+use RichmondSunlight\VideoProcessor\Transcripts\TranscriptJob;
+use RichmondSunlight\VideoProcessor\Transcripts\TranscriptJobQueue;
+use RichmondSunlight\VideoProcessor\Transcripts\TranscriptProcessor;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptWriter;
 
 $app = require __DIR__ . '/bootstrap.php';
+$log = $app->log;
 
 if (!defined('OPENAI_KEY') || OPENAI_KEY === '') {
     fwrite(STDERR, "OPENAI_KEY is not defined.\n");
@@ -30,50 +34,32 @@ foreach ($argv as $arg) {
         break;
     }
 }
-$log = $app->log;
-$pdo = $app->pdo;
-$pdoFactory = fn() => AppBootstrap::createFreshConnection();
-$jobQueue = new TranscriptJobQueue($pdo);
-$writer = new TranscriptWriter($pdo, $pdoFactory);
-$httpClient = new Client(['timeout' => 1800]);
-$transcriber = new OpenAITranscriber($httpClient, OPENAI_KEY);
+
+$pdoFactory = AppBootstrap::connectionFactory();
+$writer = new TranscriptWriter($app->pdo, $pdoFactory);
+$transcriber = new OpenAITranscriber(new Client(['timeout' => 1800]), OPENAI_KEY);
 $processor = new TranscriptProcessor($writer, $transcriber, new CaptionParser(), null, $log);
 
-if (isset($options['enqueue'])) {
-    $log->put('--enqueue is deprecated (SQS removed); processing jobs directly from the database.', 2);
-}
+$runner = new StageRunner(new JobLedger($app->pdo, $pdoFactory), JobLedger::STAGE_TRANSCRIPT, $log);
 
-// TranscriptJobQueue::fetch() already selects webvtt/srt, so there is no need
-// to re-fetch large columns from the DB (as the old SQS payload path did).
-$jobs = $jobQueue->fetch($limit);
-if (empty($jobs)) {
-    $log->put('No files pending transcript generation.', 3);
-    exit(0);
-}
-processTranscriptJobs($jobs, $processor, $log);
+$processed = $runner->run(
+    $limit,
+    static fn() => (new TranscriptJobQueue($pdoFactory()))->fetch(1)[0] ?? null,
+    static fn(TranscriptJob $job): int => $job->fileId,
+    static function (TranscriptJob $job) use ($processor, $pdoFactory, $log): void {
+        $processor->process($job);
 
-function processTranscriptJobs(array $jobs, TranscriptProcessor $processor, Log $log): void
-{
-    foreach ($jobs as $job) {
-        try {
-            $processor->process($job);
-            validateTranscriptContract(AppBootstrap::createFreshConnection(), $job->fileId, $log);
-        } catch (Throwable $e) {
-            $log->put('Transcript generation failed for file #' . $job->fileId . ': ' . $e->getMessage(), 6);
+        $issues = (new ContractValidator($pdoFactory()))->validateFile($job->fileId);
+        foreach ($issues as $issue) {
+            if ($issue['level'] !== 'error' && $issue['level'] !== 'warning') {
+                continue;
+            }
+            $log->put(
+                sprintf('Contract %s for file #%d: %s', strtoupper($issue['level']), $job->fileId, $issue['message']),
+                $issue['level'] === 'error' ? 5 : 2
+            );
         }
     }
-}
+);
 
-function validateTranscriptContract(PDO $pdo, int $fileId, Log $log): void
-{
-    $validator = new ContractValidator($pdo);
-    $issues = $validator->validateFile($fileId);
-    $problems = array_filter($issues, fn($i) => $i['level'] === 'error' || $i['level'] === 'warning');
-
-    foreach ($problems as $issue) {
-        $log->put(
-            sprintf('Contract %s for file #%d: %s', strtoupper($issue['level']), $fileId, $issue['message']),
-            $issue['level'] === 'error' ? 5 : 2
-        );
-    }
-}
+$log->put("Generated {$processed} transcript(s).", 3);

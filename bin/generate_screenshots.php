@@ -3,12 +3,15 @@
 
 declare(strict_types=1);
 
-use RichmondSunlight\VideoProcessor\Fetcher\S3ClientFactory;
 use RichmondSunlight\VideoProcessor\Bootstrap\AppBootstrap;
 use RichmondSunlight\VideoProcessor\Fetcher\CommitteeDirectory;
+use RichmondSunlight\VideoProcessor\Fetcher\S3ClientFactory;
 use RichmondSunlight\VideoProcessor\Fetcher\S3KeyBuilder;
 use RichmondSunlight\VideoProcessor\Fetcher\S3Storage;
+use RichmondSunlight\VideoProcessor\Jobs\JobLedger;
+use RichmondSunlight\VideoProcessor\Jobs\StageRunner;
 use RichmondSunlight\VideoProcessor\Screenshots\ScreenshotGenerator;
+use RichmondSunlight\VideoProcessor\Screenshots\ScreenshotJob;
 use RichmondSunlight\VideoProcessor\Screenshots\ScreenshotJobQueue;
 
 $app = require __DIR__ . '/bootstrap.php';
@@ -25,38 +28,34 @@ foreach ($argv as $arg) {
         break;
     }
 }
-if (isset($options['enqueue'])) {
-    $log->put('--enqueue is deprecated (SQS removed); processing jobs directly from the database.', 2);
-}
 
 $s3Client = S3ClientFactory::create(AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION);
-
-$bucket = 'video.richmondsunlight.com';
-$storage = new S3Storage($s3Client, $bucket);
+$storage = new S3Storage($s3Client, 'video.richmondsunlight.com');
 $keyBuilder = new S3KeyBuilder();
 
-$processed = 0;
-for ($i = 0; $i < $limit; $i++) {
-    // Fresh connection before each job — screenshot jobs take minutes
-    // (download from S3 + ffmpeg + upload frames) and the connection times out.
-    $pdo = AppBootstrap::createFreshConnection();
-    $committeeDirectory = new CommitteeDirectory($pdo);
-    $pdoFactory = fn() => AppBootstrap::createFreshConnection();
-    $generator = new ScreenshotGenerator($pdo, $storage, $committeeDirectory, $keyBuilder, $log, null, null, $pdoFactory);
-    $queue = new ScreenshotJobQueue($pdo);
+$pdoFactory = AppBootstrap::connectionFactory();
+$runner = new StageRunner(new JobLedger($app->pdo, $pdoFactory), JobLedger::STAGE_SCREENSHOTS, $log);
 
-    $jobs = $queue->fetch(1);
-    if (empty($jobs)) {
-        $log->put("No more screenshot jobs after processing {$processed}.", 3);
-        break;
+$processed = $runner->run(
+    $limit,
+    static fn() => (new ScreenshotJobQueue($pdoFactory()))->fetch(1)[0] ?? null,
+    static fn(ScreenshotJob $job): int => $job->id,
+    // A failed job keeps its '/pending' claim on the files row; StaleClaimCleaner
+    // releases it, and the ledger decides when the job may be tried again.
+    static function (ScreenshotJob $job) use ($pdoFactory, $storage, $keyBuilder, $log): void {
+        $pdo = $pdoFactory();
+        $generator = new ScreenshotGenerator(
+            $pdo,
+            $storage,
+            new CommitteeDirectory($pdo),
+            $keyBuilder,
+            $log,
+            null,
+            null,
+            $pdoFactory
+        );
+        $generator->process($job);
     }
-    try {
-        $generator->process($jobs[0]);
-        $processed++;
-    } catch (Throwable $e) {
-        // The claim ('/pending') stays on this file; StaleClaimCleaner releases
-        // it after the stale-claim threshold so the job is retried in a later session.
-        $log->put('Screenshot job failed for file #' . $jobs[0]->id . ': ' . $e->getMessage(), 6);
-    }
-}
+);
+
 $log->put("Processed {$processed} screenshot job(s).", 3);
