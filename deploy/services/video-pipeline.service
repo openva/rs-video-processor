@@ -12,10 +12,11 @@ Type=oneshot
 User=ubuntu
 Group=ubuntu
 WorkingDirectory=/home/ubuntu/video-processor
-# Optional overrides, one VAR=value per line: worker counts (FETCH_WORKERS,
-# SCREENSHOT_WORKERS, TRANSCRIPT_WORKERS, BILL_WORKERS, SPEAKER_WORKERS,
-# ARCHIVE_WORKERS), JOBS_PER_WORKER, MAX_DRAIN_RUNTIME_SECONDS. The leading
-# "-" means the file may be absent.
+# Worker counts, deployed with the code. One VAR=value per line.
+EnvironmentFile=-/home/ubuntu/video-processor/deploy/video-processor.env
+# Optional per-machine overrides of the same variables, plus JOBS_PER_WORKER and
+# MAX_DRAIN_RUNTIME_SECONDS. Read second, so it wins. The leading "-" means a
+# file may be absent.
 EnvironmentFile=-/home/ubuntu/video-processor.env
 # --drain: keep making passes until nothing is pending, the time limit is
 # reached, or the pending count stops dropping.
