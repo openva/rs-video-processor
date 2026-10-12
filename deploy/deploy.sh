@@ -119,14 +119,14 @@ if [[ -f /home/ubuntu/video-processor.txt ]]; then
   # Install the video pipeline service (runs after update, then auto-shuts down)
   sudo cp deploy/services/video-pipeline.service /etc/systemd/system/video-pipeline.service
 
-  # Install the screenshot worker service (optional, for continuous processing)
-  sudo cp deploy/services/screenshot-worker.service /etc/systemd/system/screenshot-worker.service
 
   sudo systemctl daemon-reload
 
   # Enable services to run on boot
   sudo systemctl enable video-pipeline.service
-  sudo systemctl enable screenshot-worker.service
+  # The pipeline generates screenshots itself. The standalone worker competed
+  # with it and was killed mid-job at every shutdown, so make sure it is off.
+  sudo systemctl disable --now screenshot-worker.service 2>/dev/null || true
 
   echo "Video processing services installed and enabled."
 else

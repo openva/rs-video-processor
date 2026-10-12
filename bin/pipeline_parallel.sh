@@ -28,6 +28,13 @@ ARCHIVE_WORKERS=${ARCHIVE_WORKERS:-2}
 
 JOBS_PER_WORKER=${JOBS_PER_WORKER:-5}
 
+
+# The queues need the video_jobs and video_sources tables; stop if either is missing.
+if ! php "$SCRIPT_DIR/check_schema.php"; then
+  echo "ERROR: pipeline tables are missing; not running the pipeline." >&2
+  exit 1
+fi
+
 echo "========================================"
 echo "Parallel Video Processing Pipeline"
 echo "========================================"

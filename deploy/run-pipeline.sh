@@ -5,13 +5,16 @@ set -euo pipefail
 # This script is called after boot/update to process any pending videos.
 #
 # Default mode: Runs in a loop for up to 110 minutes, then exits to allow auto-shutdown.
-# Drain mode (--drain): Runs the parallel pipeline in a loop until all queues are empty.
+# Drain mode (--drain): Runs the parallel pipeline in a loop until all queues are
+#   empty, the time limit is reached, or the pending count stops dropping. This is
+#   what video-pipeline.service runs on boot.
 
 APP_DIR="${APP_DIR:-/home/ubuntu/video-processor}"
 GUARD_FILE="${GUARD_FILE:-/home/ubuntu/video-processor.txt}"
 MAX_RUNTIME_SECONDS="${MAX_RUNTIME_SECONDS:-6600}"  # 1 hour 50 minutes default
 MAX_DRAIN_RUNTIME_SECONDS="${MAX_DRAIN_RUNTIME_SECONDS:-21600}"  # 6 hours default
 IDLE_CONFIRM_SECONDS="${IDLE_CONFIRM_SECONDS:-60}"  # pause between the two idle checks
+MAX_STALLED_PASSES="${MAX_STALLED_PASSES:-3}"  # drain passes allowed without the pending count dropping
 DRAIN_MODE=false
 
 # Parse arguments
@@ -29,6 +32,14 @@ fi
 cd "$APP_DIR"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+
+# Every queue reads the video_jobs table and the importer reads video_sources.
+# Without them nothing below can work, so stop here if either is missing.
+if ! php bin/check_schema.php; then
+  echo "ERROR: pipeline tables are missing; not running the pipeline." >&2
+  exit 1
+fi
 
 # Run one pipeline step; log failures but never abort the session over one step.
 run_step() {
@@ -120,6 +131,8 @@ check_pending() {
 
 # Run pipeline in a loop
 pass_count=0
+prev_pending=-1
+stalled_passes=0
 
 if [[ "$DRAIN_MODE" == true ]]; then
   # Drain mode: loop until no pending work remains
@@ -142,6 +155,20 @@ if [[ "$DRAIN_MODE" == true ]]; then
 
     if [[ $ELAPSED -ge $MAX_DRAIN_RUNTIME_SECONDS ]]; then
       echo "Drain time limit reached ($((MAX_DRAIN_RUNTIME_SECONDS / 60)) minutes) with $PENDING_COUNT items still pending."
+      break
+    fi
+
+
+    # If the count is not dropping, more passes will not help: what is left is
+    # failing or waiting on something outside this machine. Stop and shut down.
+    if [[ $prev_pending -ge 0 && $PENDING_COUNT -ge $prev_pending ]]; then
+      stalled_passes=$((stalled_passes + 1))
+    else
+      stalled_passes=0
+    fi
+    prev_pending=$PENDING_COUNT
+    if [[ $stalled_passes -ge $MAX_STALLED_PASSES ]]; then
+      echo "Pending count has not dropped for ${stalled_passes} passes (${PENDING_COUNT} pending); stopping."
       break
     fi
 
