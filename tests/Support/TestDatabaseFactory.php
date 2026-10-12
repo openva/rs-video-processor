@@ -76,7 +76,37 @@ class TestDatabaseFactory
             name_formal TEXT
         )');
 
+        self::addPipelineTables($pdo);
+
         return $pdo;
+    }
+
+    /**
+     * SQLite versions of the tables in deploy/mysql/video-pipeline-tables.sql.
+     * Call this in any test that builds its own schema and then uses a
+     * *JobQueue class or VideoImporter.
+     */
+    public static function addPipelineTables(PDO $pdo): void
+    {
+        $pdo->exec('CREATE TABLE IF NOT EXISTS video_sources (
+            source TEXT NOT NULL,
+            source_id TEXT NOT NULL,
+            file_id INTEGER NOT NULL,
+            date_created TEXT NOT NULL,
+            PRIMARY KEY (source, source_id)
+        )');
+
+        $pdo->exec('CREATE TABLE IF NOT EXISTS video_jobs (
+            file_id INTEGER NOT NULL,
+            stage TEXT NOT NULL,
+            status TEXT NOT NULL,
+            attempts INTEGER NOT NULL DEFAULT 0,
+            claimed_at TEXT,
+            next_attempt_at TEXT,
+            last_error TEXT,
+            date_modified TEXT NOT NULL,
+            PRIMARY KEY (file_id, stage)
+        )');
     }
 
     public static function seedCommittees(PDO $pdo): void
