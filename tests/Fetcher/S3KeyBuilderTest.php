@@ -70,4 +70,26 @@ class S3KeyBuilderTest extends TestCase
         $builder = new S3KeyBuilder();
         $this->assertSame('senate/committee/181/20190111.mp4', $builder->build('Senate', '2019-01-11', '181'));
     }
+
+    public function testAppendsFileIdWhenGiven(): void
+    {
+        $builder = new S3KeyBuilder();
+        $this->assertSame(
+            'house/floor/20260817-18797.mp4',
+            $builder->build('House', '2026-08-17', null, 18797)
+        );
+        $this->assertSame(
+            'house/committee/finance/20260817-18797.mp4',
+            $builder->build('House', '2026-08-17', 'finance', 18797)
+        );
+    }
+
+    public function testTwoVideosOnOneDayGetDifferentKeys(): void
+    {
+        $builder = new S3KeyBuilder();
+        $this->assertNotSame(
+            $builder->build('house', '2026-08-17', null, 18797),
+            $builder->build('house', '2026-08-17', null, 18798)
+        );
+    }
 }

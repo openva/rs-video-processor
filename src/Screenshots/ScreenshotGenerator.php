@@ -279,15 +279,28 @@ class ScreenshotGenerator
         return array_values($manifest);
     }
 
+    /**
+     * The directory screenshots are uploaded to. It always ends in the file ID,
+     * because several file rows can point at one legacy S3 object and each
+     * needs its own frames. The job's existing capture_directory is ignored:
+     * reading it back as a prefix is what produced doubled slashes.
+     */
     private function buildScreenshotPrefix(ScreenshotJob $job): string
     {
-        $shortname = $job->committeeId ? $this->committeeDirectory->getShortnameById($job->committeeId) : null;
-        $videoKey = $job->captureDirectory ?? $job->videoKey();
+        $videoKey = $job->videoKey();
         if ($videoKey) {
-            $videoKey = preg_replace('/\.mp4$/', '', $videoKey);
-            return $videoKey;
+            $prefix = (string) preg_replace('/\.mp4$/', '', trim($videoKey, '/'));
+        } else {
+            $shortname = $job->committeeId ? $this->committeeDirectory->getShortnameById($job->committeeId) : null;
+            $prefix = (string) preg_replace('/\.mp4$/', '', $this->keyBuilder->build($job->chamber, $job->date, $shortname));
         }
-        return $this->keyBuilder->build($job->chamber, $job->date, $shortname);
+
+        $suffix = '-' . $job->id;
+        if (!str_ends_with($prefix, $suffix)) {
+            $prefix .= $suffix;
+        }
+
+        return $prefix;
     }
 
     private function updateDatabase(ScreenshotJob $job, string $prefix): void

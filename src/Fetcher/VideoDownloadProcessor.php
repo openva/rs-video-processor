@@ -285,7 +285,7 @@ class VideoDownloadProcessor
     private function buildS3Key(VideoDownloadJob $job): string
     {
         $short = $job->committeeId ? $this->committeeDirectory->getShortnameById($job->committeeId) : null;
-        return $this->keyBuilder->build($job->chamber, $job->date, $short);
+        return $this->keyBuilder->build($job->chamber, $job->date, $short, $job->id);
     }
 
     private function updateDatabase(VideoDownloadJob $job, string $s3Url, string $s3Key, array $meta, ?string $caption): void

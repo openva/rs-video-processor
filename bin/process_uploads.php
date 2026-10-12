@@ -101,7 +101,7 @@ foreach ($mp4s as $object) {
 
         // Build final S3 key and upload
         $shortname = $committeeId ? $directory->getShortnameById($committeeId) : null;
-        $finalKey  = $keyBuilder->build($chamber, $date, $shortname);
+        $finalKey  = $keyBuilder->build($chamber, $date, $shortname, $fileId);
         $s3Url     = $storage->upload($localVideo, $finalKey);
 
         // Fetch captions if present in uploads/

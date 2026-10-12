@@ -46,7 +46,7 @@ class VideoDownloadProcessorTest extends TestCase
         $this->assertSame([], $processor->ytCalls);
 
         $record = $pdo->query('SELECT path, capture_directory FROM files WHERE id = 1')->fetch(PDO::FETCH_ASSOC);
-        $this->assertSame('https://example.test/senate/floor/20250201.mp4', $record['path']);
+        $this->assertSame('https://example.test/senate/floor/20250201-1.mp4', $record['path']);
         $this->assertEmpty($record['capture_directory']); // capture_directory is set during screenshot generation, not download
     }
 
@@ -121,7 +121,7 @@ class VideoDownloadProcessorTest extends TestCase
 
         $record = $pdo->query('SELECT webvtt, path FROM files WHERE id = 2')->fetch(PDO::FETCH_ASSOC);
         $this->assertStringContainsString('WEBVTT', $record['webvtt']);
-        $this->assertSame('https://example.test/house/committee/finance/20250305.mp4', $record['path']);
+        $this->assertSame('https://example.test/house/committee/finance/20250305-2.mp4', $record['path']);
     }
 
     private function createDatabase(): PDO

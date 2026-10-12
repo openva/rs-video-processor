@@ -219,4 +219,41 @@ class ScreenshotGeneratorTest extends TestCase
             $this->markTestSkipped('ffmpeg is required for screenshot tests.');
         }
     }
+
+    /**
+     * Several file rows can point at one legacy S3 object. Each must still get
+     * its own screenshot directory, or one video's frames overwrite another's.
+     */
+    public function testScreenshotPrefixIsUniquePerFile(): void
+    {
+        $generator = $this->makeGenerator();
+        $method = new \ReflectionMethod($generator, 'buildScreenshotPrefix');
+        $method->setAccessible(true);
+
+        $shared = 'https://video.richmondsunlight.com/house/floor/20260817.mp4';
+        $first = new ScreenshotJob(18797, 'house', null, '2026-08-17', $shared, null, 'A');
+        $second = new ScreenshotJob(18798, 'house', null, '2026-08-17', $shared, null, 'B');
+        $this->assertSame('house/floor/20260817-18797', $method->invoke($generator, $first));
+        $this->assertSame('house/floor/20260817-18798', $method->invoke($generator, $second));
+
+        // A key that already carries the ID is not suffixed twice.
+        $unique = new ScreenshotJob(
+            18797,
+            'house',
+            null,
+            '2026-08-17',
+            'https://video.richmondsunlight.com/house/floor/20260817-18797.mp4',
+            null,
+            'A'
+        );
+        $this->assertSame('house/floor/20260817-18797', $method->invoke($generator, $unique));
+
+        // A stale capture_directory value is ignored.
+        $stale = new ScreenshotJob(18797, 'house', null, '2026-08-17', $shared, '/house/floor/20260817//', 'A');
+        $this->assertSame('house/floor/20260817-18797', $method->invoke($generator, $stale));
+
+        // A video that is not on S3 falls back to the key builder.
+        $archived = new ScreenshotJob(5, 'senate', null, '2021-02-03', 'https://archive.org/download/x/y.mp4', null, 'C');
+        $this->assertSame('senate/floor/20210203-5', $method->invoke($generator, $archived));
+    }
 }

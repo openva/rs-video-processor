@@ -4,7 +4,11 @@ namespace RichmondSunlight\VideoProcessor\Fetcher;
 
 class S3KeyBuilder
 {
-    public function build(string $chamber, string $date, ?string $committeeShortname = null): string
+    /**
+     * Pass the file ID wherever one is known. Without it, two videos from one
+     * chamber, committee and day share a key and overwrite each other.
+     */
+    public function build(string $chamber, string $date, ?string $committeeShortname = null, ?int $fileId = null): string
     {
         $chamber = strtolower($chamber);
         $dateKey = str_replace('-', '', $date);
@@ -17,7 +21,12 @@ class S3KeyBuilder
             }
         }
 
-        return sprintf('%s/%s/%s.mp4', $chamber, $segment, $dateKey);
+        $name = $dateKey;
+        if ($fileId !== null && $fileId > 0) {
+            $name .= '-' . $fileId;
+        }
+
+        return sprintf('%s/%s/%s.mp4', $chamber, $segment, $name);
     }
 
     /**
