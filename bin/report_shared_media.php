@@ -10,15 +10,37 @@
  * of them, if unsure) through the pipeline again with bin/requeue_video.php.
  *
  * Usage:
- *   php bin/report_shared_media.php
+ *   php bin/report_shared_media.php          # list the groups
+ *   php bin/report_shared_media.php --plan   # print what to delete and what to requeue
  */
 
 declare(strict_types=1);
 
+use RichmondSunlight\VideoProcessor\Maintenance\SharedMediaPlanner;
 use RichmondSunlight\VideoProcessor\Sync\VideoSourceBackfill;
 
 $app = require __DIR__ . '/bootstrap.php';
 $pdo = $app->pdo;
+
+if (in_array('--plan', $argv, true)) {
+    $plan = (new SharedMediaPlanner($pdo))->plan();
+
+    echo sprintf("\n1. Delete %d row(s) that are later copies of a video already imported:\n\n", count($plan['delete']));
+    if ($plan['delete']) {
+        $ids = implode(', ', $plan['delete']);
+        echo "DELETE FROM video_transcript WHERE file_id IN ({$ids});\n";
+        echo "DELETE FROM files WHERE id IN ({$ids});\n";
+    }
+
+    echo sprintf("\n2. Then requeue %d row(s) that still share media with a different meeting:\n\n", count($plan['requeue']));
+    foreach (array_chunk($plan['requeue'], 20) as $chunk) {
+        echo 'php bin/requeue_video.php --apply --id=' . implode(' --id=', $chunk) . "\n";
+    }
+
+    echo sprintf("\n3. %d row(s) share media but have no source URL, so they cannot be downloaded again:\n\n", count($plan['unrecoverable']));
+    echo $plan['unrecoverable'] ? '   ' . implode(', ', $plan['unrecoverable']) . "\n\n" : "\n";
+    exit(0);
+}
 
 $checks = [
     'Rows sharing one screenshot directory' => [
