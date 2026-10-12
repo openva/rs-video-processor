@@ -337,7 +337,7 @@ Audio is resampled to MP3 (mono, 32 Kbps, 16 kHz, <25 MB chunks) before API subm
 ### Speaker Detection
 
 - House: Extracts from cached `Speakers` metadata object
-- Senate: OpenAI diarization for speaker boundaries
+- Senate: on-screen names read by OCR from screenshots. AWS Transcribe diarization is a paid fallback for floor videos, off unless `SPEAKER_DIARIZATION=1` (set in `deploy/video-processor.env`); it returns anonymous labels
 - Fuzzy-matches names to `people` table for legislator IDs
 - Results stored in `video_index` (type='legislator')
 

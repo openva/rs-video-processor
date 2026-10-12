@@ -44,6 +44,10 @@ $pdoFactory = AppBootstrap::connectionFactory();
 $minSegmentSeconds = getenv('SPEAKER_OCR_MIN_SEGMENT_SECONDS');
 $minSegmentSeconds = is_numeric($minSegmentSeconds) ? (int) $minSegmentSeconds : 3;
 
+// AWS Transcribe diarization is billed per audio hour and returns anonymous
+// speaker labels, so it is off unless SPEAKER_DIARIZATION is set to 1.
+$diarizationEnabled = filter_var(getenv('SPEAKER_DIARIZATION'), FILTER_VALIDATE_BOOLEAN);
+
 $s3Client = S3ClientFactory::create(AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION);
 $transcribeClient = new TranscribeServiceClient([
     'credentials' => [
@@ -71,7 +75,8 @@ $processor = new SpeakerDetectionProcessor(
     $ocrExtractor,
     new LegislatorDirectory($app->pdo),
     new SpeakerResultWriter($app->pdo, $pdoFactory),
-    $log
+    $log,
+    $diarizationEnabled
 );
 
 $runner = new StageRunner(new JobLedger($app->pdo, $pdoFactory), JobLedger::STAGE_SPEAKERS, $log);

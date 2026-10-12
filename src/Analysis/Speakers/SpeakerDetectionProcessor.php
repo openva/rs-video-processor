@@ -14,7 +14,8 @@ class SpeakerDetectionProcessor
         private OcrSpeakerExtractor $ocrExtractor,
         private LegislatorDirectory $legislators,
         private SpeakerResultWriter $writer,
-        private ?Log $logger = null
+        private ?Log $logger = null,
+        private bool $diarizationEnabled = true
     ) {
     }
 
@@ -49,7 +50,18 @@ class SpeakerDetectionProcessor
             }
 
             // Only diarize floor videos (not committee videos)
-            if (empty($segments) && $this->isFloorVideo($job->metadata, $job->eventType)) {
+            $wantsDiarization = empty($segments) && $this->isFloorVideo($job->metadata, $job->eventType);
+            if ($wantsDiarization && !$this->diarizationEnabled) {
+                // Diarization is paid for per audio hour and is switched off by
+                // default (SPEAKER_DIARIZATION). On-screen names are then the only
+                // source left, so a video with no screenshots yet is retried later
+                // rather than recorded as having no speakers.
+                if (!$job->manifestUrl) {
+                    $this->logger?->put('No screenshots yet for file #' . $job->fileId . ' and diarization is disabled; will retry later.', 4);
+                    return false;
+                }
+                $this->logger?->put('Diarization is disabled; skipping it for file #' . $job->fileId . '.', 3);
+            } elseif ($wantsDiarization) {
                 $this->logger?->put('No metadata speakers for file #' . $job->fileId . ', running diarization (floor video).', 4);
                 try {
                     $segments = $this->diarizer->diarize($job->videoUrl);

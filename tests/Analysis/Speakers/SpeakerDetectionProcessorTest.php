@@ -127,6 +127,77 @@ class SpeakerDetectionProcessorTest extends TestCase
         $this->assertFalse($processor->process($job));
     }
 
+    /**
+     * Diarization costs money per audio hour and returns anonymous labels.
+     * When it is switched off, a floor video whose screenshots show no names
+     * is recorded as "none found" without calling the diarizer.
+     */
+    public function testSkipsDiarizationWhenDisabled(): void
+    {
+        $metadataExtractor = $this->createMock(SpeakerMetadataExtractor::class);
+        $metadataExtractor->method('extract')->willReturn([]);
+
+        $diarizer = $this->createMock(DiarizerInterface::class);
+        $diarizer->expects($this->never())->method('diarize');
+
+        $ocrExtractor = $this->createMock(OcrSpeakerExtractor::class);
+        $ocrExtractor->expects($this->once())->method('extract')->willReturn([]);
+
+        $writer = $this->createMock(SpeakerResultWriter::class);
+        $writer->expects($this->once())->method('recordNoneFound')->with(44);
+
+        $processor = new SpeakerDetectionProcessor(
+            $metadataExtractor,
+            $diarizer,
+            $ocrExtractor,
+            $this->createMock(LegislatorDirectory::class),
+            $writer,
+            null,
+            false
+        );
+
+        $job = new SpeakerJob(
+            44,
+            'senate',
+            'https://video.richmondsunlight.com/senate/floor/20250101-44.mp4',
+            null,
+            'floor',
+            '/senate/floor/20250101-44/',
+            'https://video.richmondsunlight.com/senate/floor/20250101-44/manifest.json'
+        );
+        $this->assertTrue($processor->process($job));
+    }
+
+    /**
+     * With diarization off, on-screen names are the only source left. A video
+     * that has no screenshots yet must be tried again later, not written off.
+     */
+    public function testWaitsForScreenshotsWhenDiarizationDisabled(): void
+    {
+        $metadataExtractor = $this->createMock(SpeakerMetadataExtractor::class);
+        $metadataExtractor->method('extract')->willReturn([]);
+
+        $diarizer = $this->createMock(DiarizerInterface::class);
+        $diarizer->expects($this->never())->method('diarize');
+
+        $writer = $this->createMock(SpeakerResultWriter::class);
+        $writer->expects($this->never())->method('recordNoneFound');
+        $writer->expects($this->never())->method('write');
+
+        $processor = new SpeakerDetectionProcessor(
+            $metadataExtractor,
+            $diarizer,
+            $this->createMock(OcrSpeakerExtractor::class),
+            $this->createMock(LegislatorDirectory::class),
+            $writer,
+            null,
+            false
+        );
+
+        $job = new SpeakerJob(45, 'senate', 'https://video.richmondsunlight.com/senate/floor/20250102-45.mp4', null, 'floor', null, null);
+        $this->assertFalse($processor->process($job));
+    }
+
     public function testDiarizesFloorVideosWhenNoMetadata(): void
     {
         $pdo = $this->createTestDatabase();
