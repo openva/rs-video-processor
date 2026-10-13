@@ -11,6 +11,7 @@ class VideoDownloadProcessor
 {
     private string $downloadDir;
     private Client $http;
+    private bool $ownsMetadataIndexer;
 
     public function __construct(
         private PDO $pdo,
@@ -21,14 +22,32 @@ class VideoDownloadProcessor
         private ?MetadataIndexer $metadataIndexer = null,
         private ?Log $logger = null,
         ?string $downloadDir = null,
-        private ?VideoValidator $validator = null
+        private ?VideoValidator $validator = null,
+        private ?\Closure $pdoFactory = null
     ) {
         $this->downloadDir = $downloadDir ?? __DIR__ . '/../../storage/downloads';
         if (!is_dir($this->downloadDir)) {
             mkdir($this->downloadDir, 0775, true);
         }
         $this->http = new Client(['timeout' => 600]);
+        $this->ownsMetadataIndexer = $this->metadataIndexer === null;
         $this->metadataIndexer = $this->metadataIndexer ?? new MetadataIndexer($this->pdo);
+    }
+
+    /**
+     * A multi-gigabyte download and upload does no database work and can outlast
+     * the connection's idle timeout ("MySQL server has gone away"). Call this
+     * immediately before writing results.
+     */
+    private function reconnect(): void
+    {
+        if (!$this->pdoFactory) {
+            return;
+        }
+        $this->pdo = ($this->pdoFactory)();
+        if ($this->ownsMetadataIndexer) {
+            $this->metadataIndexer = new MetadataIndexer($this->pdo);
+        }
     }
 
     public function process(VideoDownloadJob $job): void
@@ -67,6 +86,7 @@ class VideoDownloadProcessor
                 ? file_get_contents($captionPath)
                 : null;
 
+            $this->reconnect();
             $this->updateDatabase($job, $s3Url, $s3Key, $meta, $captionContents);
             $this->metadataIndexer?->index($job->id, $job->metadata);
 

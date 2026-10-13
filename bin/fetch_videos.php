@@ -49,7 +49,8 @@ $downloaded = $runner->run(
             null,
             $log,
             null,
-            new VideoValidator()
+            new VideoValidator(),
+            $pdoFactory
         );
         $processor->process($job);
     }

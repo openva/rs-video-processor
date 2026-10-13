@@ -198,6 +198,102 @@ class SpeakerDetectionProcessorTest extends TestCase
         $this->assertFalse($processor->process($job));
     }
 
+    /**
+     * OCR over a long video runs for many minutes with no database activity, so
+     * the connection opened at the start has timed out by the time results are
+     * written ("MySQL server has gone away"). The writer must reconnect first.
+     */
+    public function testReconnectsBeforeWritingResults(): void
+    {
+        $calls = [];
+
+        $metadataExtractor = $this->createMock(SpeakerMetadataExtractor::class);
+        $metadataExtractor->method('extract')->willReturn([]);
+
+        $ocrExtractor = $this->createMock(OcrSpeakerExtractor::class);
+        $ocrExtractor->method('extract')->willReturnCallback(function () use (&$calls) {
+            $calls[] = 'ocr';
+            return [['name' => 'Smith', 'start' => 10.0]];
+        });
+
+        $writer = $this->createMock(SpeakerResultWriter::class);
+        $writer->method('reconnect')->willReturnCallback(function () use (&$calls) {
+            $calls[] = 'reconnect';
+        });
+        $writer->method('write')->willReturnCallback(function () use (&$calls) {
+            $calls[] = 'write';
+        });
+
+        $legislators = $this->createMock(LegislatorDirectory::class);
+        $legislators->method('matchId')->willReturn(7);
+
+        $processor = new SpeakerDetectionProcessor(
+            $metadataExtractor,
+            $this->createMock(DiarizerInterface::class),
+            $ocrExtractor,
+            $legislators,
+            $writer,
+            null
+        );
+
+        $job = new SpeakerJob(
+            46,
+            'house',
+            'https://video.richmondsunlight.com/house/committee/x/20250103-46.mp4',
+            null,
+            'committee',
+            '/house/committee/x/20250103-46/',
+            'https://video.richmondsunlight.com/house/committee/x/20250103-46/manifest.json'
+        );
+
+        $this->assertTrue($processor->process($job));
+        $this->assertSame(['reconnect', 'ocr', 'reconnect', 'write'], $calls);
+    }
+
+    public function testReconnectsBeforeRecordingNoneFound(): void
+    {
+        $calls = [];
+
+        $metadataExtractor = $this->createMock(SpeakerMetadataExtractor::class);
+        $metadataExtractor->method('extract')->willReturn([]);
+
+        $ocrExtractor = $this->createMock(OcrSpeakerExtractor::class);
+        $ocrExtractor->method('extract')->willReturnCallback(function () use (&$calls) {
+            $calls[] = 'ocr';
+            return [];
+        });
+
+        $writer = $this->createMock(SpeakerResultWriter::class);
+        $writer->method('reconnect')->willReturnCallback(function () use (&$calls) {
+            $calls[] = 'reconnect';
+        });
+        $writer->method('recordNoneFound')->willReturnCallback(function () use (&$calls) {
+            $calls[] = 'none';
+        });
+
+        $processor = new SpeakerDetectionProcessor(
+            $metadataExtractor,
+            $this->createMock(DiarizerInterface::class),
+            $ocrExtractor,
+            $this->createMock(LegislatorDirectory::class),
+            $writer,
+            null
+        );
+
+        $job = new SpeakerJob(
+            47,
+            'house',
+            'https://video.richmondsunlight.com/house/committee/x/20250104-47.mp4',
+            null,
+            'committee',
+            '/house/committee/x/20250104-47/',
+            'https://video.richmondsunlight.com/house/committee/x/20250104-47/manifest.json'
+        );
+
+        $this->assertTrue($processor->process($job));
+        $this->assertSame(['reconnect', 'ocr', 'reconnect', 'none'], $calls);
+    }
+
     public function testDiarizesFloorVideosWhenNoMetadata(): void
     {
         $pdo = $this->createTestDatabase();

@@ -87,6 +87,9 @@ class SpeakerDetectionProcessor
             // Extraction ran cleanly and found nothing — record it permanently
             // so this video isn't re-processed on every pass.
             $this->logger?->put('No speakers found for file #' . $job->fileId . '; recorded none-found sentinel.', 3);
+            // Extraction can run for many minutes with no database activity; the
+            // connection from the top of process() has usually timed out by now.
+            $this->writer->reconnect();
             $this->writer->recordNoneFound($job->fileId);
             return true;
         }
@@ -100,6 +103,10 @@ class SpeakerDetectionProcessor
             ];
         }, $segments);
 
+        // Reconnect first: OCR over a long video does no database work, so the
+        // connection from the top of process() is usually dead ("MySQL server
+        // has gone away").
+        $this->writer->reconnect();
         $this->writer->write($job->fileId, $mapped);
         $this->logger?->put('Stored speaker data for file #' . $job->fileId, 3);
 

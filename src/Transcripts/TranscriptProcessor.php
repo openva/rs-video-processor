@@ -48,6 +48,9 @@ class TranscriptProcessor
             throw new RuntimeException('Unable to derive transcript for file #' . $job->fileId);
         }
 
+        // Transcription can run for minutes with no database activity; the
+        // connection from the top of process() has usually timed out by now.
+        $this->writer->reconnect();
         $this->writer->write($job->fileId, $segments);
         $this->logger?->put(sprintf('Stored %d transcript segments for file #%d via %s', count($segments), $job->fileId, $source), 3);
     }

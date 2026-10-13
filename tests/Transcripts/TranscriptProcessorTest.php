@@ -139,6 +139,33 @@ class TranscriptProcessorTest extends TestCase
         $this->assertFileDoesNotExist($second);
     }
 
+    /**
+     * Transcribing a long video takes minutes with no database activity, so the
+     * connection must be renewed immediately before the results are written.
+     */
+    public function testReconnectsBeforeWritingTranscript(): void
+    {
+        $calls = [];
+        $writer = $this->createMock(TranscriptWriter::class);
+        $writer->method('reconnect')->willReturnCallback(function () use (&$calls) {
+            $calls[] = 'reconnect';
+        });
+        $writer->method('write')->willReturnCallback(function () use (&$calls) {
+            $calls[] = 'write';
+        });
+
+        $processor = new TranscriptProcessor(
+            $writer,
+            $this->createMock(OpenAITranscriber::class),
+            new CaptionParser(),
+            null,
+            null
+        );
+        $processor->process(new TranscriptJob(1, 'house', 'file://unused', "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHello", null, null));
+
+        $this->assertSame(['reconnect', 'reconnect', 'write'], $calls);
+    }
+
     private function getVideoFixture(string $filename): string
     {
         $path = __DIR__ . '/../fixtures/' . $filename;

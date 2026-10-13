@@ -162,6 +162,50 @@ class VideoDownloadProcessorTest extends TestCase
         $this->assertSame('', $pdo->query('SELECT path FROM files WHERE id = 4')->fetchColumn());
     }
 
+    /**
+     * A multi-gigabyte download and upload can outlast the database's idle
+     * timeout. The result must be written on a fresh connection, not the one
+     * opened before the download began.
+     */
+    public function testWritesResultOnAFreshConnection(): void
+    {
+        $stale = $this->createDatabase();
+        $fresh = $this->createDatabase();
+        foreach ([$stale, $fresh] as $pdo) {
+            $pdo->exec("INSERT INTO files (id, chamber, committee_id, path, capture_directory, date_created, date_modified) VALUES (5, 'house', NULL, '', '', '2025-01-01', '2025-01-01')");
+        }
+        $fresh->exec('CREATE TABLE video_index (id INTEGER PRIMARY KEY AUTOINCREMENT, file_id INTEGER, time TEXT, screenshot TEXT, raw_text TEXT, type TEXT, linked_id INTEGER, ignored TEXT, date_created TEXT)');
+
+        $processor = new TestableVideoDownloadProcessor(
+            $stale,
+            new InMemoryStorage(),
+            new CommitteeDirectory($stale),
+            new StubMetadataExtractor(),
+            new S3KeyBuilder(),
+            null,
+            null,
+            null,
+            fn() => $fresh
+        );
+
+        $processor->process(new VideoDownloadJob(
+            5,
+            'house',
+            null,
+            '2025-04-10',
+            'https://example.com/test.mp4',
+            ['speakers' => [['name' => 'Smith', 'start_time' => '00:00:10']]],
+            'Test'
+        ));
+
+        $this->assertSame(
+            'https://example.test/house/floor/20250410-5.mp4',
+            $fresh->query('SELECT path FROM files WHERE id = 5')->fetchColumn()
+        );
+        $this->assertSame('', $stale->query('SELECT path FROM files WHERE id = 5')->fetchColumn());
+        $this->assertSame(1, (int) $fresh->query('SELECT COUNT(*) FROM video_index')->fetchColumn(), 'Speaker metadata is indexed on the fresh connection too.');
+    }
+
     private function createDatabase(): PDO
     {
         $pdo = new PDO('sqlite::memory:');
@@ -206,7 +250,8 @@ class TestableVideoDownloadProcessor extends VideoDownloadProcessor
         S3KeyBuilder $keyBuilder,
         ?\Log $logger = null,
         ?string $downloadDir = null,
-        ?VideoValidator $validator = null
+        ?VideoValidator $validator = null,
+        ?\Closure $pdoFactory = null
     ) {
         parent::__construct(
             $pdo,
@@ -217,7 +262,8 @@ class TestableVideoDownloadProcessor extends VideoDownloadProcessor
             null,
             $logger,
             $downloadDir,
-            $validator
+            $validator,
+            $pdoFactory
         );
         $this->dummyVideo = $this->createDummyVideo();
     }
