@@ -4,6 +4,7 @@ namespace RichmondSunlight\VideoProcessor\Archive;
 
 use PDO;
 use RichmondSunlight\VideoProcessor\Jobs\JobLedger;
+use RichmondSunlight\VideoProcessor\Jobs\ProcessingPriority;
 
 class ArchiveJobQueue
 {
@@ -44,7 +45,7 @@ class ArchiveJobQueue
             FROM files f
             LEFT JOIN committees c ON f.committee_id = c.id
             WHERE ' . $this->pendingWhere() . '
-            ORDER BY f.date DESC
+            ORDER BY ' . ProcessingPriority::orderSql() . ', f.date DESC
             LIMIT :limit';
 
         $driver = $this->pdo->getAttribute(\PDO::ATTR_DRIVER_NAME);

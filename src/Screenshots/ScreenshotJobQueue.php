@@ -4,6 +4,7 @@ namespace RichmondSunlight\VideoProcessor\Screenshots;
 
 use PDO;
 use RichmondSunlight\VideoProcessor\Jobs\JobLedger;
+use RichmondSunlight\VideoProcessor\Jobs\ProcessingPriority;
 
 class ScreenshotJobQueue
 {
@@ -42,7 +43,7 @@ class ScreenshotJobQueue
         $sql = 'SELECT f.id, f.chamber, f.committee_id, f.title, f.date, f.path, f.capture_directory
             FROM files f
             WHERE ' . $this->pendingWhere() . '
-            ORDER BY f.date DESC
+            ORDER BY ' . ProcessingPriority::orderSql() . ', f.date DESC
             LIMIT :limit';
 
         $driver = $this->pdo->getAttribute(\PDO::ATTR_DRIVER_NAME);

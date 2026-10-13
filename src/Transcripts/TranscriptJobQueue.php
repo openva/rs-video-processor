@@ -4,6 +4,7 @@ namespace RichmondSunlight\VideoProcessor\Transcripts;
 
 use PDO;
 use RichmondSunlight\VideoProcessor\Jobs\JobLedger;
+use RichmondSunlight\VideoProcessor\Jobs\ProcessingPriority;
 
 class TranscriptJobQueue
 {
@@ -37,7 +38,7 @@ class TranscriptJobQueue
         $sql = 'SELECT f.id, f.chamber, f.path, f.webvtt, f.srt, f.title
             FROM files f
             WHERE ' . $this->pendingWhere() . '
-            ORDER BY f.date DESC
+            ORDER BY ' . ProcessingPriority::orderSql() . ', f.date DESC
             LIMIT :limit';
 
         $driver = $this->pdo->getAttribute(\PDO::ATTR_DRIVER_NAME);

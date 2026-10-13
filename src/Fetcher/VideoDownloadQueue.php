@@ -4,6 +4,7 @@ namespace RichmondSunlight\VideoProcessor\Fetcher;
 
 use PDO;
 use RichmondSunlight\VideoProcessor\Jobs\JobLedger;
+use RichmondSunlight\VideoProcessor\Jobs\ProcessingPriority;
 
 class VideoDownloadQueue
 {
@@ -51,7 +52,7 @@ class VideoDownloadQueue
         $sql = 'SELECT f.id, f.chamber, f.committee_id, f.title, f.date, f.path, f.video_index_cache
             FROM files f
             WHERE ' . $this->pendingWhere() . '
-            ORDER BY f.date DESC
+            ORDER BY ' . ProcessingPriority::orderSql() . ', f.date DESC
             LIMIT :limit';
 
         // Row locks keep two workers from reading the same rows at the same

@@ -4,6 +4,7 @@ namespace RichmondSunlight\VideoProcessor\Analysis\Bills;
 
 use PDO;
 use RichmondSunlight\VideoProcessor\Jobs\JobLedger;
+use RichmondSunlight\VideoProcessor\Jobs\ProcessingPriority;
 
 class BillDetectionJobQueue
 {
@@ -43,7 +44,7 @@ class BillDetectionJobQueue
         $sql = 'SELECT f.id, f.chamber, f.committee_id, f.capture_directory, f.video_index_cache, f.date
             FROM files f
             WHERE ' . $this->pendingWhere() . '
-            ORDER BY f.date DESC
+            ORDER BY ' . ProcessingPriority::orderSql() . ', f.date DESC
             LIMIT :limit';
 
         $driver = $this->pdo->getAttribute(\PDO::ATTR_DRIVER_NAME);
