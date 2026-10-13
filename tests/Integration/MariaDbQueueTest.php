@@ -133,7 +133,7 @@ class MariaDbQueueTest extends TestCase
             'speakers' => [
                 fn(PDO $pdo) => new SpeakerJobQueue($pdo),
                 fn(object $job): int => $job->fileId,
-                ['path' => self::S3],
+                ['path' => self::S3, 'capture_directory' => self::SHOTS],
             ],
             'archive' => [
                 fn(PDO $pdo) => new ArchiveJobQueue($pdo),

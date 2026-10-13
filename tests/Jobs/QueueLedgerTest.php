@@ -49,7 +49,7 @@ class QueueLedgerTest extends TestCase
             'speakers' => [
                 JobLedger::STAGE_SPEAKERS,
                 fn(PDO $pdo) => new SpeakerJobQueue($pdo),
-                ['path' => self::S3],
+                ['path' => self::S3, 'capture_directory' => self::SHOTS],
             ],
             'archive' => [
                 JobLedger::STAGE_ARCHIVE,

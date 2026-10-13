@@ -13,10 +13,13 @@ class SpeakerJobQueue
 
     private function pendingWhere(): string
     {
+        // Videos reach this queue only when their metadata named no speakers, so
+        // the names have to be read from screenshots. Wait until those exist
+        // ('/%/%' is a real directory; '/pending' and '/deleted-source' are not).
         return "(f.path LIKE 'https://video.richmondsunlight.com/%'
               OR f.path LIKE 'https://archive.org/%')
             AND f.date >= '2020-01-01'
-            AND (f.capture_directory IS NULL OR f.capture_directory != '/pending')
+            AND (f.capture_directory LIKE '/%/%' OR f.capture_directory LIKE 'https://%')
             AND NOT EXISTS (
                 SELECT 1 FROM video_index vi
                 WHERE vi.file_id = f.id AND vi.type = 'legislator'
