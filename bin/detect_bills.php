@@ -35,6 +35,11 @@ foreach ($argv as $arg) {
 
 $pdoFactory = AppBootstrap::connectionFactory();
 
+// Read every Nth screenshot. 2 halves the OCR work and still places each bill
+// to within two seconds. 1 reads every frame.
+$frameStep = getenv('BILL_OCR_FRAME_STEP');
+$frameStep = is_numeric($frameStep) ? max(1, (int) $frameStep) : 2;
+
 $processor = new BillDetectionProcessor(
     new ScreenshotManifestLoader(),
     new ScreenshotFetcher(),
@@ -43,7 +48,8 @@ $processor = new BillDetectionProcessor(
     new BillResultWriter($app->pdo, $pdoFactory),
     new ChamberConfig(),
     new AgendaExtractor(),
-    $log
+    $log,
+    $frameStep
 );
 
 $runner = new StageRunner(new JobLedger($app->pdo, $pdoFactory), JobLedger::STAGE_BILLS, $log);

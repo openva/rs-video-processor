@@ -88,6 +88,51 @@ class BillDetectionProcessorTest extends TestCase
         $this->assertSame('bill', $row['type']);
     }
 
+    /**
+     * A bill number stays on screen for many seconds, so reading every second
+     * frame halves the OCR work and still places each bill to within two seconds.
+     */
+    public function testReadsEveryNthFrame(): void
+    {
+        $loader = $this->createMock(ScreenshotManifestLoader::class);
+        $loader->method('load')->willReturn([
+            ['timestamp' => 0, 'full' => 'https://video.richmondsunlight.com/x/00000001.jpg', 'thumb' => null],
+            ['timestamp' => 1, 'full' => 'https://video.richmondsunlight.com/x/00000002.jpg', 'thumb' => null],
+            ['timestamp' => 2, 'full' => 'https://video.richmondsunlight.com/x/00000003.jpg', 'thumb' => null],
+            ['timestamp' => 3, 'full' => 'https://video.richmondsunlight.com/x/00000004.jpg', 'thumb' => null],
+            ['timestamp' => 4, 'full' => 'https://video.richmondsunlight.com/x/00000005.jpg', 'thumb' => null],
+        ]);
+
+        $fetched = [];
+        $fetcher = $this->createMock(ScreenshotFetcher::class);
+        $fetcher->method('fetch')->willReturnCallback(function (string $url) use (&$fetched) {
+            $fetched[] = basename($url);
+            return tempnam(sys_get_temp_dir(), 'shot_');
+        });
+
+        $textExtractor = $this->createMock(BillTextExtractor::class);
+        $textExtractor->method('extract')->willReturn('');
+
+        $writer = $this->createMock(BillResultWriter::class);
+        $writer->expects($this->once())->method('recordNoneFound');
+
+        $processor = new BillDetectionProcessor(
+            $loader,
+            $fetcher,
+            $textExtractor,
+            new BillParser(),
+            $writer,
+            new ChamberConfig(),
+            new AgendaExtractor(),
+            null,
+            2
+        );
+
+        $job = new BillDetectionJob(1, 'senate', null, 'floor', '/x/', 'https://video.richmondsunlight.com/x/manifest.json', null);
+        $this->assertTrue($processor->process($job));
+        $this->assertSame(['00000001.jpg', '00000003.jpg', '00000005.jpg'], $fetched);
+    }
+
     public function testRecordsNoneFoundSentinelWhenNoBillsDetected(): void
     {
         $fixture = __DIR__ . '/../../fixtures/senate-floor.jpg';

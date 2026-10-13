@@ -14,7 +14,8 @@ class BillDetectionProcessor
         private BillResultWriter $writer,
         private ChamberConfig $chamberConfig,
         private AgendaExtractor $agendaExtractor,
-        private ?Log $logger = null
+        private ?Log $logger = null,
+        private int $frameStep = 1
     ) {
     }
 
@@ -62,7 +63,13 @@ class BillDetectionProcessor
         $collected = [];
         $attempted = 0;
         $failed = 0;
-        foreach ($manifest as $entry) {
+        // Read every Nth frame. A bill number stays on screen for many seconds,
+        // so skipping frames costs little accuracy and saves most of the OCR time.
+        $step = max(1, $this->frameStep);
+        foreach (array_values($manifest) as $index => $entry) {
+            if ($index % $step !== 0) {
+                continue;
+            }
             $attempted++;
             try {
                 $imagePath = $this->screenshotFetcher->fetch($entry['full']);
