@@ -256,4 +256,66 @@ class ScreenshotGeneratorTest extends TestCase
         $archived = new ScreenshotJob(5, 'senate', null, '2021-02-03', 'https://archive.org/download/x/y.mp4', null, 'C');
         $this->assertSame('senate/floor/20210203-5', $method->invoke($generator, $archived));
     }
+
+    /**
+     * Frames are uploaded as one concurrent batch when the storage supports it.
+     * Uploading them one at a time took most of each job's running time.
+     */
+    public function testUploadsFramesAsOneBatch(): void
+    {
+        $dir = sys_get_temp_dir() . '/frames_' . uniqid();
+        mkdir($dir . '/full', 0775, true);
+        mkdir($dir . '/thumb', 0775, true);
+        $frames = [];
+        foreach (['00000001.jpg', '00000002.jpg', '00000003.jpg'] as $name) {
+            file_put_contents($dir . '/full/' . $name, 'f');
+            $frames[] = $dir . '/full/' . $name;
+        }
+        // The third frame has no thumbnail.
+        file_put_contents($dir . '/thumb/00000001.jpg', 't');
+        file_put_contents($dir . '/thumb/00000002.jpg', 't');
+
+        $storage = new class implements \RichmondSunlight\VideoProcessor\Fetcher\BatchStorageInterface {
+            public array $batches = [];
+            public int $singles = 0;
+
+            public function upload(string $localPath, string $key): string
+            {
+                $this->singles++;
+                return 'https://example.test/' . $key;
+            }
+
+            public function uploadBatch(array $files, int $concurrency = 20): array
+            {
+                $this->batches[] = $files;
+                $urls = [];
+                foreach ($files as $key => $path) {
+                    $urls[$key] = 'https://example.test/' . $key;
+                }
+                return $urls;
+            }
+        };
+
+        $pdo = new PDO('sqlite::memory:');
+        $pdo->exec('CREATE TABLE committees (id INTEGER PRIMARY KEY, name TEXT, shortname TEXT, chamber TEXT, parent_id INTEGER)');
+        $generator = new ScreenshotGenerator($pdo, $storage, new CommitteeDirectory($pdo), new S3KeyBuilder(), null, sys_get_temp_dir());
+
+        $method = new \ReflectionMethod($generator, 'uploadFramesParallel');
+        $method->setAccessible(true);
+        $manifest = $method->invoke($generator, $frames, $dir . '/thumb', 'house/floor/20260310-7');
+
+        $this->assertCount(1, $storage->batches, 'All frames go up in a single batch.');
+        $this->assertSame(0, $storage->singles);
+        $this->assertCount(5, $storage->batches[0], 'Three frames and two thumbnails.');
+        $this->assertSame([
+            ['timestamp' => 0, 'full' => 'https://example.test/house/floor/20260310-7/00000001.jpg', 'thumb' => 'https://example.test/house/floor/20260310-7/00000001-thumbnail.jpg'],
+            ['timestamp' => 1, 'full' => 'https://example.test/house/floor/20260310-7/00000002.jpg', 'thumb' => 'https://example.test/house/floor/20260310-7/00000002-thumbnail.jpg'],
+            ['timestamp' => 2, 'full' => 'https://example.test/house/floor/20260310-7/00000003.jpg', 'thumb' => null],
+        ], $manifest);
+
+        array_map('unlink', glob($dir . '/*/*.jpg'));
+        rmdir($dir . '/full');
+        rmdir($dir . '/thumb');
+        rmdir($dir);
+    }
 }

@@ -15,6 +15,7 @@ class BillDetectionJobQueueTest extends TestCase
         $pdo->exec('CREATE TABLE files (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             chamber TEXT,
+            title TEXT,
             committee_id INTEGER,
             capture_directory TEXT,
             video_index_cache TEXT,
@@ -45,6 +46,7 @@ class BillDetectionJobQueueTest extends TestCase
         $pdo->exec('CREATE TABLE files (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             chamber TEXT,
+            title TEXT,
             committee_id INTEGER,
             capture_directory TEXT,
             video_index_cache TEXT,
@@ -78,6 +80,7 @@ class BillDetectionJobQueueTest extends TestCase
         $pdo->exec('CREATE TABLE files (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             chamber TEXT,
+            title TEXT,
             committee_id INTEGER,
             capture_directory TEXT,
             video_index_cache TEXT,

@@ -2,10 +2,11 @@
 
 namespace RichmondSunlight\VideoProcessor\Fetcher;
 
+use Aws\CommandPool;
 use Aws\S3\MultipartUploader;
 use Aws\S3\S3Client;
 
-class S3Storage implements StorageInterface
+class S3Storage implements BatchStorageInterface
 {
     /** Use multipart upload for files larger than 100 MB */
     private const MULTIPART_THRESHOLD = 100 * 1024 * 1024;
@@ -33,6 +34,55 @@ class S3Storage implements StorageInterface
         }
 
         return rtrim($this->publicBase, '/') . '/' . $key;
+    }
+
+    /**
+     * Upload many small files at once. Each upload is mostly time spent waiting
+     * on the network, so running a number of them together is far faster than
+     * sending them in turn. The SDK retries each one as usual.
+     */
+    public function uploadBatch(array $files, int $concurrency = 20): array
+    {
+        if (empty($files)) {
+            return [];
+        }
+
+        $commands = (function () use ($files) {
+            foreach ($files as $key => $path) {
+                yield $key => $this->client->getCommand('PutObject', [
+                    'Bucket' => $this->bucket,
+                    'Key' => $key,
+                    'SourceFile' => $path,
+                    'ACL' => 'public-read',
+                ]);
+            }
+        })();
+
+        $failures = [];
+        $pool = new CommandPool($this->client, $commands, [
+            'concurrency' => max(1, $concurrency),
+            'rejected' => function ($reason, $key) use (&$failures): void {
+                $failures[$key] = $reason instanceof \Throwable ? $reason->getMessage() : (string) $reason;
+            },
+        ]);
+        $pool->promise()->wait();
+
+        if (!empty($failures)) {
+            throw new \RuntimeException(sprintf(
+                '%d of %d uploads failed. First failure (%s): %s',
+                count($failures),
+                count($files),
+                array_key_first($failures),
+                reset($failures)
+            ));
+        }
+
+        $urls = [];
+        foreach (array_keys($files) as $key) {
+            $urls[$key] = rtrim($this->publicBase, '/') . '/' . $key;
+        }
+
+        return $urls;
     }
 
     /**

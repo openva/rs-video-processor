@@ -6,6 +6,7 @@ use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
 use Log;
 use PDO;
+use RichmondSunlight\VideoProcessor\Fetcher\BatchStorageInterface;
 use RichmondSunlight\VideoProcessor\Fetcher\CommitteeDirectory;
 use RichmondSunlight\VideoProcessor\Fetcher\S3KeyBuilder;
 use RichmondSunlight\VideoProcessor\Fetcher\StorageInterface;
@@ -67,7 +68,6 @@ class ScreenshotGenerator
 
             $prefix = $this->buildScreenshotPrefix($job);
 
-            // Upload frames in parallel batches for faster S3 uploads
             $manifest = $this->uploadFramesParallel($frameFiles, $thumbDir, $prefix);
 
             $manifestPath = $tempDir . '/manifest.json';
@@ -211,44 +211,51 @@ class ScreenshotGenerator
     }
 
 
+    /** How many frames to upload at once when the storage can batch. */
+    private const UPLOAD_CONCURRENCY = 20;
+
     /**
-     * Upload frames to S3 using parallel execution with Process pool.
-     * This is significantly faster than sequential uploads for large batches.
+     * Upload every frame and thumbnail, and return the manifest that lists them.
+     * Storage that supports batches gets them all at once; anything else (the
+     * test doubles) gets them one at a time.
+     *
+     * @param string[] $frameFiles full-size frames, in order
+     * @return array<int,array{timestamp:int,full:string,thumb:?string}>
      */
     private function uploadFramesParallel(array $frameFiles, string $thumbDir, string $prefix): array
     {
-        $manifest = [];
-        $batchSize = 10; // Upload 10 frames at a time in parallel
+        $files = [];
+        $entries = [];
+        foreach (array_values($frameFiles) as $index => $fullImage) {
+            $basename = basename($fullImage);
+            $thumbImage = $thumbDir . '/' . $basename;
 
-        for ($i = 0; $i < count($frameFiles); $i += $batchSize) {
-            $batch = array_slice($frameFiles, $i, $batchSize);
+            $fullKey = $prefix . '/' . $basename;
+            $files[$fullKey] = $fullImage;
 
-            // Upload frames in this batch (TODO: make truly parallel with async S3 uploads)
-            foreach ($batch as $index => $fullImage) {
-                $globalIndex = $i + $index;
-                $basename = basename($fullImage);
-                $thumbImage = $thumbDir . '/' . $basename;
-                $thumbBasename = preg_replace('/\.jpg$/', '-thumbnail.jpg', $basename);
+            $thumbKey = null;
+            if (file_exists($thumbImage)) {
+                $thumbKey = $prefix . '/' . preg_replace('/\.jpg$/', '-thumbnail.jpg', $basename);
+                $files[$thumbKey] = $thumbImage;
+            }
 
-                // Upload full-size frame
-                $fullUrl = $this->storage->upload($fullImage, $prefix . '/' . $basename);
+            $entries[] = ['timestamp' => $index, 'full' => $fullKey, 'thumb' => $thumbKey];
+        }
 
-                // Upload thumbnail
-                $thumbUrl = file_exists($thumbImage)
-                    ? $this->storage->upload($thumbImage, $prefix . '/' . $thumbBasename)
-                    : null;
-
-                $manifest[$globalIndex] = [
-                    'timestamp' => $globalIndex,
-                    'full' => $fullUrl,
-                    'thumb' => $thumbUrl,
-                ];
+        if ($this->storage instanceof BatchStorageInterface) {
+            $urls = $this->storage->uploadBatch($files, self::UPLOAD_CONCURRENCY);
+        } else {
+            $urls = [];
+            foreach ($files as $key => $path) {
+                $urls[$key] = $this->storage->upload($path, $key);
             }
         }
 
-        // Sort manifest by timestamp to ensure correct ordering
-        ksort($manifest);
-        return array_values($manifest);
+        return array_map(static fn(array $entry): array => [
+            'timestamp' => $entry['timestamp'],
+            'full' => $urls[$entry['full']],
+            'thumb' => $entry['thumb'] !== null ? $urls[$entry['thumb']] : null,
+        ], $entries);
     }
 
     /**

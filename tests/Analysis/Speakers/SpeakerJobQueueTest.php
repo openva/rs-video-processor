@@ -15,6 +15,7 @@ class SpeakerJobQueueTest extends TestCase
         $pdo->exec('CREATE TABLE files (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             chamber TEXT,
+            title TEXT,
             path TEXT,
             html TEXT,
             capture_directory TEXT,
@@ -51,6 +52,7 @@ class SpeakerJobQueueTest extends TestCase
         $pdo->exec('CREATE TABLE files (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             chamber TEXT,
+            title TEXT,
             path TEXT,
             html TEXT,
             capture_directory TEXT,
