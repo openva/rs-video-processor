@@ -14,7 +14,10 @@ bill_detection:
       senate_floor: [0.75, 0.11, 0.14, 0.05]
       senate_committee: [0.75, 0.11, 0.14, 0.06]
       house_floor: [0.74, 0.11, 0.15, 0.08]
-      house_committee: [0.00, 0.00, 0.2, 0.08]  # NEEDS CONFIGURATION - placeholder coords
+      # Left end of the black banner across the top: "HB 746 (Henson)". Checked
+      # against 2026 committee and subcommittee frames. The serif "H" is misread
+      # by Tesseract; BillParser repairs the prefix.
+      house_committee: [0.00, 0.00, 0.2, 0.08]
 
   # Era 2016-2019 - older chyron positions
   # era_2016:
