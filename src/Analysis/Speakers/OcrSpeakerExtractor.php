@@ -15,7 +15,8 @@ class OcrSpeakerExtractor
         private SpeakerNameParser $parser,
         private SpeakerChamberConfig $chamberConfig,
         private int $minSegmentSeconds = 3,
-        private ?Log $logger = null
+        private ?Log $logger = null,
+        private int $frameStep = 1
     ) {
     }
 
@@ -41,7 +42,13 @@ class OcrSpeakerExtractor
         $currentLast = null;
         $currentNormalized = null;
 
-        foreach ($manifest as $entry) {
+        // Read every Nth frame. A name has to stay on screen for
+        // $minSegmentSeconds to count, so skipping alternate frames loses little.
+        $step = max(1, $this->frameStep);
+        foreach (array_values($manifest) as $index => $entry) {
+            if ($index % $step !== 0) {
+                continue;
+            }
             $timestamp = (int) ($entry['timestamp'] ?? 0);
             $imageUrl = (string) ($entry['full'] ?? '');
             if ($imageUrl === '') {

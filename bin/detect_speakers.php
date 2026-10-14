@@ -44,6 +44,10 @@ $pdoFactory = AppBootstrap::connectionFactory();
 $minSegmentSeconds = getenv('SPEAKER_OCR_MIN_SEGMENT_SECONDS');
 $minSegmentSeconds = is_numeric($minSegmentSeconds) ? (int) $minSegmentSeconds : 3;
 
+// Read every Nth screenshot. 2 halves the OCR work; 1 reads every frame.
+$frameStep = getenv('SPEAKER_OCR_FRAME_STEP');
+$frameStep = is_numeric($frameStep) ? max(1, (int) $frameStep) : 2;
+
 // AWS Transcribe diarization is billed per audio hour and returns anonymous
 // speaker labels, so it is off unless SPEAKER_DIARIZATION is set to 1.
 $diarizationEnabled = filter_var(getenv('SPEAKER_DIARIZATION'), FILTER_VALIDATE_BOOLEAN);
@@ -66,7 +70,8 @@ $ocrExtractor = new OcrSpeakerExtractor(
     new SpeakerNameParser(),
     new SpeakerChamberConfig(),
     max(1, $minSegmentSeconds),
-    $log
+    $log,
+    $frameStep
 );
 
 $processor = new SpeakerDetectionProcessor(
