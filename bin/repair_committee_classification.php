@@ -14,6 +14,7 @@
 declare(strict_types=1);
 
 use RichmondSunlight\VideoProcessor\Fetcher\CommitteeDirectory;
+use RichmondSunlight\VideoProcessor\Sync\MeetingClassifier;
 
 $app = require __DIR__ . '/bootstrap.php';
 $pdo = $app->pdo;
@@ -67,6 +68,11 @@ echo sprintf("Checking %d file(s) for misclassification...\n\n", count($files));
 
 $committees = new CommitteeDirectory($pdo);
 $updateStmt = $pdo->prepare('UPDATE files SET committee_id = :committee_id, title = :title WHERE id = :id');
+$updateCacheStmt = $pdo->prepare('UPDATE files SET video_index_cache = :cache WHERE id = :id');
+// Bill and speaker "nothing found" results were read from the wrong part of the
+// frame when the event type was wrong. Removing them sends the video back to
+// both stages. Real results are kept.
+$clearNoneStmt = $pdo->prepare("DELETE FROM video_index WHERE file_id = :id AND raw_text = '/none' AND ignored = 'y'");
 
 
 $checked = 0;
@@ -98,19 +104,17 @@ foreach ($files as $file) {
 
     // Floor sessions are the exception: only explicitly labeled sessions are floor.
     // Everything else is a committee or subcommittee meeting.
-    $isFloorSession = stripos($title, 'House Session') !== false ||
-                      stripos($title, 'Senate Session') !== false ||
-                      stripos($title, 'Floor Session') !== false ||
-                      stripos($description, 'Regular Session') !== false ||
-                      stripos($description, 'Special Session') !== false;
+    $eventType = $title === '' ? 'floor' : MeetingClassifier::classify($title, $description);
+    $isCommittee = $eventType !== 'floor';
 
-    $isCommittee = !$isFloorSession && $title !== '';
+    // The event type stored with the scraped record decides where OCR looks.
+    // Records scraped before 2026-02-10 say "floor" for nearly everything.
+    $currentEventType = $cache['event_type'] ?? null;
+    $eventTypeChanged = $title !== '' && $currentEventType !== $eventType;
 
     if ($isCommittee) {
         // Extract committee name from title
         $committeeName = $title;
-        $isSubcommittee = stripos($committeeName, 'subcommittee') !== false;
-        $eventType = $isSubcommittee ? 'subcommittee' : 'committee';
 
         // Look up committee ID
         $committeeEntry = $committees->matchEntry(
@@ -135,7 +139,7 @@ foreach ($files as $file) {
     $titleChanged = $currentTitle !== $newTitle;
 
 
-    if (!$committeeIdChanged && !$titleChanged) {
+    if (!$committeeIdChanged && !$titleChanged && !$eventTypeChanged) {
         $alreadyCorrect++;
         continue;
     }
@@ -144,7 +148,10 @@ foreach ($files as $file) {
     echo sprintf("File #%d:\n", $fileId);
     echo sprintf("  Title (cache): %s\n", $title);
     echo sprintf("  Description: %s\n", substr($description, 0, 80));
-    echo sprintf("  Classification: %s\n", $isCommittee ? 'committee' : 'floor');
+    echo sprintf("  Classification: %s\n", $eventType);
+    if ($eventTypeChanged) {
+        echo sprintf("  Event type: %s → %s (bill and speaker \"none found\" results will be cleared)\n", $currentEventType ?? 'none', $eventType);
+    }
 
     if ($committeeIdChanged) {
         echo sprintf(
@@ -167,6 +174,14 @@ foreach ($files as $file) {
             ':title' => $newTitle,
             ':id' => $fileId,
         ]);
+        if ($eventTypeChanged) {
+            $cache['event_type'] = $eventType;
+            $updateCacheStmt->execute([
+                ':cache' => json_encode($cache, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+                ':id' => $fileId,
+            ]);
+            $clearNoneStmt->execute([':id' => $fileId]);
+        }
         echo "  ✓ Database updated\n";
         $reclassified++;
     }
