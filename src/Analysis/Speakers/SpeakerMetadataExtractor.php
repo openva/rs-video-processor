@@ -2,6 +2,8 @@
 
 namespace RichmondSunlight\VideoProcessor\Analysis\Speakers;
 
+use RichmondSunlight\VideoProcessor\Analysis\Metadata\SpeakerTimeline;
+
 class SpeakerMetadataExtractor
 {
     /**
@@ -26,22 +28,14 @@ class SpeakerMetadataExtractor
             $raw[] = ['name' => $name, 'start' => (string) $start];
         }
 
-        // Detect ISO timestamps and find earliest as baseline
-        $baseline = null;
-        foreach ($raw as $entry) {
-            if ($this->isIsoTimestamp($entry['start'])) {
-                $ts = strtotime($entry['start']);
-                if ($ts !== false && ($baseline === null || $ts < $baseline)) {
-                    $baseline = $ts;
-                }
-            }
-        }
+        // Measure from when the recording started, not from the first speaker.
+        $baseline = SpeakerTimeline::recordingStart($metadata, array_column($raw, 'start'));
 
         $segments = [];
         foreach ($raw as $entry) {
-            if ($baseline !== null && $this->isIsoTimestamp($entry['start'])) {
-                $ts = strtotime($entry['start']);
-                $seconds = ($ts !== false) ? (float) max(0, $ts - $baseline) : 0.0;
+            if ($baseline !== null && SpeakerTimeline::isTimestamp($entry['start'])) {
+                $ts = SpeakerTimeline::toSeconds($entry['start']);
+                $seconds = ($ts !== null) ? (float) max(0, $ts - $baseline) : 0.0;
             } else {
                 $seconds = $this->parseTime($entry['start']);
             }
@@ -51,12 +45,6 @@ class SpeakerMetadataExtractor
             ];
         }
         return $segments;
-    }
-
-    private function isIsoTimestamp(string $value): bool
-    {
-        return (strpos($value, 'T') !== false) ||
-               (preg_match('/\d{4}-\d{2}-\d{2}/', $value) === 1);
     }
 
     private function normalizeName(string $name): string

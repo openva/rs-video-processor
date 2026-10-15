@@ -23,59 +23,49 @@ class MetadataIndexer
     {
         $now = new DateTimeImmutable('now');
         // Agenda items are not indexed - only bills and legislators are valid types
-        $this->indexSpeakers($fileId, $metadata['speakers'] ?? [], $now);
+        $this->indexSpeakers($fileId, $metadata['speakers'] ?? [], $metadata, $now);
     }
 
     /**
      * @param array<int,array{name?:string,start_time?:string}> $speakers
+     * @param array<string,mixed> $metadata the whole scraped record, for the recording's start time
      */
-    private function indexSpeakers(int $fileId, array $speakers, DateTimeImmutable $now): void
+    private function indexSpeakers(int $fileId, array $speakers, array $metadata, DateTimeImmutable $now): void
     {
         if (empty($speakers)) {
             return;
         }
 
-        // Detect if we have ISO timestamps (with dates) or HH:MM:SS times
-        $hasIsoTimestamps = false;
-        foreach ($speakers as $speaker) {
-            if (!empty($speaker['start_time']) && $this->isIsoTimestamp($speaker['start_time'])) {
-                $hasIsoTimestamps = true;
-                break;
-            }
-        }
+        // Offsets are measured from when the recording started, not from the
+        // first speaker; see SpeakerTimeline.
+        $starts = array_map(static fn($speaker) => (string) ($speaker['start_time'] ?? ''), $speakers);
+        $recordingStart = SpeakerTimeline::recordingStart($metadata, $starts);
 
-        // For ISO timestamps, find the earliest to use as baseline (video start)
-        $firstTimestamp = null;
-        if ($hasIsoTimestamps) {
-            foreach ($speakers as $speaker) {
-                if (empty($speaker['start_time'])) {
-                    continue;
-                }
-                $ts = strtotime($speaker['start_time']);
-                if ($ts !== false && ($firstTimestamp === null || $ts < $firstTimestamp)) {
-                    $firstTimestamp = $ts;
-                }
-            }
+        // Keep each name's matched legislator across a re-index, so correcting
+        // the times does not undo the name matching.
+        $matched = [];
+        $existing = $this->pdo->prepare('SELECT raw_text, linked_id FROM video_index WHERE file_id = :id AND type = :type AND linked_id IS NOT NULL');
+        $existing->execute([':id' => $fileId, ':type' => 'legislator']);
+        foreach ($existing->fetchAll(\PDO::FETCH_ASSOC) as $row) {
+            $matched[$row['raw_text']] = (int) $row['linked_id'];
         }
 
         $delete = $this->pdo->prepare('DELETE FROM video_index WHERE file_id = :id AND type = :type');
         $delete->execute([':id' => $fileId, ':type' => 'legislator']);
 
-        $stmt = $this->pdo->prepare('INSERT INTO video_index (file_id, time, screenshot, raw_text, type, linked_id, ignored, date_created) VALUES (:file_id, :time, :shot, :raw, :type, NULL, "n", :created)');
+        $stmt = $this->pdo->prepare('INSERT INTO video_index (file_id, time, screenshot, raw_text, type, linked_id, ignored, date_created) VALUES (:file_id, :time, :shot, :raw, :type, :linked, "n", :created)');
         foreach ($speakers as $speaker) {
             if (empty($speaker['start_time']) || empty($speaker['name'])) {
                 continue;
             }
 
-            if ($hasIsoTimestamps && $firstTimestamp !== null) {
-                // Convert ISO timestamp to relative seconds
-                $seconds = $this->convertToRelativeSeconds($speaker['start_time'], $firstTimestamp);
-                $time = $this->formatTime($seconds);
+            if ($recordingStart !== null && SpeakerTimeline::isTimestamp($speaker['start_time'])) {
+                $seconds = max(0, (SpeakerTimeline::toSeconds($speaker['start_time']) ?? $recordingStart) - $recordingStart);
             } else {
                 // Already in HH:MM:SS format, parse to seconds
                 $seconds = $this->parseTimeToSeconds($speaker['start_time']);
-                $time = $this->formatTime($seconds);
             }
+            $time = $this->formatTime($seconds);
 
             // Convert time to screenshot number
             $screenshotNumber = $this->secondsToScreenshotNumber($seconds);
@@ -86,23 +76,12 @@ class MetadataIndexer
                 ':shot' => $screenshotNumber,
                 ':raw' => $speaker['name'],
                 ':type' => 'legislator',
+                ':linked' => $matched[$speaker['name']] ?? null,
                 ':created' => $now->format('Y-m-d H:i:s'),
             ]);
         }
     }
 
-    /**
-     * Check if a timestamp string is an ISO timestamp (contains date).
-     *
-     * @param string $timestamp Timestamp string
-     * @return bool True if ISO timestamp, false if HH:MM:SS format
-     */
-    private function isIsoTimestamp(string $timestamp): bool
-    {
-        // ISO timestamps contain date separators like 'T', '-', or space between date and time
-        return (strpos($timestamp, 'T') !== false) ||
-               (preg_match('/\d{4}-\d{2}-\d{2}/', $timestamp) === 1);
-    }
 
     /**
      * Parse HH:MM:SS time string to total seconds.
@@ -116,21 +95,6 @@ class MetadataIndexer
         return ((int) $h) * 3600 + ((int) $m) * 60 + (int) $s;
     }
 
-    /**
-     * Convert ISO timestamp to seconds relative to video start.
-     *
-     * @param string $timestamp ISO timestamp (e.g., "2025-01-31T13:05:00")
-     * @param int $baseTimestamp Unix timestamp to use as baseline (video start)
-     * @return int Seconds elapsed from baseline
-     */
-    private function convertToRelativeSeconds(string $timestamp, int $baseTimestamp): int
-    {
-        $ts = strtotime($timestamp);
-        if ($ts === false) {
-            return 0;
-        }
-        return max(0, $ts - $baseTimestamp);
-    }
 
     /**
      * Format seconds as HH:MM:SS.

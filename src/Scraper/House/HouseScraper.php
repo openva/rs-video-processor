@@ -115,6 +115,8 @@ class HouseScraper implements VideoSourceScraperInterface
         $captions = $this->extractCaptionsWebVtt($ccItems);
 
         $title = $event['Title'] ?? $rootState['set_title'] ?? '';
+        // When the recording itself started; speaker times are measured from it.
+        $mediaStart = preg_match("/mediaStartTime\\s*:\\s*'([^']+)'/", $html, $m) ? $m[1] : null;
         $description = $event['Description'] ?? $rootState['set_description'] ?? '';
         $scheduledStart = $event['ScheduledStart'] ?? $rootState['set_scheduledStart'] ?? null;
 
@@ -148,6 +150,7 @@ class HouseScraper implements VideoSourceScraperInterface
             'scheduled_start' => $scheduledStart,
             'scheduled_end' => $event['ScheduledEnd'] ?? $rootState['set_scheduledEnd'] ?? null,
             'actual_start' => $event['ActualStart'] ?? $rootState['set_actualStart'] ?? null,
+            'media_start' => $mediaStart,
             'actual_end' => $event['ActualEnd'] ?? $rootState['set_actualEnd'] ?? null,
             'duration_seconds' => $rootState['mediaDuration'] ?? null,
             'video_url' => $downloadMedia[0]['Url'] ?? null,
