@@ -13,6 +13,7 @@
 
 declare(strict_types=1);
 
+use RichmondSunlight\VideoProcessor\Archive\ArchiveMetadataUpdater;
 use RichmondSunlight\VideoProcessor\Fetcher\CommitteeDirectory;
 use RichmondSunlight\VideoProcessor\Sync\MeetingClassifier;
 
@@ -26,8 +27,16 @@ if (!$pdo) {
 }
 
 $options = getopt('', ['limit::', 'dry-run', 'help']);
+$options = getopt('', ['limit::', 'dry-run', 'help', 'sync-archive', 'list-titles']);
 $limit = isset($options['limit']) ? (int) $options['limit'] : 0;
 $dryRun = isset($options['dry-run']);
+// Also rewrite the Internet Archive metadata of archived videos whose rows are
+// already correct. Archived committee videos with no matched committee were
+// titled as floor sessions there before this option existed.
+$syncArchive = isset($options['sync-archive']);
+// Only list the title changes this would make, grouped, and change nothing.
+$listTitles = isset($options['list-titles']);
+$titleChanges = [];
 
 if (isset($options['help'])) {
     echo <<<HELP
@@ -39,6 +48,8 @@ Usage:
 Options:
   --limit=N   Process at most N files (default: all)
   --dry-run   Show what would be changed without updating database
+  --sync-archive  Also rewrite Internet Archive metadata for archived videos
+                  whose rows need no other change
   --help      Show this help
 
 HELP;
@@ -72,6 +83,10 @@ $updateCacheStmt = $pdo->prepare('UPDATE files SET video_index_cache = :cache WH
 // Bill and speaker "nothing found" results were read from the wrong part of the
 // frame when the event type was wrong. Removing them sends the video back to
 // both stages. Real results are kept.
+// A video already on the Internet Archive carries the old title there too.
+$archiveUpdater = new ArchiveMetadataUpdater($pdo, new MetadataBuilder());
+$archiveUpdated = 0;
+$archiveFailed = 0;
 $clearNoneStmt = $pdo->prepare("DELETE FROM video_index WHERE file_id = :id AND raw_text = '/none' AND ignored = 'y'");
 
 
@@ -139,7 +154,10 @@ foreach ($files as $file) {
     $titleChanged = $currentTitle !== $newTitle;
 
 
-    if (!$committeeIdChanged && !$titleChanged && !$eventTypeChanged) {
+    $isArchived = ArchiveMetadataUpdater::identifierFromPath((string) ($file['path'] ?? '')) !== null;
+    $archiveNeedsUpdate = $isArchived && ($syncArchive || $committeeIdChanged || $titleChanged);
+
+    if (!$committeeIdChanged && !$titleChanged && !$eventTypeChanged && !$archiveNeedsUpdate) {
         $alreadyCorrect++;
         continue;
     }
@@ -165,6 +183,10 @@ foreach ($files as $file) {
         echo sprintf("  Title: %s → %s\n", $currentTitle, $newTitle);
     }
 
+    if ($archiveNeedsUpdate) {
+        echo "  Internet Archive: title, subject and description will be updated\n";
+    }
+
 
     if ($dryRun) {
         echo "  [DRY-RUN] Would update\n";
@@ -182,6 +204,18 @@ foreach ($files as $file) {
             ]);
             $clearNoneStmt->execute([':id' => $fileId]);
         }
+        if ($archiveNeedsUpdate) {
+            try {
+                $archiveUpdater->update($fileId);
+                echo "  ✓ Internet Archive metadata updated\n";
+                $archiveUpdated++;
+            } catch (Throwable $e) {
+                // The database is already correct; the archive copy can be retried.
+                echo '  ✗ Internet Archive update failed: ' . $e->getMessage() . "\n";
+                $log?->put(sprintf('File #%d: %s', $fileId, $e->getMessage()), 5);
+                $archiveFailed++;
+            }
+        }
         echo "  ✓ Database updated\n";
         $reclassified++;
     }
@@ -190,11 +224,13 @@ foreach ($files as $file) {
 }
 
 $summary = sprintf(
-    'Committee classification repair complete. Checked: %d, Already correct: %d, Reclassified: %d, Errors: %d',
+    'Committee classification repair complete. Checked: %d, Already correct: %d, Reclassified: %d, Errors: %d, Archive items updated: %d, Archive updates failed: %d',
     $checked,
     $alreadyCorrect,
     $reclassified,
     $errors
+    $archiveUpdated,
+    $archiveFailed
 );
 
 $log?->put($summary, 3);

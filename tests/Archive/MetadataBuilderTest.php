@@ -29,4 +29,23 @@ class MetadataBuilderTest extends TestCase
         $this->assertStringContainsString('Courts of Justice', $metadata['subject']);
         $this->assertStringContainsString('Courts of Justice meeting', $metadata['description']);
     }
+
+    /**
+     * A meeting whose committee could not be matched has no committee name, but
+     * it is still not a floor session. Its own title names the meeting.
+     */
+    public function testUnmatchedCommitteeUsesTheVideoTitle(): void
+    {
+        $job = new ArchiveJob(1, 'house', 'House Civil Subcommittee', '2026-01-28', 'https://video.richmondsunlight.com/x.mp4', null, null, null, null);
+        $metadata = (new MetadataBuilder())->build($job);
+
+        $this->assertSame('Virginia General Assembly House Civil Subcommittee Meeting, January 28, 2026', $metadata['title']);
+        $this->assertSame('Virginia General Assembly House Civil Subcommittee meeting from 2026-01-28', $metadata['description']);
+    }
+
+    public function testFloorTitleStillReadsAsASession(): void
+    {
+        $job = new ArchiveJob(1, 'house', 'House Session', '2026-01-28', 'https://video.richmondsunlight.com/x.mp4', null, null, null, null);
+        $this->assertSame('Virginia General Assembly House Session, January 28, 2026', (new MetadataBuilder())->build($job)['title']);
+    }
 }
