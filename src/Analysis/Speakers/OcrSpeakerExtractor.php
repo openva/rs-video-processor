@@ -60,7 +60,7 @@ class OcrSpeakerExtractor
                 $imagePath = $this->screenshotFetcher->fetch($imageUrl);
                 $rawText = $this->textExtractor->extract($chamber, $imagePath, $crop);
             } catch (\Throwable $e) {
-                $this->logger?->put('OCR screenshot processing failed: ' . $e->getMessage(), 4);
+                $this->logger?->put('OCR screenshot processing failed for ' . $imageUrl . ': ' . $e->getMessage(), 4);
                 if ($imagePath) {
                     @unlink($imagePath);
                 }
