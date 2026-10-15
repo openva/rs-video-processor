@@ -52,6 +52,15 @@ run_step() {
   fi
 }
 
+# Write one line to the application log (and so to Slack, at level 5 and above).
+# Best-effort: a logging failure must never stop the pipeline.
+log_message() {
+  php -r 'require "includes/settings.inc.php"; require "includes/class.Log.php"; (new Log())->put($argv[1], (int) $argv[2]);' "$1" "${2:-3}" || true
+}
+
+# Why the loop below stopped, for the summary at the end.
+STOP_REASON="the loop ended unexpectedly"
+
 # Record start time
 START_TIME=$(date +%s)
 echo "Starting video processing pipeline at $(date)"
@@ -150,11 +159,13 @@ if [[ "$DRAIN_MODE" == true ]]; then
 
     if [[ "$PENDING_COUNT" -eq 0 ]]; then
       echo "All queues empty — drain complete."
+      STOP_REASON="nothing was left to process"
       break
     fi
 
     if [[ $ELAPSED -ge $MAX_DRAIN_RUNTIME_SECONDS ]]; then
       echo "Drain time limit reached ($((MAX_DRAIN_RUNTIME_SECONDS / 60)) minutes) with $PENDING_COUNT items still pending."
+      STOP_REASON="the $((MAX_DRAIN_RUNTIME_SECONDS / 60))-minute limit was reached with ${PENDING_COUNT} item(s) still pending"
       break
     fi
 
@@ -169,6 +180,7 @@ if [[ "$DRAIN_MODE" == true ]]; then
     prev_pending=$PENDING_COUNT
     if [[ $stalled_passes -ge $MAX_STALLED_PASSES ]]; then
       echo "Pending count has not dropped for ${stalled_passes} passes (${PENDING_COUNT} pending); stopping."
+      STOP_REASON="the pending count stopped dropping (${PENDING_COUNT} item(s) after ${stalled_passes} passes without progress)"
       break
     fi
 
@@ -190,6 +202,7 @@ else
 
     if [[ $ELAPSED -ge $MAX_RUNTIME_SECONDS ]]; then
       echo "Time limit reached after $pass_count pipeline pass(es)"
+      STOP_REASON="the time limit was reached"
       break
     fi
 
@@ -206,6 +219,7 @@ else
       PENDING_COUNT=$(check_pending)
       if [[ "$PENDING_COUNT" -eq 0 ]]; then
         echo "All queues empty on two consecutive checks — pipeline complete after $pass_count pass(es)."
+        STOP_REASON="nothing was left to process"
         break
       fi
       echo "Work appeared on re-check ($PENDING_COUNT items); continuing."
@@ -226,3 +240,5 @@ CURRENT_TIME=$(date +%s)
 ELAPSED=$((CURRENT_TIME - START_TIME))
 echo "Total runtime: $((ELAPSED / 60)) minutes"
 echo "=========================================="
+
+log_message "Video pipeline stopped after ${pass_count} pass(es) and $((ELAPSED / 60)) minutes: ${STOP_REASON}." 3

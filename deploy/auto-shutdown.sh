@@ -79,7 +79,7 @@ PENDING_WORK=$(check_pending_work)
 PENDING_COUNT=$(echo "$PENDING_WORK" | tail -1)
 
 if [[ "$PENDING_COUNT" -gt 0 ]]; then
-  echo "Pending work detected ($PENDING_COUNT items), but proceeding with shutdown anyway (time limit reached)."
+  echo "Pending work detected ($PENDING_COUNT items), but proceeding with shutdown anyway (the pipeline has stopped)."
   echo "$PENDING_WORK" | head -n -1  # Show the breakdown
 else
   echo "No pending work detected."
@@ -88,7 +88,14 @@ fi
 echo "No SSH sessions detected."
 echo "Initiating shutdown..."
 if command -v php >/dev/null 2>&1; then
-  php -r "require '${APP_DIR}/includes/settings.inc.php'; require '${APP_DIR}/includes/class.Log.php'; (new Log())->put('Auto-shutdown initiated (no pending work, no active SSH).', 3);"
+  # Say what is actually true. This used to claim "no pending work" on every
+  # shutdown, including the ones that leave work for the next boot.
+  if [[ "$PENDING_COUNT" -gt 0 ]]; then
+    SHUTDOWN_MESSAGE="Auto-shutdown initiated: the pipeline stopped with ${PENDING_COUNT} item(s) still pending; no active SSH session."
+  else
+    SHUTDOWN_MESSAGE="Auto-shutdown initiated: no pending work and no active SSH session."
+  fi
+  php -r 'require $argv[1] . "/includes/settings.inc.php"; require $argv[1] . "/includes/class.Log.php"; (new Log())->put($argv[2], 3);' "$APP_DIR" "$SHUTDOWN_MESSAGE" || true
 fi
 
 # Give a brief grace period for any last-minute connections
