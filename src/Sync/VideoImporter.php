@@ -205,13 +205,11 @@ class VideoImporter
         $committeeEntry = $committeeName ? $this->committees->matchEntry($committeeName, $chamber, $eventType === 'subcommittee' ? 'subcommittee' : 'committee') : null;
         $committeeId = $committeeEntry['id'] ?? ($eventType !== 'floor' ? 0 : null);
 
-        // Build descriptive title
-        $chamberName = ucfirst($chamber);
-        if ($committeeName) {
-            $title = sprintf('%s %s', $chamberName, $committeeName);
-        } else {
-            $title = sprintf('%s Session', $chamberName);
-        }
+        // Build descriptive title: chamber and meeting name, without the dates,
+        // times and rooms that listings add to it.
+        $title = $committeeName
+            ? TitleCleaner::storedTitle($committeeName, $chamber, 'committee')
+            : sprintf('%s Session', ucfirst($chamber));
 
         // Build raw metadata (basic info only, excludes agenda and speakers)
         $rawMetadata = $record;

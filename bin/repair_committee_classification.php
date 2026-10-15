@@ -14,8 +14,10 @@
 declare(strict_types=1);
 
 use RichmondSunlight\VideoProcessor\Archive\ArchiveMetadataUpdater;
+use RichmondSunlight\VideoProcessor\Archive\MetadataBuilder;
 use RichmondSunlight\VideoProcessor\Fetcher\CommitteeDirectory;
 use RichmondSunlight\VideoProcessor\Sync\MeetingClassifier;
+use RichmondSunlight\VideoProcessor\Sync\TitleCleaner;
 
 $app = require __DIR__ . '/bootstrap.php';
 $pdo = $app->pdo;
@@ -26,7 +28,6 @@ if (!$pdo) {
     exit(1);
 }
 
-$options = getopt('', ['limit::', 'dry-run', 'help']);
 $options = getopt('', ['limit::', 'dry-run', 'help', 'sync-archive', 'list-titles']);
 $limit = isset($options['limit']) ? (int) $options['limit'] : 0;
 $dryRun = isset($options['dry-run']);
@@ -48,6 +49,7 @@ Usage:
 Options:
   --limit=N   Process at most N files (default: all)
   --dry-run   Show what would be changed without updating database
+  --list-titles   Only list the title changes this would make, and change nothing
   --sync-archive  Also rewrite Internet Archive metadata for archived videos
                   whose rows need no other change
   --help      Show this help
@@ -57,7 +59,7 @@ HELP;
 }
 
 // Find files with video_index_cache that might need reclassification
-$sql = "SELECT id, chamber, committee_id, title, video_index_cache, capture_directory, capture_rate, date
+$sql = "SELECT id, chamber, committee_id, title, path, video_index_cache, capture_directory, capture_rate, date
         FROM files
         WHERE video_index_cache IS NOT NULL
           AND video_index_cache != ''
@@ -139,14 +141,21 @@ foreach ($files as $file) {
         );
         $newCommitteeId = $committeeEntry['id'] ?? null;
 
-        // Build new title
-        $chamberName = ucfirst($chamber);
-        $newTitle = sprintf('%s %s', $chamberName, $committeeName);
+        // Build new title, without the dates, times and rooms listings add
+        $newTitle = TitleCleaner::storedTitle($committeeName, $chamber, $eventType);
     } else {
         // Floor session
         $newCommitteeId = null;
         $chamberName = ucfirst($chamber);
         $newTitle = sprintf('%s Session', $chamberName);
+    }
+
+    if ($listTitles) {
+        if ($currentTitle !== $newTitle) {
+            $pair = $currentTitle . "\n      → " . $newTitle;
+            $titleChanges[$pair] = ($titleChanges[$pair] ?? 0) + 1;
+        }
+        continue;
     }
 
     // Check if anything changed
@@ -223,12 +232,21 @@ foreach ($files as $file) {
     echo "\n";
 }
 
+if ($listTitles) {
+    arsort($titleChanges);
+    foreach ($titleChanges as $pair => $count) {
+        echo sprintf("%4d × %s\n", $count, $pair);
+    }
+    echo sprintf("\n%d distinct title change(s) across %d file(s). Nothing was changed.\n", count($titleChanges), array_sum($titleChanges));
+    exit(0);
+}
+
 $summary = sprintf(
     'Committee classification repair complete. Checked: %d, Already correct: %d, Reclassified: %d, Errors: %d, Archive items updated: %d, Archive updates failed: %d',
     $checked,
     $alreadyCorrect,
     $reclassified,
-    $errors
+    $errors,
     $archiveUpdated,
     $archiveFailed
 );
