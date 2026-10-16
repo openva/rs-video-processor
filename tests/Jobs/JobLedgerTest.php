@@ -115,6 +115,19 @@ class JobLedgerTest extends TestCase
         $this->assertTrue($this->eligible(), 'The queue SQL, not the ledger, decides whether done work is pending.');
     }
 
+    public function testDoneJobKeepsWhenItsSuccessfulAttemptStarted(): void
+    {
+        $this->ledger->claim(1, JobLedger::STAGE_DOWNLOAD);
+        $this->now += 30;
+        $this->ledger->begin(1, JobLedger::STAGE_DOWNLOAD);
+        $this->now += 600;
+        $this->ledger->recordSuccess(1, JobLedger::STAGE_DOWNLOAD);
+
+        // So date_modified - claimed_at is how long the work took.
+        $row = $this->row();
+        $this->assertSame(600, strtotime($row['date_modified'] . ' UTC') - strtotime($row['claimed_at'] . ' UTC'));
+    }
+
     public function testMarkFailedHidesImmediately(): void
     {
         $this->ledger->markFailed(1, JobLedger::STAGE_DOWNLOAD, 'no source URL');

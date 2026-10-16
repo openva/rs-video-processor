@@ -167,7 +167,9 @@ class JobLedger
         $pdo = $this->connection();
         $row = $this->row($pdo, $fileId, $stage);
 
-        $this->write($pdo, $row !== null, $fileId, $stage, self::STATUS_DONE, 0, null, null, null);
+        // Keep claimed_at, the start of this attempt (set by begin), so that
+        // date_modified - claimed_at on a done job is how long the work took.
+        $this->write($pdo, $row !== null, $fileId, $stage, self::STATUS_DONE, 0, $row['claimed_at'] ?? null, null, null);
     }
 
     /**
@@ -276,7 +278,7 @@ class JobLedger
      */
     private function row(PDO $pdo, int $fileId, string $stage): ?array
     {
-        $stmt = $pdo->prepare('SELECT attempts, last_error FROM video_jobs WHERE file_id = :file_id AND stage = :stage');
+        $stmt = $pdo->prepare('SELECT attempts, claimed_at, last_error FROM video_jobs WHERE file_id = :file_id AND stage = :stage');
         $stmt->execute([':file_id' => $fileId, ':stage' => $stage]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
