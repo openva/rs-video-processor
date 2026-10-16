@@ -106,4 +106,34 @@ class SpeakerTimelineTest extends TestCase
 
         $this->assertSame('2025-01-31T13:40:09', $records[0]['media_start']);
     }
+
+    /**
+     * A meeting's recorded start is not always the recording's start (a meeting
+     * split across several recordings, say). A start that would put a speaker
+     * past the end of the video cannot be right, and is not used.
+     */
+    public function testStartThatPutsSpeakersPastTheEndIsIgnored(): void
+    {
+        $metadata = [
+            'actual_start' => '2025-02-12T10:00:00',  // 102 minutes before the first speaker
+            'duration_seconds' => 6000,                // a 100-minute video
+            'speakers' => [
+                ['name' => 'Del. Chad Green', 'start_time' => '2025-02-12T11:42:00'],
+                ['name' => 'Del. Sam Rasoul', 'start_time' => '2025-02-12T11:50:00'],
+            ],
+        ];
+
+        $segments = (new SpeakerMetadataExtractor())->extract($metadata);
+
+        $this->assertSame(0.0, $segments[0]['start'], 'Falls back to measuring from the first speaker.');
+        $this->assertSame(480.0, $segments[1]['start']);
+    }
+
+    public function testStartThatKeepsSpeakersInsideTheVideoIsUsed(): void
+    {
+        // The fixture recording: 7,600 seconds long, speakers 18 and 19 minutes in.
+        $segments = (new SpeakerMetadataExtractor())->extract($this->metadata(['duration_seconds' => 7600]));
+
+        $this->assertSame(1089.0, $segments[0]['start']);
+    }
 }

@@ -46,8 +46,11 @@ class SpeakerTimeline
      *
      * Prefers the recording's own start ("media_start"), then the meeting's
      * recorded start ("actual_start"), then the first speaker, which is right
-     * only when the recording begins with someone speaking. A start later than
-     * the first speaker is impossible and is ignored.
+     * only when the recording begins with someone speaking. A start that is
+     * impossible is ignored: one later than the first speaker, or, when the
+     * video's length is known, one that would put a speaker past the end. A
+     * meeting's recorded start is not always its recording's (a meeting split
+     * across several recordings, for one).
      *
      * @param array<string,mixed> $metadata the scraped record
      * @param string[] $speakerStarts raw speaker timestamps
@@ -55,15 +58,21 @@ class SpeakerTimeline
     public static function recordingStart(array $metadata, array $speakerStarts): ?int
     {
         $earliestSpeaker = null;
+        $latestSpeaker = null;
         foreach ($speakerStarts as $start) {
             if (!self::isTimestamp($start)) {
                 continue;
             }
             $seconds = self::toSeconds($start);
-            if ($seconds !== null && ($earliestSpeaker === null || $seconds < $earliestSpeaker)) {
-                $earliestSpeaker = $seconds;
+            if ($seconds === null) {
+                continue;
             }
+            $earliestSpeaker = $earliestSpeaker === null ? $seconds : min($earliestSpeaker, $seconds);
+            $latestSpeaker = $latestSpeaker === null ? $seconds : max($latestSpeaker, $seconds);
         }
+
+        $duration = $metadata['duration_seconds'] ?? null;
+        $duration = is_numeric($duration) && (int) $duration > 0 ? (int) $duration : null;
 
         foreach (['media_start', 'actual_start'] as $key) {
             $value = $metadata[$key] ?? null;
@@ -71,9 +80,16 @@ class SpeakerTimeline
                 continue;
             }
             $start = self::toSeconds($value);
-            if ($start !== null && ($earliestSpeaker === null || $start <= $earliestSpeaker)) {
-                return $start;
+            if ($start === null) {
+                continue;
             }
+            if ($earliestSpeaker !== null && $start > $earliestSpeaker) {
+                continue;
+            }
+            if ($duration !== null && $latestSpeaker !== null && $latestSpeaker - $start > $duration) {
+                continue;
+            }
+            return $start;
         }
 
         return $earliestSpeaker;

@@ -40,6 +40,7 @@ $stmt->execute($params);
 $indexer = new MetadataIndexer($pdo);
 $moved = 0;
 $unchanged = 0;
+$unusable = [];
 
 foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
     $metadata = json_decode((string) $row['video_index_cache'], true);
@@ -57,7 +58,14 @@ foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
     }
     $recordingStart = SpeakerTimeline::recordingStart($metadata, $starts);
     if ($firstSpeaker === null || $recordingStart === null || $firstSpeaker === $recordingStart) {
-        $unchanged++;
+        // A stored start that was not used is one that would have put speakers
+        // before the start or past the end of the video. Say so, rather than
+        // counting the video as right.
+        if (!empty($metadata['media_start']) || !empty($metadata['actual_start'])) {
+            $unusable[] = sprintf('#%-6d %s  %s', (int) $row['id'], $row['date'], $row['title']);
+        } else {
+            $unchanged++;
+        }
         continue;
     }
 
@@ -77,10 +85,16 @@ foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
     }
 }
 
+if ($unusable) {
+    echo "\nStored start time not usable (it would put speakers outside the video), so left as they are:\n";
+    echo '  ' . implode("\n  ", $unusable) . "\n";
+}
+
 echo sprintf(
-    "\n%d video(s) %s, %d already right.%s\n",
+    "\n%d video(s) %s, %d already right, %d with an unusable start time.%s\n",
     $moved,
     $apply ? 're-indexed' : 'would be re-indexed',
     $unchanged,
+    count($unusable),
     $apply ? '' : ' Nothing was changed; add --apply to re-index.'
 );
