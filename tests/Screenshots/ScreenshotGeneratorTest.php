@@ -27,12 +27,13 @@ class ScreenshotGeneratorTest extends TestCase
             date TEXT,
             path TEXT,
             html TEXT,
+            fps REAL,
             capture_directory TEXT,
             capture_rate INTEGER,
             date_created TEXT,
             date_modified TEXT
         )');
-        $pdo->prepare('INSERT INTO files (chamber, committee_id, title, date, path, capture_directory, capture_rate, date_created, date_modified) VALUES ("senate", NULL, "Test", "2025-11-19", :path, "", 0, "2025-11-19 12:00:00", "2025-11-19 12:00:00")')
+        $pdo->prepare('INSERT INTO files (chamber, committee_id, title, date, path, fps, capture_directory, capture_rate, date_created, date_modified) VALUES ("senate", NULL, "Test", "2025-11-19", :path, 29.97, "", 0, "2025-11-19 12:00:00", "2025-11-19 12:00:00")')
             ->execute([':path' => 'file://FAKE']);
 
         $fixture = $this->getVideoFixture('senate-floor.mp4');
@@ -66,7 +67,8 @@ class ScreenshotGeneratorTest extends TestCase
         $this->assertStringNotContainsString('/screenshots/', $file['capture_directory']);
         $this->assertStringStartsWith('/', $file['capture_directory']);
         $this->assertStringEndsWith('/', $file['capture_directory']);
-        $this->assertSame(60, (int) $file['capture_rate']);
+        // One screenshot a second of 29.97 fps video: 30 source frames apart.
+        $this->assertSame(30, (int) $file['capture_rate']);
     }
 
 

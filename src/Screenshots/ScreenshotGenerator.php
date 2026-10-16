@@ -289,7 +289,14 @@ class ScreenshotGenerator
         $pdo = $this->pdoFactory ? ($this->pdoFactory)() : $this->pdo;
 
         $directory = '/' . trim($prefix, '/') . '/';
-        $sql = 'UPDATE files SET capture_directory = :dir, capture_rate = 60, date_modified = CURRENT_TIMESTAMP WHERE id = :id';
+        // The website reads capture_rate as source frames per screenshot. We take
+        // one screenshot a second, so that is the video's frame rate. A fixed 60
+        // made the site take every thumbnail from half its time. 30 when the
+        // frame rate is unknown, which is what nearly all of this video uses.
+        $sql = 'UPDATE files SET capture_directory = :dir,
+                capture_rate = CASE WHEN fps >= 1 AND fps <= 120 THEN ROUND(fps) ELSE 30 END,
+                date_modified = CURRENT_TIMESTAMP
+            WHERE id = :id';
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
             ':dir' => $directory,

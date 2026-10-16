@@ -194,7 +194,7 @@ class PipelineEndToEndTest extends TestCase
 
         $fileRow = $this->pdo->query('SELECT * FROM files WHERE id = 1')->fetch(PDO::FETCH_ASSOC);
         $this->assertNotEmpty($fileRow['capture_directory'], 'Screenshots should set capture_directory');
-        $this->assertSame(60, (int) $fileRow['capture_rate'], 'Capture rate should be 60');
+        $this->assertSame(30, (int) $fileRow['capture_rate'], 'Capture rate should be the 30 fps frame rate');
 
         // Verify manifest was created — find it via the storage
         $manifestKey = trim($fileRow['capture_directory'], '/') . '/manifest.json';
