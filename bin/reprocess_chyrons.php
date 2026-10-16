@@ -44,8 +44,12 @@ use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerNameParser;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerResultWriter;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerTextExtractor;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\StubDiarizer;
+use RichmondSunlight\VideoProcessor\Fetcher\S3ClientFactory;
 
 $app = require __DIR__ . '/bootstrap.php';
+
+// Frames are read straight from the bucket, not through Cloudflare.
+$s3Client = S3ClientFactory::create(AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION);
 $log = $app->log;
 $pdo = $app->pdo;
 
@@ -193,7 +197,7 @@ if ($processBills) {
     } else {
         $processor = new BillDetectionProcessor(
             new ScreenshotManifestLoader(),
-            new ScreenshotFetcher(),
+            new ScreenshotFetcher(null, null, [2, 5], $s3Client),
             new BillTextExtractor(new TesseractOcrEngine()),
             new BillParser(),
             new BillResultWriter($pdo),
@@ -238,7 +242,7 @@ if ($processSpeakers) {
             new StubDiarizer(), // Don't run expensive diarization for manual processing
             new OcrSpeakerExtractor(
                 new ScreenshotManifestLoader(),
-                new ScreenshotFetcher(),
+                new ScreenshotFetcher(null, null, [2, 5], $s3Client),
                 new SpeakerTextExtractor(new TesseractOcrEngine()),
                 new SpeakerNameParser(),
                 new SpeakerChamberConfig(),

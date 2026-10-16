@@ -59,10 +59,12 @@ class S3Storage implements BatchStorageInterface
         })();
 
         $failures = [];
+        // CommandPool calls back with each command's position, not its key.
+        $keys = array_keys($files);
         $pool = new CommandPool($this->client, $commands, [
             'concurrency' => max(1, $concurrency),
-            'rejected' => function ($reason, $key) use (&$failures): void {
-                $failures[$key] = $reason instanceof \Throwable ? $reason->getMessage() : (string) $reason;
+            'rejected' => function ($reason, $position) use (&$failures, $keys): void {
+                $failures[$keys[$position]] = $reason instanceof \Throwable ? $reason->getMessage() : (string) $reason;
             },
         ]);
         $pool->promise()->wait();

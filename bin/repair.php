@@ -60,7 +60,7 @@ Options:
 Stages:
   screenshots   Re-generate screenshots for videos missing capture_directory
   transcripts   Re-generate transcripts for videos missing transcript data
-  metadata      Re-extract video metadata (length, dimensions, fps) from S3 videos
+  metadata      Re-extract missing video metadata (length, dimensions, fps) from S3 and Internet Archive videos
   duplicates    Remove duplicate video records (keeps most complete copy)
 
 Examples:
@@ -278,9 +278,12 @@ function repairMetadata(
         $stmt = $pdo->prepare($sql);
         $stmt->execute([':id' => $specificId]);
     } else {
+        // Without fps (or length) the website cannot lay out a video's
+        // "By Time" thumbnails, so a missing frame rate needs repair too.
         $sql = "SELECT id, path, title FROM files
-            WHERE path LIKE 'https://video.richmondsunlight.com/%'
-            AND (length IS NULL OR length = '' OR width IS NULL OR height IS NULL)
+            WHERE type = 'video'
+            AND (path LIKE 'https://video.richmondsunlight.com/%' OR path LIKE 'https://archive.org/download/%')
+            AND (length IS NULL OR length = '' OR width IS NULL OR height IS NULL OR fps IS NULL OR fps = 0)
             ORDER BY date_created DESC
             LIMIT :limit";
         $stmt = $pdo->prepare($sql);
@@ -310,18 +313,30 @@ function repairMetadata(
         try {
             echo sprintf("Extracting metadata for file #%d...\n", $row['id']);
 
-            // Download video to temp file
-            $tempFile = sys_get_temp_dir() . '/meta_' . uniqid() . '_' . time() . '.mp4';
-            $cmd = sprintf('curl -sL %s -o %s', escapeshellarg($row['path']), escapeshellarg($tempFile));
-            exec($cmd, $output, $status);
+            // ffprobe reads only the parts of the file it needs, so try the URL
+            // first. Download the whole video only if that fails.
+            try {
+                $meta = $extractor->extract($row['path']);
+            } catch (Throwable $probeError) {
+                $tempFile = sys_get_temp_dir() . '/meta_' . uniqid() . '_' . time() . '.mp4';
+                $cmd = sprintf('curl -sfL %s -o %s', escapeshellarg($row['path']), escapeshellarg($tempFile));
+                exec($cmd, $output, $status);
 
-            if ($status !== 0) {
-                throw new RuntimeException('Failed to download video for metadata extraction');
+                if ($status !== 0) {
+                    throw new RuntimeException('Failed to download video for metadata extraction');
+                }
+
+                $meta = $extractor->extract($tempFile);
             }
 
-            $meta = $extractor->extract($tempFile);
+            if (empty($meta['fps'])) {
+                throw new RuntimeException('ffprobe found no video stream');
+            }
 
-            $updateSql = 'UPDATE files SET length = :length, width = :width, height = :height, fps = :fps, date_modified = CURRENT_TIMESTAMP WHERE id = :id';
+            // COALESCE: a value ffprobe could not read leaves the stored one alone.
+            $updateSql = 'UPDATE files SET length = COALESCE(:length, length), width = COALESCE(:width, width),
+                height = COALESCE(:height, height), fps = COALESCE(:fps, fps), date_modified = CURRENT_TIMESTAMP
+                WHERE id = :id';
             $updateStmt = $pdo->prepare($updateSql);
             $updateStmt->execute([
                 ':length' => $meta['length'] ?? null,

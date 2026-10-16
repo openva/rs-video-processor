@@ -71,4 +71,85 @@ class OcrSpeakerExtractorTest extends TestCase
             'A name seen in only one reading (Blip) is still discarded as too brief.'
         );
     }
+    /**
+     * Frames whose name plate region looks the same as the last one read reuse
+     * that reading instead of running OCR again.
+     */
+    public function testUnchangedFramesReuseTheLastReading(): void
+    {
+        if (!function_exists('imagecreatefromjpeg')) {
+            $this->markTestSkipped('GD is required.');
+        }
+        $plain = imagecreatetruecolor(320, 180);
+        imagefill($plain, 0, 0, imagecolorallocate($plain, 90, 90, 90));
+        $plate = imagecreatetruecolor(320, 180);
+        imagefill($plate, 0, 0, imagecolorallocate($plate, 200, 200, 200));
+
+        // Seconds 0-3 show a plate, 4-5 do not, 6-8 show it again.
+        $frames = [];
+        foreach ([1, 1, 1, 1, 0, 0, 1, 1, 1] as $second => $hasPlate) {
+            $path = tempnam(sys_get_temp_dir(), 'frame_') . '.jpg';
+            imagejpeg($hasPlate ? $plate : $plain, $path, 90);
+            $frames[$second] = $path;
+        }
+
+        $manifest = [];
+        foreach (array_keys($frames) as $second) {
+            $manifest[] = ['timestamp' => $second, 'full' => "https://example.test/{$second}.jpg", 'thumb' => null];
+        }
+        $loader = $this->createMock(ScreenshotManifestLoader::class);
+        $loader->method('load')->willReturn($manifest);
+        $fetcher = $this->createMock(ScreenshotFetcher::class);
+        $fetcher->method('fetch')->willReturnCallback(fn(string $url) => $frames[(int) basename($url, '.jpg')]);
+
+        $ocrRuns = [];
+        $textExtractor = $this->createMock(SpeakerTextExtractor::class);
+        $textExtractor->method('extract')->willReturnCallback(function (string $chamber, string $path) use (&$ocrRuns, $frames) {
+            $second = array_search($path, $frames, true);
+            $ocrRuns[] = $second;
+            return in_array($second, [4, 5], true) ? '' : 'Smith';
+        });
+
+        $extractor = new OcrSpeakerExtractor($loader, $fetcher, $textExtractor, new SpeakerNameParser(), new SpeakerChamberConfig(), 3);
+        $segments = $extractor->extract('https://example.test/manifest.json', 'senate', 'floor');
+
+        foreach ($frames as $path) {
+            @unlink($path);
+        }
+        $this->assertSame([0, 4, 6], $ocrRuns, 'OCR runs only when the region changes.');
+        // A gap with no plate does not end a turn, as before.
+        $this->assertSame([['name' => 'Smith', 'start' => 0.0]], $segments);
+    }
+
+    /**
+     * Frames are downloaded a batch at a time, ahead of being read, and only
+     * the frames that will be read are downloaded.
+     */
+    public function testPrefetchesTheFramesItWillReadInBatches(): void
+    {
+        $manifest = [];
+        for ($second = 0; $second < 60; $second++) {
+            $manifest[] = ['timestamp' => $second, 'full' => "https://example.test/{$second}.jpg", 'thumb' => null];
+        }
+        $loader = $this->createMock(ScreenshotManifestLoader::class);
+        $loader->method('load')->willReturn($manifest);
+
+        $batches = [];
+        $fetcher = $this->createMock(ScreenshotFetcher::class);
+        $fetcher->method('prefetch')->willReturnCallback(function (array $urls) use (&$batches) {
+            $batches[] = $urls;
+        });
+        $fetcher->method('fetch')->willReturnArgument(0);
+        $fetcher->expects($this->once())->method('discardPrefetched');
+
+        $textExtractor = $this->createMock(SpeakerTextExtractor::class);
+        $textExtractor->method('extract')->willReturn('');
+
+        $extractor = new OcrSpeakerExtractor($loader, $fetcher, $textExtractor, new SpeakerNameParser(), new SpeakerChamberConfig(), 3, null, 2);
+        $extractor->extract('https://example.test/manifest.json', 'senate', 'floor');
+
+        $this->assertSame([25, 5], array_map('count', $batches), 'Every 2nd of 60 frames is 30, in batches of 25.');
+        $this->assertSame('https://example.test/0.jpg', $batches[0][0]);
+        $this->assertSame('https://example.test/2.jpg', $batches[0][1]);
+    }
 }

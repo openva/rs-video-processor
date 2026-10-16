@@ -5,6 +5,7 @@ namespace RichmondSunlight\VideoProcessor\Analysis\Speakers;
 use Log;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\ScreenshotFetcher;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\ScreenshotManifestLoader;
+use RichmondSunlight\VideoProcessor\Analysis\CropSignature;
 
 class OcrSpeakerExtractor
 {
@@ -45,9 +46,27 @@ class OcrSpeakerExtractor
         // Read every Nth frame. A name has to stay on screen for
         // $minSegmentSeconds to count, so skipping alternate frames loses little.
         $step = max(1, $this->frameStep);
+
+        // The last frame actually OCRed, and what it said. Frames that look the
+        // same reuse that reading; see CropSignature.
+        $lastSignature = null;
+        $lastText = '';
+        $read = 0;
+        $ocrRuns = 0;
+
+        $entries = [];
         foreach (array_values($manifest) as $index => $entry) {
-            if ($index % $step !== 0) {
-                continue;
+            if ($index % $step === 0) {
+                $entries[] = $entry;
+            }
+        }
+
+        foreach ($entries as $position => $entry) {
+            // Download the next batch of frames all at once, rather than each
+            // one as it comes up.
+            $batch = ScreenshotFetcher::PREFETCH_CONCURRENCY;
+            if ($position % $batch === 0) {
+                $this->screenshotFetcher->prefetch(array_column(array_slice($entries, $position, $batch), 'full'));
             }
             $timestamp = (int) ($entry['timestamp'] ?? 0);
             $imageUrl = (string) ($entry['full'] ?? '');
@@ -58,7 +77,15 @@ class OcrSpeakerExtractor
             $imagePath = null;
             try {
                 $imagePath = $this->screenshotFetcher->fetch($imageUrl);
-                $rawText = $this->textExtractor->extract($chamber, $imagePath, $crop);
+                $read++;
+                $signature = CropSignature::of($imagePath, $crop);
+                if (CropSignature::changed($lastSignature, $signature)) {
+                    $lastSignature = null;
+                    $lastText = $this->textExtractor->extract($chamber, $imagePath, $crop);
+                    $lastSignature = $signature;
+                    $ocrRuns++;
+                }
+                $rawText = $lastText;
             } catch (\Throwable $e) {
                 $this->logger?->put('OCR screenshot processing failed for ' . $imageUrl . ': ' . $e->getMessage(), 4);
                 if ($imagePath) {
@@ -98,6 +125,9 @@ class OcrSpeakerExtractor
         }
 
         $this->commitSegment($segments, $currentName, $currentStart, $currentLast);
+        $this->screenshotFetcher->discardPrefetched();
+
+        $this->logger?->put(sprintf('Speaker OCR ran on %d of %d frames read; the rest were unchanged.', $ocrRuns, $read), 3);
 
         return $segments;
     }

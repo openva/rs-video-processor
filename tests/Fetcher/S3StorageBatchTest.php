@@ -86,6 +86,7 @@ class S3StorageBatchTest extends TestCase
         } catch (\RuntimeException $e) {
             $this->assertStringContainsString('1 of 3', $e->getMessage());
             $this->assertStringContainsString('Access Denied', $e->getMessage());
+            $this->assertStringContainsString('(a/2.jpg)', $e->getMessage(), 'The message names the key that failed.');
         }
     }
 

@@ -65,7 +65,8 @@ $transcribeClient = new TranscribeServiceClient([
 $diarizer = new AwsTranscribeDiarizer($transcribeClient, $s3Client, 'video.richmondsunlight.com', new AudioExtractor());
 $ocrExtractor = new OcrSpeakerExtractor(
     new ScreenshotManifestLoader(),
-    new ScreenshotFetcher(),
+    // Frames are read straight from the bucket, not through Cloudflare.
+    new ScreenshotFetcher(null, null, [2, 5], $s3Client),
     new SpeakerTextExtractor(new SpeakerNameOcrEngine()),
     new SpeakerNameParser(),
     new SpeakerChamberConfig(),

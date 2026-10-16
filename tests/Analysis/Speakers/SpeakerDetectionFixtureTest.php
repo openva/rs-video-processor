@@ -3,9 +3,11 @@
 namespace RichmondSunlight\VideoProcessor\Tests\Analysis\Speakers;
 
 use PHPUnit\Framework\TestCase;
-use RichmondSunlight\VideoProcessor\Analysis\Bills\BillTextExtractor;
-use RichmondSunlight\VideoProcessor\Analysis\Bills\TesseractOcrEngine;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerChamberConfig;
+use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerNameOcrEngine;
+use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerNameParser;
+use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerTextExtractor;
+use RichmondSunlight\VideoProcessor\Resolution\FuzzyMatcher\SimilarityCalculator;
 
 class SpeakerDetectionFixtureTest extends TestCase
 {
@@ -81,12 +83,16 @@ class SpeakerDetectionFixtureTest extends TestCase
             $this->fail(sprintf('No crop config for %s (%s)', $chamber, $event));
         }
 
-        $extractor = new BillTextExtractor(new TesseractOcrEngine());
+        // The classes bin/detect_speakers.php uses. This test once OCRed with
+        // the bill extractor's settings, and passed while production read no
+        // House names at all.
+        $extractor = new SpeakerTextExtractor(new SpeakerNameOcrEngine());
+        $parser = new SpeakerNameParser();
 
         foreach ($fixture['expected'] as $timestamp => $name) {
             $frame = $this->captureFrame($fixture['path'], $timestamp);
             try {
-                $text = $extractor->extract($chamber, $frame, $config);
+                $text = $parser->parse($extractor->extract($chamber, $frame, $config)) ?? '';
             } finally {
                 @unlink($frame);
             }
@@ -118,9 +124,11 @@ class SpeakerDetectionFixtureTest extends TestCase
             $normalizedActual,
             sprintf('OCR produced no text for %s at %s', $fixture, $timestamp)
         );
-        $this->assertStringContainsString(
-            $normalizedExpected,
-            $normalizedActual,
+        // LegislatorResolver matches names fuzzily, so a read a letter or two
+        // off ("O'Ouinn") still finds the legislator. Hold OCR to that.
+        $similarity = (new SimilarityCalculator())->levenshteinSimilarity($normalizedExpected, $normalizedActual);
+        $this->assertTrue(
+            str_contains($normalizedActual, $normalizedExpected) || $similarity >= 0.85,
             sprintf(
                 'Expected %s in %s at %s, OCR output: "%s"',
                 $expected,

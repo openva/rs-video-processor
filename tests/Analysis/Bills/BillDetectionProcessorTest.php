@@ -133,6 +133,62 @@ class BillDetectionProcessorTest extends TestCase
         $this->assertSame(['00000001.jpg', '00000003.jpg', '00000005.jpg'], $fetched);
     }
 
+    /**
+     * Frames whose bill region looks the same as the last one read reuse that
+     * reading instead of running OCR again, and are still recorded.
+     */
+    public function testUnchangedFramesReuseTheLastReading(): void
+    {
+        $fixture = __DIR__ . '/../../fixtures/senate-floor.jpg';
+        if (!file_exists($fixture) || !function_exists('imagecreatefromjpeg')) {
+            $this->markTestSkipped('Needs GD and ' . $fixture);
+        }
+
+        $loader = $this->createMock(ScreenshotManifestLoader::class);
+        $loader->method('load')->willReturn([
+            ['timestamp' => 0, 'full' => 'https://video.richmondsunlight.com/x/00000001.jpg', 'thumb' => null],
+            ['timestamp' => 1, 'full' => 'https://video.richmondsunlight.com/x/00000002.jpg', 'thumb' => null],
+            ['timestamp' => 2, 'full' => 'https://video.richmondsunlight.com/x/00000003.jpg', 'thumb' => null],
+        ]);
+        $fetcher = $this->createMock(ScreenshotFetcher::class);
+        $fetcher->method('fetch')->willReturnCallback(function () use ($fixture) {
+            $temp = tempnam(sys_get_temp_dir(), 'bill_fixture_') . '.jpg';
+            copy($fixture, $temp);
+            return $temp;
+        });
+
+        $ocr = new class implements OcrEngineInterface {
+            public int $runs = 0;
+            public function extractText(string $imagePath): string
+            {
+                $this->runs++;
+                return 'HB 1234';
+            }
+        };
+
+        $recorded = [];
+        $writer = $this->createMock(BillResultWriter::class);
+        $writer->method('record')->willReturnCallback(function (int $fileId, int $timestamp, array $bills) use (&$recorded) {
+            $recorded[$timestamp] = $bills;
+        });
+
+        $processor = new BillDetectionProcessor(
+            $loader,
+            $fetcher,
+            new BillTextExtractor($ocr),
+            new BillParser(),
+            $writer,
+            new ChamberConfig(),
+            new AgendaExtractor(),
+            null
+        );
+
+        $job = new BillDetectionJob(1, 'senate', null, 'floor', '/x/', 'https://video.richmondsunlight.com/x/manifest.json', null);
+        $this->assertTrue($processor->process($job));
+        $this->assertSame(1, $ocr->runs, 'Three identical frames need one OCR run.');
+        $this->assertSame([0 => ['HB1234'], 1 => ['HB1234'], 2 => ['HB1234']], $recorded);
+    }
+
     public function testRecordsNoneFoundSentinelWhenNoBillsDetected(): void
     {
         $fixture = __DIR__ . '/../../fixtures/senate-floor.jpg';

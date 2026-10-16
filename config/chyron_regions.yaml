@@ -42,7 +42,10 @@ speaker_detection:
   default:
     min_date: "2020-01-01"
     regions:
-      house_floor: [0.3, 0.77, 0.55, 0.12]
+      # The name line only. The plate's second line is the district, and
+      # speaker OCR reads one line (--psm 7): with both lines in the crop it
+      # read none of the 11 House names in tests/fixtures/house-floor.mp4.
+      house_floor: [0.3, 0.77, 0.55, 0.06]
       house_committee: [0, 0.05, 0.15, 0.1]
       senate_floor: [0.14, 0.82, 1.0, 0.08]
       senate_committee: [0.14, 0.82, 0.86, 0.08]

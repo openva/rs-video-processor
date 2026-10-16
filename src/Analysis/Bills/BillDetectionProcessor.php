@@ -3,6 +3,7 @@
 namespace RichmondSunlight\VideoProcessor\Analysis\Bills;
 
 use Log;
+use RichmondSunlight\VideoProcessor\Analysis\CropSignature;
 
 class BillDetectionProcessor
 {
@@ -66,15 +67,39 @@ class BillDetectionProcessor
         // Read every Nth frame. A bill number stays on screen for many seconds,
         // so skipping frames costs little accuracy and saves most of the OCR time.
         $step = max(1, $this->frameStep);
+
+        // The last frame actually OCRed, and what it said. Frames that look the
+        // same reuse that reading; see CropSignature.
+        $lastSignature = null;
+        $lastText = '';
+        $ocrRuns = 0;
+
+        $entries = [];
         foreach (array_values($manifest) as $index => $entry) {
-            if ($index % $step !== 0) {
-                continue;
+            if ($index % $step === 0) {
+                $entries[] = $entry;
+            }
+        }
+
+        foreach ($entries as $position => $entry) {
+            // Download the next batch of frames all at once, rather than each
+            // one as it comes up.
+            $batch = ScreenshotFetcher::PREFETCH_CONCURRENCY;
+            if ($position % $batch === 0) {
+                $this->screenshotFetcher->prefetch(array_column(array_slice($entries, $position, $batch), 'full'));
             }
             $attempted++;
             try {
                 $imagePath = $this->screenshotFetcher->fetch($entry['full']);
                 try {
-                    $text = $this->textExtractor->extract($job->chamber, $imagePath, $crop);
+                    $signature = CropSignature::of($imagePath, $crop);
+                    if (CropSignature::changed($lastSignature, $signature)) {
+                        $lastSignature = null;
+                        $lastText = $this->textExtractor->extract($job->chamber, $imagePath, $crop);
+                        $lastSignature = $signature;
+                        $ocrRuns++;
+                    }
+                    $text = $lastText;
                 } finally {
                     @unlink($imagePath);
                 }
@@ -93,6 +118,13 @@ class BillDetectionProcessor
                 'screenshot' => basename($entry['full']),
             ];
         }
+
+        $this->screenshotFetcher->discardPrefetched();
+
+        $this->logger?->put(
+            sprintf('Bill OCR for file #%d ran on %d of %d frames read; the rest were unchanged.', $job->fileId, $ocrRuns, $attempted),
+            3
+        );
 
         $totalBills = 0;
         foreach ($collected as $item) {

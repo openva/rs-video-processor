@@ -17,7 +17,15 @@ class VideoMetadataExtractor
         }
 
         $data = json_decode($output, true, 512, JSON_THROW_ON_ERROR);
-        $stream = $data['streams'][0] ?? [];
+        // The first video stream, not simply the first stream: some files put
+        // the audio first, which left their fps, width and height empty.
+        $stream = [];
+        foreach ($data['streams'] ?? [] as $candidate) {
+            if (($candidate['codec_type'] ?? null) === 'video') {
+                $stream = $candidate;
+                break;
+            }
+        }
         $format = $data['format'] ?? [];
 
         $durationSeconds = isset($format['duration']) ? (int) round((float) $format['duration']) : null;
