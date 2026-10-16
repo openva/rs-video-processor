@@ -54,7 +54,22 @@ $captionContents = preg_replace('/[\x{10000}-\x{10FFFF}]/u', '', $captionContent
 ```
 
 ### SenateYouTubeScraper title format
-Real Senate YouTube titles use `"Senate of Virginia: {body} on YYYY-MM-DD [Status]"` format with colon separators — **not** the dash-separated format that `extractCommitteeFromTitle()` currently handles. This is a known bug: the method needs to be updated to handle the colon-prefix format. See the plan file for details.
+Real Senate YouTube titles use `"Senate of Virginia: {body} on YYYY-MM-DD [Status]"` format with colon separators. `extractCommitteeFromTitle()` handles this and falls back to the older dash-separated format.
+
+### files.capture_rate means source frames per screenshot
+The website (`class.Video.php` in richmondsunlight.com) reads `capture_rate` as the number of source video frames between screenshots, and lays out the "By Time" thumbnails from `fps` and `capture_rate`. Screenshots are taken at one per second, so `ScreenshotGenerator` writes the video's rounded frame rate. Do not write a fixed value: a fixed 60 on 30 fps video made every thumbnail come from half its labelled time. A video without `fps` gets no "By Time" tab; `php bin/repair.php --stage=metadata` fills it in.
+
+### Speaker OCR reads one line
+`SpeakerNameOcrEngine` runs Tesseract with `--psm 7` (a single line of text), so each speaker region in `config/chyron_regions.yaml` must cover only the name line. When the House floor region also took in the district line, OCR read none of the House names. `SpeakerDetectionFixtureTest` runs the production speaker classes, so check a region change with it. (Bill OCR uses `TesseractOcrEngine`, `--psm 6`.)
+
+### OCR is skipped on unchanged frames
+`BillDetectionProcessor` and `OcrSpeakerExtractor` compare each frame's crop with the last one OCRed (`CropSignature`) and reuse that reading when it looks the same. The thresholds (a pixel moving by more than 15, on more than 3% of the crop) were calibrated by OCRing every frame of the three fixture videos: bills came out identical, every speaker was found. Recalibrate the same way before changing them, and keep comparing with the last frame OCRed rather than the previous frame, or name plates that fade in are missed.
+
+### Screenshots are read from S3, in batches
+Give `ScreenshotFetcher` the S3 client: it then reads frames straight from the bucket instead of through Cloudflare (slower, and the source of the 500/502 errors). Stages call `prefetch()` with the next batch of frames (`PREFETCH_CONCURRENCY`) and then `fetch()` each one; a frame that failed to prefetch is fetched again on its own, so errors surface as before. AWS `CommandPool` callbacks receive the command's position, not the generator's key.
+
+### GD cannot scale with IMG_BICUBIC
+`imagescale(..., IMG_BICUBIC)` returns false with GD 2.3.3, so the 3x enlargement in `BillTextExtractor` and `SpeakerTextExtractor` never happens; they fall back to the unscaled crop. Measured on the fixture frames, enlarging (with `IMG_BILINEAR_FIXED`) made no difference to accuracy, so it has been left alone. Don't assume the enlargement is happening.
 
 ### Job state lives in video_jobs
 

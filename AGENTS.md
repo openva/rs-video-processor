@@ -384,7 +384,7 @@ The video processor EC2 instance is expensive and only started when there's work
 3. Starts the instance if there is a new video or any pending work, and it is not already running
 4. Once a day, warns if work is pending and no job has been touched for three days
 
-On boot the instance runs `deploy/run-pipeline.sh --drain`: it makes passes until nothing is pending, the 6-hour limit is reached, or the pending count stops dropping, then shuts itself down.
+On boot the instance runs `deploy/run-pipeline.sh --drain`: it makes passes until nothing is pending, the 6-hour limit is reached, or the pending count stops dropping, then shuts itself down (`deploy/auto-shutdown.sh`), unless someone is logged in. `idle-shutdown.timer` repeats that check every 15 minutes while no pipeline or `bin/` script is running, so the instance also shuts down after the last person logs out. systemd stops a pipeline run still going after 8 hours (`TimeoutStartSec`).
 
 Worker counts for drain mode, and the switch for paid speaker diarization, are in `deploy/video-processor.env`.
 
