@@ -113,12 +113,17 @@ if [[ -f /home/ubuntu/video-processor.txt ]]; then
   # Ensure scripts are executable
   chmod +x deploy/run-pipeline.sh
   chmod +x deploy/auto-shutdown.sh
+  chmod +x deploy/idle-shutdown.sh
   chmod +x deploy/check-pending-work.sh
   chmod +x deploy/update-from-s3.sh
 
   # Install the video pipeline service (runs after update, then auto-shuts down)
   sudo cp deploy/services/video-pipeline.service /etc/systemd/system/video-pipeline.service
 
+  # Re-checks every 15 minutes, so a box left running after someone logs out
+  # still shuts down.
+  sudo cp deploy/services/idle-shutdown.service /etc/systemd/system/idle-shutdown.service
+  sudo cp deploy/services/idle-shutdown.timer /etc/systemd/system/idle-shutdown.timer
 
   sudo systemctl daemon-reload
 
@@ -145,6 +150,7 @@ if [[ -f /home/ubuntu/video-processor.txt ]]; then
 
   # Enable services to run on boot
   sudo systemctl enable video-pipeline.service
+  sudo systemctl enable --now idle-shutdown.timer
   # The pipeline generates screenshots itself. The standalone worker competed
   # with it and was killed mid-job at every shutdown, so make sure it is off.
   sudo systemctl disable --now screenshot-worker.service 2>/dev/null || true

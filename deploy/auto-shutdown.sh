@@ -6,7 +6,8 @@ set -euo pipefail
 #   1. No SSH sessions are active
 #   2. The pipeline has completed (no work remaining)
 #
-# This script is designed to be run after the pipeline completes.
+# This script runs after the pipeline completes (ExecStopPost of
+# video-pipeline.service) and every 15 minutes while idle (idle-shutdown.sh).
 
 APP_DIR="${APP_DIR:-/home/ubuntu/video-processor}"
 GUARD_FILE="${GUARD_FILE:-/home/ubuntu/video-processor.txt}"
@@ -67,7 +68,9 @@ echo "Detected $SSH_SESSIONS active session(s)"
 
 if [[ "$SSH_SESSIONS" -gt 0 ]]; then
   echo "Active SSH sessions detected ($SSH_SESSIONS); will not shut down."
-  echo "Video processor has finished, but not shutting down because you're logged in. Please shut down when you're done: sudo shutdown -h now" | wall
+  if [[ -z "${QUIET:-}" ]]; then
+    echo "Video processor has finished, but not shutting down because you're logged in. It will shut down within 15 minutes of everyone logging out, or now with: sudo shutdown -h now" | wall
+  fi
   exit 0
 fi
 
@@ -105,7 +108,7 @@ sleep 10
 SSH_SESSIONS=$(check_ssh_sessions)
 if [[ "$SSH_SESSIONS" -gt 0 ]]; then
   echo "SSH session connected during grace period; aborting shutdown."
-  echo "Video processor has finished, but not shutting down because you're logged in. Please shut down when you're done: sudo shutdown -h now" | wall
+  echo "Video processor has finished, but not shutting down because you're logged in. It will shut down within 15 minutes of everyone logging out, or now with: sudo shutdown -h now" | wall
   exit 0
 fi
 

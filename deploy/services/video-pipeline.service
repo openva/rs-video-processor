@@ -22,7 +22,10 @@ EnvironmentFile=-/home/ubuntu/video-processor.env
 # reached, or the pending count stops dropping.
 ExecStart=/home/ubuntu/video-processor/deploy/run-pipeline.sh --drain
 ExecStopPost=/home/ubuntu/video-processor/deploy/auto-shutdown.sh
-TimeoutStartSec=infinity
+# Past the 6-hour drain limit (MAX_DRAIN_RUNTIME_SECONDS), which is checked only
+# between passes. A run still going after 8 hours is hung: systemd stops it and
+# ExecStopPost still runs the shutdown check. Raise this if you raise that limit.
+TimeoutStartSec=8h
 StandardOutput=journal
 StandardError=journal
 

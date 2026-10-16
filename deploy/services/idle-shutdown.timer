@@ -1,0 +1,10 @@
+[Unit]
+Description=Check every 15 minutes whether the video processor is idle
+
+[Timer]
+# Leave time after boot for the code update and the pipeline to start.
+OnBootSec=20min
+OnUnitInactiveSec=15min
+
+[Install]
+WantedBy=timers.target
