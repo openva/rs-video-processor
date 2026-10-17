@@ -4,28 +4,17 @@ namespace RichmondSunlight\VideoProcessor\Archive;
 
 class IdentifierBuilder
 {
+    /**
+     * The Internet Archive identifier for a new upload: va-{chamber}-{YYYYMMDD}-{file ID},
+     * e.g. va-senate-20260227-18867.
+     *
+     * The file ID keeps it unique. Identifiers once ended in the title instead
+     * (rs-house-20260227-house-session), so two recordings with the same
+     * chamber, date and title got the same one, and the second upload was added
+     * to the first video's item. Items uploaded that way keep their identifiers.
+     */
     public function build(ArchiveJob $job): string
     {
-        $date = str_replace('-', '', $job->date);
-        $titleSlug = preg_replace('/[^a-z0-9]+/i', '-', strtolower($job->title));
-        $titleSlug = trim($titleSlug, '-');
-
-        if ($titleSlug === '') {
-            return sprintf('rs-%s-%s', strtolower($job->chamber), $date);
-        }
-
-        // Internet Archive requires identifiers to be max 80 chars
-        // Format: rs-{chamber}-{date}-{title}
-        // Reserve space for prefix: "rs-senate-20201207-" = 19 chars (worst case)
-        // Leaves 61 chars for title slug
-        $prefix = sprintf('rs-%s-%s-', strtolower($job->chamber), $date);
-        $maxTitleLength = 80 - strlen($prefix);
-
-        if (strlen($titleSlug) > $maxTitleLength) {
-            $titleSlug = substr($titleSlug, 0, $maxTitleLength);
-            $titleSlug = rtrim($titleSlug, '-');
-        }
-
-        return $prefix . $titleSlug;
+        return sprintf('va-%s-%s-%d', strtolower($job->chamber), str_replace('-', '', $job->date), $job->fileId);
     }
 }

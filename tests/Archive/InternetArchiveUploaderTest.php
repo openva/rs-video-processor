@@ -53,7 +53,7 @@ class InternetArchiveUploaderTest extends TestCase
         $metadata = ['title' => 'Test Video'];
         $result = $uploader->upload($job, $metadata);
 
-        $this->assertSame('https://archive.org/download/rs-house-20250101-test-video/' . basename($fixture), $result);
+        $this->assertSame('https://archive.org/download/va-house-20250101-1/' . basename($fixture), $result);
         $this->assertNotEmpty($commandLog);
     }
 
