@@ -58,11 +58,13 @@ HELP;
     exit(0);
 }
 
-// Find files with video_index_cache that might need reclassification
+// Find files with video_index_cache that might need reclassification. Only
+// JSON caches: the scrapers write JSON, and older rows hold caches in some
+// other form that has nothing to classify (VideoDownloadQueue skips them the
+// same way). Reporting each of those as an error flooded the log.
 $sql = "SELECT id, chamber, committee_id, title, path, video_index_cache, capture_directory, capture_rate, date
         FROM files
-        WHERE video_index_cache IS NOT NULL
-          AND video_index_cache != ''
+        WHERE video_index_cache LIKE '{%'
         ORDER BY id DESC";
 
 if ($limit > 0) {
@@ -107,8 +109,8 @@ foreach ($files as $file) {
     // Parse cached metadata
     $cache = json_decode($file['video_index_cache'], true);
     if (!is_array($cache)) {
-        echo sprintf("File #%d: ERROR - Invalid or missing video_index_cache\n", $fileId);
-        $log?->put(sprintf('File #%d: Invalid or missing video_index_cache', $fileId), 5);
+        echo sprintf("File #%d: ERROR - video_index_cache is not valid JSON\n", $fileId);
+        $log?->put(sprintf('File #%d: video_index_cache is not valid JSON', $fileId), 5);
         $errors++;
         continue;
     }
