@@ -65,6 +65,23 @@ STOP_REASON="the loop ended unexpectedly"
 START_TIME=$(date +%s)
 echo "Starting video processing pipeline at $(date)"
 
+# Report the public IP, which changes every time the instance starts,
+# so it is posted to Slack (level 5). Asks the EC2 metadata service (IMDSv2); off
+# EC2 the requests time out after a second and nothing is posted.
+imds() {
+  curl -sf --max-time 1 -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" "http://169.254.169.254/latest/meta-data/$1" || true
+}
+IMDS_TOKEN=$(curl -sf --max-time 1 -X PUT "http://169.254.169.254/latest/api/token" \
+  -H "X-aws-ec2-metadata-token-ttl-seconds: 60" || true)
+if [[ -n "$IMDS_TOKEN" ]]; then
+  PUBLIC_IP=$(imds public-ipv4)
+  if [[ -n "$PUBLIC_IP" ]]; then
+    log_message "Video processor started at ${PUBLIC_IP}." 5
+  else
+    log_message "Video processor started at $(imds local-ipv4) (private IP; it has no public one)." 5
+  fi
+fi
+
 if [[ "$DRAIN_MODE" == true ]]; then
   echo "Running in DRAIN mode (parallel pipeline, loop until all queues empty)"
 else
