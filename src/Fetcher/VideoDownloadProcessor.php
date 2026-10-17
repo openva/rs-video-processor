@@ -9,6 +9,8 @@ use PDO;
 
 class VideoDownloadProcessor
 {
+    private const BROWSER_USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
+
     private string $downloadDir;
     private Client $http;
     private bool $ownsMetadataIndexer;
@@ -29,7 +31,14 @@ class VideoDownloadProcessor
         if (!is_dir($this->downloadDir)) {
             mkdir($this->downloadDir, 0775, true);
         }
-        $this->http = new Client(['timeout' => 600]);
+        $this->http = new Client([
+            // Granicus's CloudFront answers 403 Forbidden to non-browser user
+            // agents (curl's, Guzzle's) and serves the same video to a browser's.
+            'headers' => ['User-Agent' => self::BROWSER_USER_AGENT],
+            // Senate videos run to 1.7 GB; ten minutes was not always enough.
+            'timeout' => 3600,
+            'connect_timeout' => 30,
+        ]);
         $this->ownsMetadataIndexer = $this->metadataIndexer === null;
         $this->metadataIndexer = $this->metadataIndexer ?? new MetadataIndexer($this->pdo);
     }

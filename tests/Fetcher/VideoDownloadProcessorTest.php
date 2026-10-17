@@ -51,6 +51,28 @@ class VideoDownloadProcessorTest extends TestCase
         $this->assertEmpty($record['capture_directory']); // capture_directory is set during screenshot generation, not download
     }
 
+    /**
+     * Granicus's CloudFront answers 403 to non-browser user agents (curl's,
+     * Guzzle's) and 200 to a browser's, for the same video. Checked 2026-10-17.
+     */
+    public function testDownloadsIdentifyAsABrowser(): void
+    {
+        $pdo = $this->createDatabase();
+        $processor = new VideoDownloadProcessor(
+            $pdo,
+            new InMemoryStorage(),
+            new CommitteeDirectory($pdo),
+            new StubMetadataExtractor(),
+            new S3KeyBuilder(),
+            null,
+            null,
+            sys_get_temp_dir()
+        );
+
+        $http = (new \ReflectionProperty(VideoDownloadProcessor::class, 'http'))->getValue($processor);
+        $this->assertStringStartsWith('Mozilla/5.0', $http->getConfig('headers')['User-Agent'] ?? '');
+    }
+
     public function testVideoMetadataIsCaptured(): void
     {
         $pdo = $this->createDatabase();
