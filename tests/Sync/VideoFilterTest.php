@@ -36,6 +36,62 @@ class VideoFilterTest extends TestCase
         }
     }
 
+    /**
+     * Meetings of bodies that do not advance legislation: task forces, work
+     * groups, councils, retreats and the like. Taken from real 2026 listings.
+     */
+    public function testSkipsMeetingsThatDoNotAdvanceLegislation(): void
+    {
+        $unwanted = [
+            'Tribute to Senator Yvonne Miller Work Group',
+            'Distributed Energy Resources Task Force',
+            'The Virginia Blueprint: Strategies for Boys and Men',
+            'Public Body Procurement Workgroup',
+            'Page Capstone',
+            'Autism Advisory Council',
+            'Freedom of Information Advisory Council Meeting',
+            'Task Force on Maternal Health Data and Quality Measures',
+            'Joint House and Senate ACNR Committee Retreat',
+            'Joint House and Senate Bootcamp and Select Committees',
+            'Joint Subcommittee on Tax Policy',
+            'Joint Rules',
+        ];
+
+        foreach ($unwanted as $name) {
+            $this->assertFalse(VideoFilter::shouldKeep(['title' => $name]), $name . ' should be skipped');
+            $this->assertFalse(
+                VideoFilter::shouldKeep(['title' => 'August 17, 2026 - Meeting', 'committee_name' => $name]),
+                $name . ' should be skipped when only the committee name says what it is'
+            );
+        }
+    }
+
+    /**
+     * Real committees and subcommittees, including ones the committees table
+     * did not know in 2026, and floor sessions, which are always kept.
+     */
+    public function testKeepsCommitteesSubcommitteesAndTheFloor(): void
+    {
+        $wanted = [
+            'Labor and Commerce',
+            'Housing-Consumer Protection Subcommittee',
+            'Highway Safety and Policy Subcommittee',
+            'Communications, Technology and Innovation',
+            'Procurement-Open Government Subcommittee',
+            'Firearms Subcommittee',
+            'Department of Motor Vehicles Subcommittee',
+            'Behavioral Health Subcommittee',
+            'Rehabilitation and Social Services',
+            'House Session',
+            'Joint Assembly',
+            'Senate of Virginia: Senate Chamber on 2026-02-27 [Finished]',
+        ];
+
+        foreach ($wanted as $name) {
+            $this->assertTrue(VideoFilter::shouldKeep(['title' => $name]), $name . ' should be kept');
+        }
+    }
+
     public function testKeepWinsOnOverlap(): void
     {
         $title = 'Finance Committee Commission Update';

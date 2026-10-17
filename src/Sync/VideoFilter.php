@@ -5,78 +5,59 @@ namespace RichmondSunlight\VideoProcessor\Sync;
 class VideoFilter
 {
     /**
-     * Decide whether a scraped video record should be kept.
-     * Bias toward inclusion: keep wins if both keep and skip keywords are present.
+     * Names of bodies whose meetings do not advance legislation. Matched as
+     * whole words, case-insensitively, against the title and committee name.
+     */
+    private const NOT_LEGISLATIVE = [
+        'task\s*force',
+        'work\s*-?\s*group',
+        'council',
+        'commission',
+        'board',
+        'authority',
+        'retreat',
+        'boot\s*camp',
+        'capstone',
+        'tribute',
+        'caucus',
+        'public\s+hearings?',
+        'jlarc',
+        'vrs',
+        // Joint meetings study issues; bills go through each chamber's own
+        // committees. A joint floor session (Joint Assembly) is kept below.
+        'joint',
+        // Named because its title says nothing about what kind of body it is.
+        'virginia\s+blueprint',
+        // Commissions whose listings sometimes leave out the word.
+        'civic\s+education',
+        'manufacturing\s+development',
+        'recurrent\s+flooding',
+    ];
+
+    /**
+     * Decide whether a scraped video record should be kept: floor sessions,
+     * committees and subcommittees, which advance legislation. Meetings of task
+     * forces, work groups, councils, commissions and the like are skipped.
+     *
+     * This works from names rather than the committees table, because that
+     * table lacked several real 2026 committees (Labor and Commerce, Firearms
+     * Subcommittee, ...), and matching against it would have dropped them.
      */
     public static function shouldKeep(array $record): bool
     {
-        $title = isset($record['title']) ? strtolower((string) $record['title']) : '';
-        if ($title === '') {
+        $title = trim((string) ($record['title'] ?? ''));
+        $committee = trim((string) ($record['committee_name'] ?? ''));
+        if ($title === '' && $committee === '') {
             return true; // can't decide; keep
         }
 
-        $keepKeywords = [
-            'session',
-            'floor',
-            'committee',
-            'subcommittee',
-            'sfac',
-            'finance',
-            'appropriations',
-            'education and health',
-            'general laws',
-            'technology',
-            'transportation',
-            'courts of justice',
-            'privileges and elections',
-            'rules',
-            'public safety',
-            'health and human resources',
-            'resources',
-        ];
-
-        $skipKeywords = [
-            'commission',
-            'board',
-            'authority',
-            'jlarc',
-            'vrs',
-            'crime commission',
-            'code commission',
-            'civic education',
-            'manufacturing development',
-            'small business commission',
-            'health insurance reform commission',
-            'recurrent flooding',
-            'mei project approval commission',
-            'public hearing',
-        ];
-
-        $hasKeep = self::containsAny($title, $keepKeywords);
-        $hasSessionOrFloor = str_contains($title, 'session') || str_contains($title, 'floor');
-        $hasSkip = self::containsAny($title, $skipKeywords);
-
-        // Skip wins unless this is clearly a session/floor item.
-        if ($hasSkip && !$hasSessionOrFloor) {
-            return false;
-        }
-
-        if ($hasKeep) {
+        if (MeetingClassifier::classify($title, $record['description'] ?? null) === 'floor') {
             return true;
         }
 
-        // Default to inclusion on tie/unknown.
-        return true;
-    }
+        $pattern = '/\b(?:' . implode('|', self::NOT_LEGISLATIVE) . ')\b/i';
 
-    private static function containsAny(string $haystack, array $needles): bool
-    {
-        foreach ($needles as $needle) {
-            if ($needle !== '' && str_contains($haystack, $needle)) {
-                return true;
-            }
-        }
-        return false;
+        return !preg_match($pattern, $title . ' ' . $committee);
     }
 
     /**
