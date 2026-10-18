@@ -93,7 +93,7 @@ class VideoReadContract
      *     date: string,
      *     capture_directory: string|null,
      *     type: string,
-     *     linked_id: int|null
+     *     linked_id: int|null    bills.id for type 'bill', people.id (not terms.id) for type 'legislator'
      * }>>
      */
     public function indexClips(int $fileId): array

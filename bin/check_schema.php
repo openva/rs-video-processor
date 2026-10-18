@@ -2,7 +2,7 @@
 <?php
 
 /**
- * Confirms the two tables this pipeline depends on exist.
+ * Confirms the tables and columns this pipeline depends on exist.
  *
  * video_jobs and video_sources are defined with the rest of the shared schema,
  * in the richmondsunlight.com repository (deploy/mysql/structure.sql). This
@@ -39,6 +39,18 @@ foreach (['video_sources', 'video_jobs'] as $table) {
         );
         exit(1);
     }
+}
+
+// The transcript stage records whether it lined captions up with the audio.
+try {
+    $pdo->query('SELECT caption_offset, caption_alignment FROM files LIMIT 1');
+} catch (Throwable $e) {
+    $log->put(
+        'files.caption_offset and files.caption_alignment are missing, so the video pipeline cannot run. They are'
+        . ' defined in the richmondsunlight.com repository (deploy/mysql/structure.sql) and must be added there first.',
+        7
+    );
+    exit(1);
 }
 
 // Register the source IDs of videos imported before video_sources existed.

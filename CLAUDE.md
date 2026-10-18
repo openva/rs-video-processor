@@ -68,6 +68,13 @@ The website (`class.Video.php` in richmondsunlight.com) reads `capture_rate` as 
 ### Screenshots are read from S3, in batches
 Give `ScreenshotFetcher` the S3 client: it then reads frames straight from the bucket instead of through Cloudflare (slower, and the source of the 500/502 errors). Stages call `prefetch()` with the next batch of frames (`PREFETCH_CONCURRENCY`) and then `fetch()` each one; a frame that failed to prefetch is fetched again on its own, so errors surface as before. AWS `CommandPool` callbacks receive the command's position, not the generator's key.
 
+### Official captions are offset from the audio
+Caption times are early or late by an amount that differs from file to file (from about −15 minutes to +10 seconds) but holds steady within a file. So `TranscriptProcessor` asks `CaptionAligner` to measure each file's captions against five two-minute Whisper samples of `files.path`. When the measurement holds up and is at least 1.5s, it shifts them before writing. Whisper output is never shifted. The result is recorded in `files.caption_alignment` and `files.caption_offset`, because `TranscriptWriter` overwrites `files.webvtt` and nothing else records where a transcript came from. `bin/align_transcripts.php` corrects transcripts stored before this. Shifting rows in place keeps their `legislator_id` and `new_speaker`, and `video_index` times come from the frames, so speakers need no reprocessing.
+
+House captions appear to be timed from the gavel, not from the start of the recording, which explains the large early House offsets (file 15141: 701s early against its sliq.net source).
+
+Never align captions against a copy that is another meeting's video. `TranscriptRealigner` checks the copy's length against the source record's `duration_seconds` (`CopyDurationCheck`), and `bin/find_mismatched_copies.php` lists every copy that fails that check. Senate `duration_seconds` is only to the minute, and records scraped before 2026-10 are whole hours: `SenateScraper` dropped the minutes (`&nbsp;` became U+00A0, which `\s` does not match without `/u`).
+
 ### GD cannot scale with IMG_BICUBIC
 `imagescale(..., IMG_BICUBIC)` returns false with GD 2.3.3, so the 3x enlargement in `BillTextExtractor` and `SpeakerTextExtractor` never happens; they fall back to the unscaled crop. Measured on the fixture frames, enlarging (with `IMG_BILINEAR_FIXED`) made no difference to accuracy, so it has been left alone. Don't assume the enlargement is happening.
 

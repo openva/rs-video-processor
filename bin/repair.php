@@ -23,6 +23,8 @@ use RichmondSunlight\VideoProcessor\Fetcher\S3Storage;
 use RichmondSunlight\VideoProcessor\Fetcher\VideoMetadataExtractor;
 use RichmondSunlight\VideoProcessor\Screenshots\ScreenshotGenerator;
 use RichmondSunlight\VideoProcessor\Screenshots\ScreenshotJob;
+use RichmondSunlight\VideoProcessor\Transcripts\AudioExtractor;
+use RichmondSunlight\VideoProcessor\Transcripts\CaptionAligner;
 use RichmondSunlight\VideoProcessor\Transcripts\OpenAITranscriber;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptProcessor;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptJob;
@@ -232,7 +234,8 @@ function repairTranscripts(
     $httpClient = new Client(['timeout' => 1800]);
     $writer = new TranscriptWriter($pdo);
     $transcriber = new OpenAITranscriber($httpClient, OPENAI_KEY);
-    $processor = new TranscriptProcessor($writer, $transcriber, null, null, $log);
+    $aligner = new CaptionAligner($transcriber, new AudioExtractor());
+    $processor = new TranscriptProcessor($writer, $transcriber, null, null, $log, $aligner);
 
     foreach ($rows as $row) {
         if ($reset && $specificId !== null) {

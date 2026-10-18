@@ -33,6 +33,8 @@ class TestDatabaseFactory
             webvtt TEXT,
             srt TEXT,
             transcript TEXT,
+            caption_offset REAL,
+            caption_alignment TEXT,
             video_index_cache TEXT,
             raw_metadata TEXT,
             date_created TEXT,

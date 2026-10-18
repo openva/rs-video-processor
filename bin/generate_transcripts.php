@@ -8,6 +8,8 @@ use RichmondSunlight\VideoProcessor\Bootstrap\AppBootstrap;
 use RichmondSunlight\VideoProcessor\Contract\ContractValidator;
 use RichmondSunlight\VideoProcessor\Jobs\JobLedger;
 use RichmondSunlight\VideoProcessor\Jobs\StageRunner;
+use RichmondSunlight\VideoProcessor\Transcripts\AudioExtractor;
+use RichmondSunlight\VideoProcessor\Transcripts\CaptionAligner;
 use RichmondSunlight\VideoProcessor\Transcripts\CaptionParser;
 use RichmondSunlight\VideoProcessor\Transcripts\OpenAITranscriber;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptJob;
@@ -38,7 +40,9 @@ foreach ($argv as $arg) {
 $pdoFactory = AppBootstrap::connectionFactory();
 $writer = new TranscriptWriter($app->pdo, $pdoFactory);
 $transcriber = new OpenAITranscriber(new Client(['timeout' => 1800]), OPENAI_KEY);
-$processor = new TranscriptProcessor($writer, $transcriber, new CaptionParser(), null, $log);
+// Captions are checked against the audio, and shifted when they run early or late.
+$aligner = new CaptionAligner($transcriber, new AudioExtractor());
+$processor = new TranscriptProcessor($writer, $transcriber, new CaptionParser(), null, $log, $aligner);
 
 $runner = new StageRunner(new JobLedger($app->pdo, $pdoFactory), JobLedger::STAGE_TRANSCRIPT, $log);
 

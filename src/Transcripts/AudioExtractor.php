@@ -76,6 +76,36 @@ class AudioExtractor
         return $chunks;
     }
 
+    /**
+     * Extract $seconds of audio starting $start seconds into the video, as an
+     * MP3. Seeking before -i makes ffmpeg read only the byte ranges it needs,
+     * so the video is not downloaded. The caller deletes the file.
+     */
+    public function extractWindow(string $videoUrl, float $start, int $seconds): string
+    {
+        $input = str_starts_with($videoUrl, 'file://') ? substr($videoUrl, 7) : $videoUrl;
+        $audioPath = $this->workingDir . '/window_' . uniqid('', true) . '.mp3';
+        $cmd = sprintf(
+            'ffmpeg -y -loglevel error -ss %.2f -t %d -i %s -vn -ar 16000 -ac 1 -b:a 32k %s',
+            max(0.0, $start),
+            $seconds,
+            escapeshellarg($input),
+            escapeshellarg($audioPath)
+        );
+        exec($cmd, $output, $status);
+        if ($status !== 0 || !is_file($audioPath)) {
+            @unlink($audioPath);
+            throw new RuntimeException(sprintf('Failed to extract audio at %ds of %s.', (int) $start, $videoUrl));
+        }
+        // Past the end of the video, ffmpeg succeeds and writes only a header.
+        if (filesize($audioPath) < 1024) {
+            @unlink($audioPath);
+            throw new RuntimeException(sprintf('No audio at %ds; the video is shorter than that.', (int) $start));
+        }
+
+        return $audioPath;
+    }
+
     private function downloadVideo(string $url): string
     {
         if (str_starts_with($url, 'file://')) {

@@ -32,8 +32,11 @@ class TranscriptWriter
 
     /**
      * @param array<int,array{start:float,end:float,text:string}> $segments
+     * @param string|null $alignment files.caption_alignment (see CaptionAlignment::status());
+     *        null leaves caption_alignment and caption_offset as they are
+     * @param float|null $offset files.caption_offset: the seconds subtracted from the captions
      */
-    public function write(int $fileId, array $segments): void
+    public function write(int $fileId, array $segments, ?string $alignment = null, ?float $offset = null): void
     {
         if (empty($segments)) {
             return;
@@ -79,6 +82,13 @@ class TranscriptWriter
             ':webvtt' => $webvtt,
             ':id' => $fileId,
         ]);
+
+        // The webvtt just written no longer says whether it came from captions
+        // or from Whisper, or whether it was moved; these columns do.
+        if ($alignment !== null) {
+            $this->pdo->prepare('UPDATE files SET caption_alignment = :alignment, caption_offset = :offset WHERE id = :id')
+                ->execute([':alignment' => $alignment, ':offset' => $offset, ':id' => $fileId]);
+        }
 
         $this->pdo->commit();
     }

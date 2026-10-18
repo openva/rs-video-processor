@@ -218,8 +218,10 @@ class SenateScraper implements VideoSourceScraperInterface
 
     private function parseDuration(string $durationText): ?int
     {
-        $text = str_replace('&nbsp;', ' ', $durationText);
-        if (preg_match('/(?:(\d+)h)?\s*(?:(\d+)m)?\s*(?:(\d+)s)?/i', $text, $matches)) {
+        // textContent turns &nbsp; into U+00A0, which \s does not match
+        // without /u; the minutes were lost and every video read as whole hours.
+        $text = str_replace(['&nbsp;', "\u{00A0}"], ' ', $durationText);
+        if (preg_match('/(?:(\d+)h)?\s*(?:(\d+)m)?\s*(?:(\d+)s)?/iu', $text, $matches)) {
             $hours = isset($matches[1]) && $matches[1] !== '' ? (int) $matches[1] : 0;
             $minutes = isset($matches[2]) && $matches[2] !== '' ? (int) $matches[2] : 0;
             $seconds = isset($matches[3]) && $matches[3] !== '' ? (int) $matches[3] : 0;

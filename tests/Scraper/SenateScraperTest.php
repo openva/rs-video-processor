@@ -25,6 +25,8 @@ class SenateScraperTest extends TestCase
         $this->assertSame('7681', $first['video_id']);
         $this->assertSame('State Water Commission', $first['committee']);
         $this->assertSame('2025-11-19', $first['meeting_date']);
+        // "01h&nbsp;59m": the minutes count too.
+        $this->assertSame(7140, $first['duration_seconds']);
         $this->assertSame('committee', $first['event_type']);
         $this->assertSame('https://virginia-senate.granicus.com/MediaPlayer.php?view_id=3&clip_id=7681', $first['embed_url']);
         $this->assertSame('https://virginia-senate.granicus.com/videos/7681/captions.vtt', $first['captions_url']);
