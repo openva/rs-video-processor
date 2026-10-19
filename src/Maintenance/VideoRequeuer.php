@@ -57,7 +57,8 @@ class VideoRequeuer
         try {
             $this->pdo->prepare(
                 'UPDATE files
-                 SET path = :path, capture_directory = NULL, capture_rate = NULL, transcript = NULL, webvtt = NULL
+                 SET path = :path, capture_directory = NULL, capture_rate = NULL, transcript = NULL, webvtt = NULL,
+                     caption_offset = NULL, caption_alignment = NULL
                  WHERE id = :id'
             )->execute([':path' => $url, ':id' => $fileId]);
 

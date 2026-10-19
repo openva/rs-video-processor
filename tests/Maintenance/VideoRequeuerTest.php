@@ -20,9 +20,9 @@ class VideoRequeuerTest extends TestCase
     private function seed(?string $cache): int
     {
         $this->pdo->prepare(
-            "INSERT INTO files (chamber, title, date, path, capture_directory, capture_rate, transcript, webvtt, video_index_cache, date_created)
+            "INSERT INTO files (chamber, title, date, path, capture_directory, capture_rate, transcript, webvtt, caption_offset, caption_alignment, video_index_cache, date_created)
              VALUES ('house', 'T', '2026-08-17', 'https://video.richmondsunlight.com/house/floor/20260817.mp4',
-                     '/house/floor/20260817/', 60, 'words', 'WEBVTT', :cache, '2026-08-17 00:00:00')"
+                     '/house/floor/20260817/', 60, 'words', 'WEBVTT', 7.2, 'aligned', :cache, '2026-08-17 00:00:00')"
         )->execute([':cache' => $cache]);
 
         return (int) $this->pdo->lastInsertId();
@@ -45,13 +45,16 @@ class VideoRequeuerTest extends TestCase
 
         $this->assertSame('https://source.example/video.mp4', $url);
 
-        $row = $this->pdo->query("SELECT path, capture_directory, capture_rate, transcript, webvtt FROM files WHERE id = {$id}")
+        $row = $this->pdo->query("SELECT path, capture_directory, capture_rate, transcript, webvtt, caption_offset, caption_alignment FROM files WHERE id = {$id}")
             ->fetch(PDO::FETCH_ASSOC);
         $this->assertSame('https://source.example/video.mp4', $row['path']);
         $this->assertNull($row['capture_directory']);
         $this->assertNull($row['capture_rate']);
         $this->assertNull($row['transcript']);
         $this->assertNull($row['webvtt']);
+        // The new transcript is aligned against the new download.
+        $this->assertNull($row['caption_offset']);
+        $this->assertNull($row['caption_alignment']);
 
         foreach (['video_index', 'video_transcript', 'video_jobs'] as $table) {
             $this->assertSame(0, (int) $this->pdo->query("SELECT COUNT(*) FROM {$table} WHERE file_id = {$id}")->fetchColumn());
