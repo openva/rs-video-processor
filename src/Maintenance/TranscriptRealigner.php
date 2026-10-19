@@ -18,31 +18,48 @@ use RichmondSunlight\VideoProcessor\Transcripts\CaptionShift;
  */
 class TranscriptRealigner
 {
+    /**
+     * SQL true when video f has a transcript, or has captions the transcript
+     * stage will never turn into one (its copy is on archive.org). Captions of a
+     * video still waiting for the transcript stage are left to that stage, which
+     * aligns them itself; shifting them here first would have them measured twice.
+     */
+    private const HAS_CAPTIONS = "
+                  AND (EXISTS (SELECT 1 FROM video_transcript vt WHERE vt.file_id = f.id)
+                       OR (f.webvtt IS NOT NULL AND f.webvtt != '' AND f.path LIKE 'https://archive.org/%'))";
+
     private CopyDurationCheck $copyCheck;
 
-    public function __construct(private PDO $pdo, private CaptionAligner $aligner, ?CopyDurationCheck $copyCheck = null)
-    {
+    private bool $lastWasCached = false;
+
+    public function __construct(
+        private PDO $pdo,
+        private CaptionAligner $aligner,
+        ?CopyDurationCheck $copyCheck = null,
+        private ?AlignmentCache $cache = null,
+        private ?\Closure $pdoFactory = null
+    ) {
         $this->copyCheck = $copyCheck ?? new CopyDurationCheck();
     }
 
     /**
      * Videos with a transcript or captions whose alignment has not been
-     * recorded. Naming one ID ($fileId) selects it whatever is recorded.
+     * recorded, or with $unaligned, those recorded as 'unaligned', to measure
+     * again. Naming one ID ($fileId) selects it whatever is recorded.
      *
      * @return list<array{id:int,chamber:string,date:string,path:string,length:?string,video_index_cache:?string}>
      */
-    public function candidates(int $limit, ?int $fileId = null): array
+    public function candidates(int $limit, ?int $fileId = null, bool $unaligned = false): array
     {
         $sql = "SELECT f.id, f.chamber, f.date, f.path, f.length, f.video_index_cache FROM files f
                 WHERE f.type = 'video' AND f.path LIKE 'http%'
-                  AND (EXISTS (SELECT 1 FROM video_transcript vt WHERE vt.file_id = f.id)
-                       OR (f.webvtt IS NOT NULL AND f.webvtt != ''))";
+" . self::HAS_CAPTIONS;
         $params = [];
         if ($fileId !== null) {
             $sql .= ' AND f.id = :id';
             $params[':id'] = $fileId;
         } else {
-            $sql .= ' AND f.caption_alignment IS NULL';
+            $sql .= $unaligned ? " AND f.caption_alignment = 'unaligned'" : ' AND f.caption_alignment IS NULL';
         }
         $stmt = $this->pdo->prepare($sql . ' ORDER BY f.date DESC, f.id DESC LIMIT ' . max(1, $limit));
         $stmt->execute($params);
@@ -58,13 +75,12 @@ class TranscriptRealigner
     }
 
     /** How many videos candidates() would go through with no limit. */
-    public function countCandidates(): int
+    public function countCandidates(bool $unaligned = false): int
     {
         return (int) $this->pdo->query(
             "SELECT COUNT(*) FROM files f
-             WHERE f.type = 'video' AND f.path LIKE 'http%' AND f.caption_alignment IS NULL
-               AND (EXISTS (SELECT 1 FROM video_transcript vt WHERE vt.file_id = f.id)
-                    OR (f.webvtt IS NOT NULL AND f.webvtt != ''))"
+             WHERE f.type = 'video' AND f.path LIKE 'http%' AND f.caption_alignment "
+            . ($unaligned ? "= 'unaligned'" : 'IS NULL') . self::HAS_CAPTIONS
         )->fetchColumn();
     }
 
@@ -105,16 +121,63 @@ class TranscriptRealigner
      */
     public function measure(array $segments, array $video): CaptionAlignment
     {
+        $fingerprint = AlignmentCache::fingerprint($segments, $video['path']);
+        $cached = $this->cache?->get($video['id'], $fingerprint);
+        if ($cached !== null) {
+            $this->lastWasCached = true;
+            return $cached;
+        }
+        $this->lastWasCached = false;
+
         $copy = $this->copyCheck->check($video);
         if ($copy['status'] === 'mismatch') {
-            return CaptionAlignment::failed('wrong video: ' . $copy['reason']);
+            // Saved too, so a run with --cached-only records it.
+            $result = CaptionAlignment::failed('wrong video: ' . $copy['reason']);
+            $this->cache?->put($video['id'], $fingerprint, $result);
+            return $result;
         }
 
         try {
-            return $this->aligner->align($segments, $video['path']);
+            $result = $this->aligner->align($segments, $video['path']);
         } catch (\Throwable $e) {
             return CaptionAlignment::failed('could not measure: ' . $e->getMessage());
         }
+
+        // Keep what was paid for, unless a window failed for a reason that may
+        // not recur (a window past the end of the video always will).
+        if (!preg_match('/skipped: (?!No audio)/', $result->reason)) {
+            $this->cache?->put($video['id'], $fingerprint, $result);
+        }
+
+        return $result;
+    }
+
+    /**
+     * The saved measurement for these captions, if there is one. Nothing is
+     * transcribed.
+     *
+     * @param array<int,array{start:float,end:float,text:string}> $segments
+     */
+    public function saved(array $segments, array $video): ?CaptionAlignment
+    {
+        return $this->cache?->get($video['id'], AlignmentCache::fingerprint($segments, $video['path']));
+    }
+
+    /**
+     * A new connection, if there is a factory. Measuring a video takes minutes
+     * with no database activity, longer than RDS keeps an idle connection.
+     */
+    public function reconnect(): void
+    {
+        if ($this->pdoFactory !== null) {
+            $this->pdo = ($this->pdoFactory)();
+        }
+    }
+
+    /** Whether the last measure() came from the cache rather than from Whisper. */
+    public function lastWasCached(): bool
+    {
+        return $this->lastWasCached;
     }
 
     /**

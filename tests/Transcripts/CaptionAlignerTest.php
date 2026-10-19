@@ -110,6 +110,42 @@ class CaptionAlignerTest extends TestCase
         $this->assertStringContainsString('drift', $result->reason);
     }
 
+    /**
+     * File 17476: windows at +5.2, +6.4 and +4.2s. Shifted by the median, every
+     * part is within about a second of the audio; unshifted, off by five.
+     */
+    public function testWindowsThatDifferALittleAreStillShifted(): void
+    {
+        $speech = $this->speech(13, 0, 3600);
+        $captions = [];
+        foreach (array_chunk($speech, 3) as $cue) {
+            $t = $cue[0]['start'];
+            $shift = $t < 1200 ? 5.2 : ($t < 2400 ? 6.4 : 4.2);
+            $captions[] = ['start' => $t + $shift, 'end' => end($cue)['end'] + $shift, 'text' => implode(' ', array_column($cue, 'word'))];
+        }
+        $result = CaptionAligner::measure($captions, $this->windows($speech, [300, 1500, 2700]));
+
+        $this->assertTrue($result->aligned, $result->summary());
+        $this->assertTrue($result->shouldShift());
+        $this->assertStringContainsString('windows disagree by 2.2s', $result->reason);
+    }
+
+    /** File 5175: +6.1s rising to +9.3s over eight hours. */
+    public function testSlightDriftIsShiftedByTheMedian(): void
+    {
+        $speech = $this->speech(14, 0, 3600);
+        $captions = [];
+        foreach (array_chunk($speech, 3) as $cue) {
+            $shift = 6.1 + 3.2 * $cue[0]['start'] / 3600;
+            $captions[] = ['start' => $cue[0]['start'] + $shift, 'end' => end($cue)['end'] + $shift, 'text' => implode(' ', array_column($cue, 'word'))];
+        }
+        $result = CaptionAligner::measure($captions, $this->windows($speech, [0, 1100, 2200, 3300]));
+
+        $this->assertTrue($result->aligned, $result->summary());
+        $this->assertTrue($result->drift);
+        $this->assertStringContainsString('drift', $result->reason);
+    }
+
     /** A phrase said over and over could match any of its sayings. */
     public function testIgnoresPhrasesThatRepeat(): void
     {
@@ -177,12 +213,16 @@ class CaptionAlignerTest extends TestCase
         $audio = new class extends AudioExtractor {
             public array $starts = [];
 
-            public function extractWindow(string $videoUrl, float $start, int $seconds): string
+            public function extractWindows(string $videoUrl, array $starts, int $seconds): array
             {
-                $this->starts[] = $start;
-                $path = tempnam(sys_get_temp_dir(), 'window_');
-                file_put_contents($path, (string) $start);
-                return $path;
+                $paths = [];
+                foreach ($starts as $start) {
+                    $this->starts[] = $start;
+                    $path = tempnam(sys_get_temp_dir(), 'window_');
+                    file_put_contents($path, (string) $start);
+                    $paths[] = $path;
+                }
+                return $paths;
             }
         };
         // Hears whatever the speech has in the window, timed from the window's start.
@@ -215,14 +255,19 @@ class CaptionAlignerTest extends TestCase
     {
         $speech = $this->speech(12, 0, 3600);
         $audio = new class extends AudioExtractor {
-            public function extractWindow(string $videoUrl, float $start, int $seconds): string
+            public function extractWindows(string $videoUrl, array $starts, int $seconds): array
             {
-                if ($start > 3000) {
-                    throw new \RuntimeException('No audio at 3480s; the video is shorter than that.');
+                $paths = [];
+                foreach ($starts as $start) {
+                    if ($start > 3000) {
+                        $paths[] = new \RuntimeException('No audio at 3480s; the video is shorter than that.');
+                        continue;
+                    }
+                    $path = tempnam(sys_get_temp_dir(), 'window_');
+                    file_put_contents($path, (string) $start);
+                    $paths[] = $path;
                 }
-                $path = tempnam(sys_get_temp_dir(), 'window_');
-                file_put_contents($path, (string) $start);
-                return $path;
+                return $paths;
             }
         };
         $transcriber = new class ($speech) implements WordTranscriber {
@@ -264,6 +309,11 @@ class CaptionAlignerTest extends TestCase
             $path = $extractor->extractWindow('file://' . $video, 2, 5);
             $this->assertGreaterThan(1024, filesize($path));
             @unlink($path);
+
+            $both = $extractor->extractWindows('file://' . $video, [1, 60], 5);
+            $this->assertFileExists($both[0]);
+            @unlink($both[0]);
+            $this->assertInstanceOf(\RuntimeException::class, $both[1]);
 
             $this->expectExceptionMessage('No audio at 60s');
             $extractor->extractWindow('file://' . $video, 60, 5);

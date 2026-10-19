@@ -4,6 +4,7 @@ namespace RichmondSunlight\VideoProcessor\Tests\Maintenance;
 
 use PDO;
 use PHPUnit\Framework\TestCase;
+use RichmondSunlight\VideoProcessor\Maintenance\AlignmentCache;
 use RichmondSunlight\VideoProcessor\Maintenance\CopyDurationCheck;
 use RichmondSunlight\VideoProcessor\Maintenance\TranscriptRealigner;
 use RichmondSunlight\VideoProcessor\Tests\Support\TestDatabaseFactory;
@@ -46,6 +47,17 @@ class TranscriptRealignerTest extends TestCase
         $this->assertSame('aligned', $result->status());
 
         $this->assertSame($before, $this->snapshot());
+    }
+
+    /** The transcript stage aligns these itself; measuring them here too would pay twice. */
+    public function testLeavesVideosWaitingForTheTranscriptStage(): void
+    {
+        $this->pdo->exec("INSERT INTO files (id, chamber, type, date, path, webvtt) VALUES
+            (4, 'house', 'video', '2026-10-16', 'https://video.richmondsunlight.com/house/floor/20261016-4.mp4', 'WEBVTT')");
+        $realigner = $this->realigner($this->aligner(7.0));
+
+        $this->assertSame([2, 1], array_column($realigner->candidates(10), 'id'));
+        $this->assertSame(2, $realigner->countCandidates());
     }
 
     public function testApplyShiftsRowsAndWebVttAndKeepsSpeakers(): void
@@ -102,6 +114,76 @@ class TranscriptRealignerTest extends TestCase
         $this->assertSame('unaligned', $result->status());
         $this->assertStringContainsString('wrong video: the copy is 1:35:31 long but the recording is 1:47:37', $result->reason);
         $this->assertSame([], $aligner->urls, 'Nothing is transcribed.');
+    }
+
+    /** Recorded as unaligned under a stricter rule, measured again, and shifted. */
+    public function testUnalignedVideosCanBeMeasuredAgain(): void
+    {
+        $this->pdo->exec("UPDATE files SET caption_alignment = 'unaligned' WHERE id = 1");
+        $realigner = $this->realigner($this->aligner(5.4));
+
+        $this->assertSame([2], array_column($realigner->candidates(10), 'id'));
+        $this->assertSame([1], array_column($realigner->candidates(10, null, true), 'id'));
+        $this->assertSame(1, $realigner->countCandidates(true));
+
+        $realigner->apply(1, $realigner->measure($realigner->captions(1)['segments'], $this->video(1)));
+        $this->assertSame(['aligned', 5.4], $this->alignment(1));
+        $this->assertSame('00:00:04.60', $this->pdo->query('SELECT time_start FROM video_transcript')->fetchColumn());
+    }
+
+    /** A dry run's measurements are what --apply uses: Whisper is paid for once. */
+    public function testSavedMeasurementsAreReused(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'align_cache_');
+        unlink($path);
+        try {
+            $aligner = $this->aligner(7.0);
+            $dryRun = new TranscriptRealigner($this->pdo, $aligner, new CopyDurationCheck(static fn() => null), new AlignmentCache($path));
+            $segments = $dryRun->captions(1)['segments'];
+            $dryRun->measure($segments, $this->video(1));
+            $this->assertFalse($dryRun->lastWasCached());
+
+            // A later run, in a new process.
+            $later = new TranscriptRealigner($this->pdo, $aligner, new CopyDurationCheck(static fn() => null), new AlignmentCache($path));
+            $result = $later->measure($segments, $this->video(1));
+            $this->assertTrue($later->lastWasCached());
+            $this->assertEquals(7.0, $result->offset);
+            $this->assertCount(1, $aligner->urls, 'Measured once.');
+
+            $this->assertEquals(7.0, $later->saved($segments, $this->video(1))->offset);
+            $this->assertNull($later->saved([['start' => 1.0, 'end' => 2.0, 'text' => 'Changed']], $this->video(1)));
+
+            // Different captions are measured again.
+            $later->measure([['start' => 1.0, 'end' => 2.0, 'text' => 'Changed']], $this->video(1));
+            $this->assertFalse($later->lastWasCached());
+            $this->assertCount(2, $aligner->urls);
+        } finally {
+            @unlink($path);
+        }
+    }
+
+    public function testFailedMeasurementsAreNotSaved(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'align_cache_');
+        unlink($path);
+        $failing = new class extends CaptionAligner {
+            public function __construct()
+            {
+            }
+
+            public function align(array $segments, string $videoUrl): CaptionAlignment
+            {
+                throw new \RuntimeException('archive.org timed out');
+            }
+        };
+        try {
+            $realigner = new TranscriptRealigner($this->pdo, $failing, new CopyDurationCheck(static fn() => null), new AlignmentCache($path));
+            $this->assertStringContainsString('could not measure', $realigner->measure([], $this->video(1))->reason);
+
+            $this->assertNull((new AlignmentCache($path))->get(1, AlignmentCache::fingerprint([], $this->video(1)['path'])));
+        } finally {
+            @unlink($path);
+        }
     }
 
     /** A realigner whose copies all check out. */

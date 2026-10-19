@@ -83,24 +83,59 @@ class AudioExtractor
      */
     public function extractWindow(string $videoUrl, float $start, int $seconds): string
     {
+        $result = $this->extractWindows($videoUrl, [$start], $seconds)[0];
+        if ($result instanceof \Throwable) {
+            throw $result;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Several windows at once. Reading a window from archive.org takes most
+     * of a minute, nearly all of it waiting on the network, so they are read
+     * in parallel.
+     *
+     * @param float[] $starts
+     * @return array<int,string|RuntimeException> keyed like $starts: an MP3's path
+     *         (the caller deletes it), or why that window could not be read
+     */
+    public function extractWindows(string $videoUrl, array $starts, int $seconds): array
+    {
         $input = str_starts_with($videoUrl, 'file://') ? substr($videoUrl, 7) : $videoUrl;
-        $audioPath = $this->workingDir . '/window_' . uniqid('', true) . '.mp3';
-        $cmd = sprintf(
-            'ffmpeg -y -loglevel error -ss %.2f -t %d -i %s -vn -ar 16000 -ac 1 -b:a 32k %s',
-            max(0.0, $start),
-            $seconds,
-            escapeshellarg($input),
-            escapeshellarg($audioPath)
-        );
-        exec($cmd, $output, $status);
+        $running = [];
+        foreach ($starts as $key => $start) {
+            $audioPath = $this->workingDir . '/window_' . uniqid('', true) . '.mp3';
+            $cmd = sprintf(
+                'ffmpeg -y -loglevel error -ss %.2f -t %d -i %s -vn -ar 16000 -ac 1 -b:a 32k %s',
+                max(0.0, $start),
+                $seconds,
+                escapeshellarg($input),
+                escapeshellarg($audioPath)
+            );
+            $process = proc_open($cmd, [0 => ['file', '/dev/null', 'r'], 1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes);
+            $running[$key] = [$process, $audioPath, (float) $start];
+        }
+
+        $results = [];
+        foreach ($running as $key => [$process, $audioPath, $start]) {
+            $status = is_resource($process) ? proc_close($process) : 1;
+            $results[$key] = $this->checkWindow($status, $audioPath, $start, $videoUrl);
+        }
+
+        return $results;
+    }
+
+    private function checkWindow(int $status, string $audioPath, float $start, string $videoUrl): string|RuntimeException
+    {
         if ($status !== 0 || !is_file($audioPath)) {
             @unlink($audioPath);
-            throw new RuntimeException(sprintf('Failed to extract audio at %ds of %s.', (int) $start, $videoUrl));
+            return new RuntimeException(sprintf('Failed to extract audio at %ds of %s.', (int) $start, $videoUrl));
         }
         // Past the end of the video, ffmpeg succeeds and writes only a header.
         if (filesize($audioPath) < 1024) {
             @unlink($audioPath);
-            throw new RuntimeException(sprintf('No audio at %ds; the video is shorter than that.', (int) $start));
+            return new RuntimeException(sprintf('No audio at %ds; the video is shorter than that.', (int) $start));
         }
 
         return $audioPath;

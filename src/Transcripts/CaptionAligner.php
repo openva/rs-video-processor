@@ -31,8 +31,16 @@ class CaptionAligner
 
     private const MAX_IQR = 3.0;
 
-    /** Per-window medians must agree within this. */
-    private const MAX_WINDOW_SPREAD = 2.0;
+    /**
+     * Per-window medians must agree within this. Shifting by the median then
+     * leaves every part of the file within about 2s of the audio, where
+     * unshifted it would be off by the whole offset. A file whose offset
+     * drifts a little is still better shifted than not.
+     */
+    private const MAX_WINDOW_SPREAD = 4.0;
+
+    /** Windows that differ by more than this are noted, but still shifted. */
+    private const NOTE_WINDOW_SPREAD = 2.0;
 
     /** A window with fewer matches than this is too thin to have its own opinion. */
     private const MIN_WINDOW_MATCHES = 4;
@@ -61,11 +69,15 @@ class CaptionAligner
 
         $spoken = [];
         $skipped = [];
-        foreach ($this->windowStarts($segments) as $start) {
-            // A window can fall past the end of the video when the captions run
-            // longer than it; the other windows still count.
+        $starts = $this->windowStarts($segments);
+        // A window can fall past the end of the video when the captions run
+        // longer than it; the other windows still count.
+        foreach ($this->audio->extractWindows($videoUrl, $starts, $this->windowSeconds) as $i => $path) {
+            $start = $starts[$i];
             try {
-                $path = $this->audio->extractWindow($videoUrl, $start, $this->windowSeconds);
+                if ($path instanceof \Throwable) {
+                    throw $path;
+                }
                 try {
                     $words = $this->transcriber->transcribeWords($path);
                 } finally {
@@ -75,9 +87,9 @@ class CaptionAligner
                 $skipped[] = sprintf('%s skipped: %s', gmdate('H:i:s', (int) $start), $e->getMessage());
                 continue;
             }
-            foreach ($words as $i => $word) {
-                $words[$i]['start'] += $start;
-                $words[$i]['end'] += $start;
+            foreach ($words as $j => $word) {
+                $words[$j]['start'] += $start;
+                $words[$j]['end'] += $start;
             }
             $spoken[] = ['start' => $start, 'words' => $words];
         }
@@ -182,20 +194,26 @@ class CaptionAligner
             $reasons[] = sprintf('matches disagree (IQR %.1fs)', $iqr);
         }
         $drift = false;
+        $notes = [];
         if (count($windows) < self::MIN_WINDOWS) {
             $reasons[] = sprintf('only %d window(s) matched', count($windows));
         } else {
             $medians = array_column($windows, 'median');
             $spread = max($medians) - min($medians);
-            if ($spread > self::MAX_WINDOW_SPREAD) {
+            if ($spread > self::NOTE_WINDOW_SPREAD) {
                 $drift = count($windows) >= 3 && self::monotonic($medians);
-                $reasons[] = $drift
+                $description = $drift
                     ? sprintf('drift: offset moves from %+.1fs to %+.1fs across the file', $medians[0], end($medians))
                     : sprintf('windows disagree by %.1fs', $spread);
+                if ($spread > self::MAX_WINDOW_SPREAD) {
+                    $reasons[] = $description;
+                } else {
+                    $notes[] = $description;
+                }
             }
         }
 
-        return new CaptionAlignment(empty($reasons), $offset, $matches, $iqr, $windows, $drift, implode('; ', $reasons));
+        return new CaptionAlignment(empty($reasons), $offset, $matches, $iqr, $windows, $drift, implode('; ', array_merge($reasons, $notes)));
     }
 
     /**

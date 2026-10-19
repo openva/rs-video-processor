@@ -32,6 +32,34 @@ class CaptionAlignment
         return new self(false, null, 0, null, [], false, $reason);
     }
 
+    /** @return array<string,mixed> */
+    public function toArray(): array
+    {
+        return [
+            'aligned' => $this->aligned,
+            'offset' => $this->offset,
+            'matches' => $this->matches,
+            'iqr' => $this->iqr,
+            'windows' => $this->windows,
+            'drift' => $this->drift,
+            'reason' => $this->reason,
+        ];
+    }
+
+    /** @param array<string,mixed> $data from toArray() */
+    public static function fromArray(array $data): self
+    {
+        return new self(
+            (bool) $data['aligned'],
+            $data['offset'] === null ? null : (float) $data['offset'],
+            (int) $data['matches'],
+            $data['iqr'] === null ? null : (float) $data['iqr'],
+            $data['windows'],
+            (bool) $data['drift'],
+            (string) $data['reason']
+        );
+    }
+
     public function shouldShift(): bool
     {
         return $this->aligned && abs((float) $this->offset) >= self::SHIFT_THRESHOLD;
