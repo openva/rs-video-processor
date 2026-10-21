@@ -197,6 +197,9 @@ class ScreenshotFetcher
                 $retryable = !$e instanceof ClientException || $e->getResponse()->getStatusCode() === 429;
                 if (!$retryable || $attempt >= count($this->retryDelays)) {
                     @unlink($dest);
+                    if ($e instanceof ClientException && $e->getResponse()->getStatusCode() === 404) {
+                        throw new ScreenshotMissingException('Screenshot not found: ' . $normalizedUrl, 404, $e);
+                    }
                     throw $e;
                 }
                 sleep((int) $this->retryDelays[$attempt]);

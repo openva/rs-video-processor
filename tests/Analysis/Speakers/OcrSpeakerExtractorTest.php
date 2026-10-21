@@ -4,6 +4,7 @@ namespace RichmondSunlight\VideoProcessor\Tests\Analysis\Speakers;
 
 use PHPUnit\Framework\TestCase;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\ScreenshotFetcher;
+use RichmondSunlight\VideoProcessor\Analysis\Bills\ScreenshotMissingException;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\ScreenshotManifestLoader;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\OcrSpeakerExtractor;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerChamberConfig;
@@ -41,6 +42,24 @@ class OcrSpeakerExtractorTest extends TestCase
         $parser->method('parse')->willReturnCallback(fn(string $text) => $namesBySecond[(int) $text]);
 
         return new OcrSpeakerExtractor($loader, $fetcher, $textExtractor, $parser, new SpeakerChamberConfig(), 3, null, $frameStep);
+    }
+
+    public function testGivesUpWhenScreenshotsAreMissing(): void
+    {
+        $manifest = [];
+        for ($i = 1; $i <= 500; $i++) {
+            $manifest[] = ['timestamp' => $i, 'full' => sprintf('https://video.richmondsunlight.com/house/floor/20260116/%08d.jpg', $i)];
+        }
+        $loader = $this->createMock(ScreenshotManifestLoader::class);
+        $loader->method('load')->willReturn($manifest);
+        $fetcher = $this->createMock(ScreenshotFetcher::class);
+        $fetcher->expects($this->exactly(ScreenshotMissingException::LIMIT_IN_A_ROW))->method('fetch')
+            ->willThrowException(new ScreenshotMissingException('Screenshot not found'));
+        $extractor = new OcrSpeakerExtractor($loader, $fetcher, $this->createMock(SpeakerTextExtractor::class),
+            new SpeakerNameParser(), new SpeakerChamberConfig(), 3);
+
+        $this->expectExceptionMessage('25 screenshots in a row are missing for the video at https://video.richmondsunlight.com/house/floor/20260116/manifest.json');
+        $extractor->extract('https://video.richmondsunlight.com/house/floor/20260116/manifest.json', 'house', 'floor', '2026-01-16');
     }
 
     public function testReadsEveryFrameByDefault(): void

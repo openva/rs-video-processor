@@ -4,6 +4,7 @@ namespace RichmondSunlight\VideoProcessor\Tests\Analysis\Bills;
 
 use PDO;
 use PHPUnit\Framework\TestCase;
+use RichmondSunlight\VideoProcessor\Tests\Support\TestLogger;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\AgendaExtractor;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\BillDetectionJob;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\BillDetectionProcessor;
@@ -14,6 +15,7 @@ use RichmondSunlight\VideoProcessor\Analysis\Bills\ChamberConfig;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\CropConfig;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\OcrEngineInterface;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\ScreenshotFetcher;
+use RichmondSunlight\VideoProcessor\Analysis\Bills\ScreenshotMissingException;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\ScreenshotManifestLoader;
 
 class BillDetectionProcessorTest extends TestCase
@@ -401,6 +403,85 @@ class BillDetectionProcessorTest extends TestCase
         // Claim placeholder must survive so StaleClaimCleaner releases it for retry.
         $rows = $pdo->query("SELECT raw_text FROM video_index WHERE file_id = 1")->fetchAll(PDO::FETCH_COLUMN);
         $this->assertSame(['/pending'], $rows);
+    }
+
+    /** File 14755: thousands of listed frames, none in the bucket. */
+    public function testGivesUpWhenScreenshotsAreMissing(): void
+    {
+        $manifest = [];
+        for ($i = 1; $i <= 1000; $i++) {
+            $manifest[] = ['timestamp' => $i, 'full' => sprintf('https://video.richmondsunlight.com/house/floor/20260116/%08d.jpg', $i), 'thumb' => null];
+        }
+        $loader = $this->createMock(ScreenshotManifestLoader::class);
+        $loader->method('load')->willReturn($manifest);
+
+        $fetches = 0;
+        $fetcher = $this->createMock(ScreenshotFetcher::class);
+        $fetcher->method('fetch')->willReturnCallback(function (string $url) use (&$fetches) {
+            $fetches++;
+            throw new ScreenshotMissingException('Screenshot not found: ' . $url);
+        });
+
+        $pdo = new PDO('sqlite::memory:');
+        $pdo->exec('CREATE TABLE video_index (id INTEGER PRIMARY KEY AUTOINCREMENT, file_id INTEGER, time TEXT,
+            screenshot TEXT, raw_text TEXT, type TEXT, linked_id INTEGER, ignored TEXT, date_created TEXT)');
+        $logger = new TestLogger();
+        $processor = new BillDetectionProcessor(
+            $loader,
+            $fetcher,
+            new BillTextExtractor($this->createMock(OcrEngineInterface::class)),
+            new BillParser(),
+            new BillResultWriter($pdo),
+            new ChamberConfig(),
+            new AgendaExtractor(),
+            $logger
+        );
+
+        try {
+            $processor->process(new BillDetectionJob(14755, 'house', null, 'floor', 'https://video.richmondsunlight.com/house/floor/20260116/',
+                'https://video.richmondsunlight.com/house/floor/20260116/manifest.json', null));
+            $this->fail('A video whose screenshots are missing must fail.');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('25 screenshots in a row are missing for file #14755, starting with https://video.richmondsunlight.com/house/floor/20260116/00000001.jpg', $e->getMessage());
+        }
+        $this->assertSame(ScreenshotMissingException::LIMIT_IN_A_ROW, $fetches, 'It stops after the limit.');
+        $this->assertSame([], array_filter($logger->entries, static fn($e) => str_contains($e['message'], 'Screenshot processing failed')), 'No line per missing frame.');
+    }
+
+    public function testAFewMissingScreenshotsAreSkipped(): void
+    {
+        $manifest = [];
+        for ($i = 1; $i <= 100; $i++) {
+            $manifest[] = ['timestamp' => $i, 'full' => sprintf('https://video.richmondsunlight.com/x/%08d.jpg', $i), 'thumb' => null];
+        }
+        $loader = $this->createMock(ScreenshotManifestLoader::class);
+        $loader->method('load')->willReturn($manifest);
+        $image = tempnam(sys_get_temp_dir(), 'frame_');
+        $fetcher = $this->createMock(ScreenshotFetcher::class);
+        // Every third frame is missing: never 25 in a row.
+        $fetcher->method('fetch')->willReturnCallback(function (string $url) use ($image) {
+            if ((int) basename($url, '.jpg') % 3 === 0) {
+                throw new ScreenshotMissingException('Screenshot not found: ' . $url);
+            }
+            $copy = $image . '_' . basename($url);
+            copy(__DIR__ . '/../../fixtures/senate-floor.jpg', $copy);
+            return $copy;
+        });
+
+        $pdo = new PDO('sqlite::memory:');
+        $pdo->exec('CREATE TABLE video_index (id INTEGER PRIMARY KEY AUTOINCREMENT, file_id INTEGER, time TEXT,
+            screenshot TEXT, raw_text TEXT, type TEXT, linked_id INTEGER, ignored TEXT, date_created TEXT)');
+        $ocr = new class implements OcrEngineInterface {
+            public function extractText(string $imagePath): string
+            {
+                return 'HB 1234';
+            }
+        };
+        $processor = new BillDetectionProcessor($loader, $fetcher, new BillTextExtractor($ocr), new BillParser(),
+            new BillResultWriter($pdo), new ChamberConfig(), new AgendaExtractor(), null);
+
+        $this->assertTrue($processor->process(new BillDetectionJob(1, 'senate', null, 'floor', 'https://video.richmondsunlight.com/x/', 'https://video.richmondsunlight.com/x/manifest.json', null)));
+        @unlink($image);
     }
 
     public function testReconnectsBeforeCommittingResults(): void

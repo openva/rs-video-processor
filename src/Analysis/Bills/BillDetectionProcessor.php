@@ -64,6 +64,8 @@ class BillDetectionProcessor
         $collected = [];
         $attempted = 0;
         $failed = 0;
+        $missingInARow = 0;
+        $firstMissing = '';
         // Read every Nth frame. A bill number stays on screen for many seconds,
         // so skipping frames costs little accuracy and saves most of the OCR time.
         $step = max(1, $this->frameStep);
@@ -103,9 +105,19 @@ class BillDetectionProcessor
                 } finally {
                     @unlink($imagePath);
                 }
+                $missingInARow = 0;
+            } catch (ScreenshotMissingException $e) {
+                $failed++;
+                $firstMissing = $missingInARow === 0 ? $entry['full'] : $firstMissing;
+                if (++$missingInARow >= ScreenshotMissingException::LIMIT_IN_A_ROW) {
+                    $this->screenshotFetcher->discardPrefetched();
+                    throw ScreenshotMissingException::givingUp('file #' . $job->fileId, $missingInARow, $firstMissing);
+                }
+                continue;
             } catch (\Throwable $e) {
                 $this->logger?->put('Screenshot processing failed for file #' . $job->fileId . ' (' . $entry['full'] . '): ' . $e->getMessage(), 4);
                 $failed++;
+                $missingInARow = 0;
                 continue;
             }
             $bills = $this->parser->parse($text);

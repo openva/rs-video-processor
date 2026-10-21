@@ -16,6 +16,7 @@ use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\Psr7\Utils;
 use PHPUnit\Framework\TestCase;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\ScreenshotFetcher;
+use RichmondSunlight\VideoProcessor\Analysis\Bills\ScreenshotMissingException;
 
 class ScreenshotFetcherTest extends TestCase
 {
@@ -72,8 +73,10 @@ class ScreenshotFetcherTest extends TestCase
         try {
             $this->fetcher($mock)->fetch('https://video.richmondsunlight.com/x/00000001.jpg');
             $this->fail('A 404 must fail at once.');
-        } catch (ClientException $e) {
-            $this->assertSame(404, $e->getResponse()->getStatusCode());
+        } catch (ScreenshotMissingException $e) {
+            // Its own kind, so a stage can tell it from an error worth retrying.
+            $this->assertInstanceOf(ClientException::class, $e->getPrevious());
+            $this->assertSame(404, $e->getPrevious()->getResponse()->getStatusCode());
         }
         $this->assertSame(1, $mock->count(), 'Only one request was made.');
     }

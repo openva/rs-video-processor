@@ -5,6 +5,7 @@ namespace RichmondSunlight\VideoProcessor\Analysis\Speakers;
 use Log;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\ScreenshotFetcher;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\ScreenshotManifestLoader;
+use RichmondSunlight\VideoProcessor\Analysis\Bills\ScreenshotMissingException;
 use RichmondSunlight\VideoProcessor\Analysis\CropSignature;
 
 class OcrSpeakerExtractor
@@ -61,6 +62,8 @@ class OcrSpeakerExtractor
             }
         }
 
+        $missingInARow = 0;
+        $firstMissing = '';
         foreach ($entries as $position => $entry) {
             // Download the next batch of frames all at once, rather than each
             // one as it comes up.
@@ -86,7 +89,16 @@ class OcrSpeakerExtractor
                     $ocrRuns++;
                 }
                 $rawText = $lastText;
+                $missingInARow = 0;
+            } catch (ScreenshotMissingException $e) {
+                $firstMissing = $missingInARow === 0 ? $imageUrl : $firstMissing;
+                if (++$missingInARow >= ScreenshotMissingException::LIMIT_IN_A_ROW) {
+                    $this->screenshotFetcher->discardPrefetched();
+                    throw ScreenshotMissingException::givingUp('the video at ' . $manifestUrl, $missingInARow, $firstMissing);
+                }
+                continue;
             } catch (\Throwable $e) {
+                $missingInARow = 0;
                 $this->logger?->put('OCR screenshot processing failed for ' . $imageUrl . ': ' . $e->getMessage(), 4);
                 if ($imagePath) {
                     @unlink($imagePath);
