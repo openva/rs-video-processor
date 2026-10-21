@@ -55,8 +55,14 @@ class OcrSpeakerExtractorTest extends TestCase
         $fetcher = $this->createMock(ScreenshotFetcher::class);
         $fetcher->expects($this->exactly(ScreenshotMissingException::LIMIT_IN_A_ROW))->method('fetch')
             ->willThrowException(new ScreenshotMissingException('Screenshot not found'));
-        $extractor = new OcrSpeakerExtractor($loader, $fetcher, $this->createMock(SpeakerTextExtractor::class),
-            new SpeakerNameParser(), new SpeakerChamberConfig(), 3);
+        $extractor = new OcrSpeakerExtractor(
+            $loader,
+            $fetcher,
+            $this->createMock(SpeakerTextExtractor::class),
+            new SpeakerNameParser(),
+            new SpeakerChamberConfig(),
+            3
+        );
 
         $this->expectExceptionMessage('25 screenshots in a row are missing for the video at https://video.richmondsunlight.com/house/floor/20260116/manifest.json');
         $extractor->extract('https://video.richmondsunlight.com/house/floor/20260116/manifest.json', 'house', 'floor', '2026-01-16');

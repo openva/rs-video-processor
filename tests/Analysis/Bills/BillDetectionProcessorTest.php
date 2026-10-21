@@ -438,8 +438,15 @@ class BillDetectionProcessorTest extends TestCase
         );
 
         try {
-            $processor->process(new BillDetectionJob(14755, 'house', null, 'floor', 'https://video.richmondsunlight.com/house/floor/20260116/',
-                'https://video.richmondsunlight.com/house/floor/20260116/manifest.json', null));
+            $processor->process(new BillDetectionJob(
+                14755,
+                'house',
+                null,
+                'floor',
+                'https://video.richmondsunlight.com/house/floor/20260116/',
+                'https://video.richmondsunlight.com/house/floor/20260116/manifest.json',
+                null
+            ));
             $this->fail('A video whose screenshots are missing must fail.');
         } catch (\RuntimeException $e) {
             $this->assertStringContainsString('25 screenshots in a row are missing for file #14755, starting with https://video.richmondsunlight.com/house/floor/20260116/00000001.jpg', $e->getMessage());
@@ -477,8 +484,16 @@ class BillDetectionProcessorTest extends TestCase
                 return 'HB 1234';
             }
         };
-        $processor = new BillDetectionProcessor($loader, $fetcher, new BillTextExtractor($ocr), new BillParser(),
-            new BillResultWriter($pdo), new ChamberConfig(), new AgendaExtractor(), null);
+        $processor = new BillDetectionProcessor(
+            $loader,
+            $fetcher,
+            new BillTextExtractor($ocr),
+            new BillParser(),
+            new BillResultWriter($pdo),
+            new ChamberConfig(),
+            new AgendaExtractor(),
+            null
+        );
 
         $this->assertTrue($processor->process(new BillDetectionJob(1, 'senate', null, 'floor', 'https://video.richmondsunlight.com/x/', 'https://video.richmondsunlight.com/x/manifest.json', null)));
         @unlink($image);
