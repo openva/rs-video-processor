@@ -112,12 +112,22 @@ class UnwantedVideoCleanerTest extends TestCase
     /** File 18537: stored as "Senate Session", already transcribed and archived. */
     public function testRemovesThePagesSessionsHoweverFarAlong(): void
     {
-        $mock = $this->seed('Senate Session', 'https://archive.org/download/x/x.mp4', '/senate/floor/20250221-1/', 0,
-            json_encode(['title' => 'Senate of Virginia: Senate Chamber (Page Mock Session) on 2025-02-21 [Finished]']));
+        $mock = $this->seed(
+            'Senate Session',
+            'https://archive.org/download/x/x.mp4',
+            '/senate/floor/20250221-1/',
+            0,
+            json_encode(['title' => 'Senate of Virginia: Senate Chamber (Page Mock Session) on 2025-02-21 [Finished]'])
+        );
         $this->pdo->exec("INSERT INTO video_transcript (file_id, text, time_start, time_end) VALUES ({$mock}, 'Mr. President', '00:00:01', '00:00:02')");
         $debate = $this->seed('House Page Debate', null);
-        $session = $this->seed('Senate Session', 'https://archive.org/download/y/y.mp4', '/senate/floor/20250221-2/', 0,
-            json_encode(['title' => 'Senate of Virginia: Senate Chamber on 2025-02-21 [Finished]']));
+        $session = $this->seed(
+            'Senate Session',
+            'https://archive.org/download/y/y.mp4',
+            '/senate/floor/20250221-2/',
+            0,
+            json_encode(['title' => 'Senate of Virginia: Senate Chamber on 2025-02-21 [Finished]'])
+        );
         $cleaner = new UnwantedVideoCleaner($this->pdo);
 
         $plan = $cleaner->plan();
