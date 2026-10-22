@@ -99,6 +99,23 @@ class VideoFilterTest extends TestCase
         $this->assertFalse(VideoFilter::shouldKeep(['title' => $title]));
     }
 
+    /** Files 17206, 17217 and 18537. */
+    public function testSkipsThePagesSessions(): void
+    {
+        $this->assertFalse(VideoFilter::shouldKeep(['title' => 'March 10, 2026 - House Page Debate']));
+        $this->assertFalse(VideoFilter::shouldKeep(['title' => 'Page Capstone', 'committee_name' => 'Page Capstone']));
+        // Held in the chamber, and titled like a floor session.
+        $this->assertFalse(VideoFilter::shouldKeep([
+            'title' => 'Senate of Virginia: Senate Chamber (Page Mock Session) on 2025-02-21 [Finished]',
+            'committee_name' => null,
+        ]));
+        $this->assertFalse(VideoFilter::shouldKeep(['title' => 'Senate Pages Program']));
+
+        // A word that merely contains "page".
+        $this->assertTrue(VideoFilter::shouldKeep(['title' => 'House Session', 'committee_name' => 'Pageantry Subcommittee']));
+        $this->assertTrue(VideoFilter::shouldKeep(['title' => 'Senate of Virginia: Senate Chamber on 2025-02-21 [Finished]']));
+    }
+
     public function testTitleNormalization(): void
     {
         $cases = [

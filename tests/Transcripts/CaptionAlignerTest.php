@@ -304,6 +304,7 @@ class CaptionAlignerTest extends TestCase
         $video = sys_get_temp_dir() . '/tone_' . uniqid() . '.m4a';
         exec(sprintf('ffmpeg -y -loglevel error -f lavfi -i sine=frequency=440:duration=10 %s', escapeshellarg($video)));
         $extractor = new AudioExtractor();
+        $extractor->retryPauseSeconds = 0;
 
         try {
             $path = $extractor->extractWindow('file://' . $video, 2, 5);
@@ -314,6 +315,11 @@ class CaptionAlignerTest extends TestCase
             $this->assertFileExists($both[0]);
             @unlink($both[0]);
             $this->assertInstanceOf(\RuntimeException::class, $both[1]);
+
+            // A video that cannot be read says why.
+            $unreadable = $extractor->extractWindows('file://' . $video . '.missing', [1], 5);
+            $this->assertInstanceOf(\RuntimeException::class, $unreadable[0]);
+            $this->assertStringContainsString('No such file or directory', $unreadable[0]->getMessage());
 
             $this->expectExceptionMessage('No audio at 60s');
             $extractor->extractWindow('file://' . $video, 60, 5);

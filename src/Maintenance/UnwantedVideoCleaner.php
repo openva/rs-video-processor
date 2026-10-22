@@ -14,6 +14,10 @@ use RichmondSunlight\VideoProcessor\Sync\VideoFilter;
  * A video counts as worked on once it has been downloaded, screenshotted,
  * indexed or transcribed, or while a stage is running on it. Those, and videos
  * from before this pipeline, are left alone and listed so a person can decide.
+ *
+ * Recordings of the page program (mock sessions, debates) are the exception:
+ * they are removed whatever has been done with them, because they show
+ * teenagers playing legislators and must not be presented as the real thing.
  */
 class UnwantedVideoCleaner
 {
@@ -22,6 +26,8 @@ class UnwantedVideoCleaner
      * imported (a JSON source record, no embedded player) qualify, so videos
      * from the old site, whose paths look "not downloaded", are never removed.
      */
+    private const NOT_RUNNING = "NOT EXISTS (SELECT 1 FROM video_jobs vj WHERE vj.file_id = f.id AND vj.status = 'running')";
+
     private const UNTOUCHED = "f.video_index_cache LIKE '{%'
             AND (f.html IS NULL OR f.html = '')
             AND (f.path IS NULL OR (f.path NOT LIKE 'https://video.richmondsunlight.com/%'
@@ -29,29 +35,34 @@ class UnwantedVideoCleaner
             AND (f.capture_directory IS NULL OR f.capture_directory = '')
             AND NOT EXISTS (SELECT 1 FROM video_index vi WHERE vi.file_id = f.id)
             AND NOT EXISTS (SELECT 1 FROM video_transcript vt WHERE vt.file_id = f.id)
-            AND NOT EXISTS (SELECT 1 FROM video_jobs vj WHERE vj.file_id = f.id AND vj.status = 'running')";
+            AND " . self::NOT_RUNNING;
 
     public function __construct(private PDO $pdo)
     {
     }
 
     /**
-     * @return array{remove: list<array<string,mixed>>, processed: list<array<string,mixed>>}
-     *         unwanted videos nothing has been done with, and unwanted videos
-     *         that have been worked on; each row has id, chamber, date, title
+     * @return array{remove: list<array<string,mixed>>, processed: list<array<string,mixed>>, pages: list<array<string,mixed>>}
+     *         unwanted videos nothing has been done with, unwanted videos that
+     *         have been worked on, and page program videos however far along;
+     *         each row has id, chamber, date, title
      */
     public function plan(): array
     {
         $rows = $this->pdo->query(
-            "SELECT f.id, f.chamber, f.date, f.title, f.description,
+            "SELECT f.id, f.chamber, f.date, f.title, f.description, f.video_index_cache,
                     CASE WHEN " . self::UNTOUCHED . " THEN 1 ELSE 0 END AS untouched
              FROM files f
              WHERE f.type = 'video'
              ORDER BY f.date DESC, f.id DESC"
         )->fetchAll(PDO::FETCH_ASSOC);
 
-        $plan = ['remove' => [], 'processed' => []];
+        $plan = ['remove' => [], 'processed' => [], 'pages' => []];
         foreach ($rows as $row) {
+            if ($this->isPageProgram($row)) {
+                $plan['pages'][] = ['id' => (int) $row['id'], 'chamber' => $row['chamber'], 'date' => $row['date'], 'title' => $this->sourceTitle($row) ?? $row['title']];
+                continue;
+            }
             // The stored title is the chamber plus the committee name, which is
             // what says what kind of body met.
             if (VideoFilter::shouldKeep(['title' => (string) $row['title'], 'description' => $row['description']])) {
@@ -78,15 +89,55 @@ class UnwantedVideoCleaner
      */
     public function remove(array $fileIds): int
     {
-        $stillUntouched = $this->pdo->prepare('SELECT COUNT(*) FROM files f WHERE f.id = :id AND ' . self::UNTOUCHED);
+        return $this->delete($fileIds, self::UNTOUCHED);
+    }
+
+    /**
+     * Delete these page program videos and their records, whatever has been
+     * done with them, unless a stage is running on one.
+     *
+     * @param int[] $fileIds
+     * @return int how many were deleted
+     */
+    public function removePages(array $fileIds): int
+    {
+        return $this->delete($fileIds, self::NOT_RUNNING);
+    }
+
+    /** The stored title says "Senate Session" for a mock session; the source record says what it was. */
+    private function isPageProgram(array $row): bool
+    {
+        $source = json_decode((string) $row['video_index_cache'], true);
+
+        return VideoFilter::isPageProgram(
+            (string) $row['title'],
+            is_array($source) ? (string) ($source['title'] ?? '') : null,
+            is_array($source) ? (string) ($source['committee_name'] ?? '') : null
+        );
+    }
+
+    private function sourceTitle(array $row): ?string
+    {
+        $source = json_decode((string) $row['video_index_cache'], true);
+
+        return is_array($source) && !empty($source['title']) ? (string) $source['title'] : null;
+    }
+
+    /**
+     * @param int[] $fileIds
+     * @param string $condition SQL that must still hold for video f
+     */
+    private function delete(array $fileIds, string $condition): int
+    {
+        $stillQualifies = $this->pdo->prepare('SELECT COUNT(*) FROM files f WHERE f.id = :id AND ' . $condition);
         $removed = 0;
 
         foreach ($fileIds as $fileId) {
             $fileId = (int) $fileId;
             $this->pdo->beginTransaction();
             try {
-                $stillUntouched->execute([':id' => $fileId]);
-                if ((int) $stillUntouched->fetchColumn() !== 1) {
+                $stillQualifies->execute([':id' => $fileId]);
+                if ((int) $stillQualifies->fetchColumn() !== 1) {
                     $this->pdo->rollBack();
                     continue;
                 }

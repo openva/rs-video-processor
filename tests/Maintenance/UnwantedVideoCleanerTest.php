@@ -109,6 +109,38 @@ class UnwantedVideoCleanerTest extends TestCase
     }
 
     /** Videos from the old site have paths that look undownloaded; they stay. */
+    /** File 18537: stored as "Senate Session", already transcribed and archived. */
+    public function testRemovesThePagesSessionsHoweverFarAlong(): void
+    {
+        $mock = $this->seed('Senate Session', 'https://archive.org/download/x/x.mp4', '/senate/floor/20250221-1/', 0,
+            json_encode(['title' => 'Senate of Virginia: Senate Chamber (Page Mock Session) on 2025-02-21 [Finished]']));
+        $this->pdo->exec("INSERT INTO video_transcript (file_id, text, time_start, time_end) VALUES ({$mock}, 'Mr. President', '00:00:01', '00:00:02')");
+        $debate = $this->seed('House Page Debate', null);
+        $session = $this->seed('Senate Session', 'https://archive.org/download/y/y.mp4', '/senate/floor/20250221-2/', 0,
+            json_encode(['title' => 'Senate of Virginia: Senate Chamber on 2025-02-21 [Finished]']));
+        $cleaner = new UnwantedVideoCleaner($this->pdo);
+
+        $plan = $cleaner->plan();
+        $this->assertEqualsCanonicalizing([$mock, $debate], array_column($plan['pages'], 'id'));
+        $this->assertSame([], array_column($plan['remove'], 'id'));
+        $this->assertSame([], array_column($plan['processed'], 'id'));
+
+        $this->assertSame(2, $cleaner->removePages([$mock, $debate]));
+        $this->assertFalse($this->exists($mock));
+        $this->assertFalse($this->exists($debate));
+        $this->assertTrue($this->exists($session));
+        $this->assertSame(0, (int) $this->pdo->query("SELECT COUNT(*) FROM video_transcript WHERE file_id = {$mock}")->fetchColumn());
+    }
+
+    public function testDoesNotRemoveAPageSessionWhileAStageRuns(): void
+    {
+        $debate = $this->seed('House Page Debate', null);
+        (new JobLedger($this->pdo))->begin($debate, JobLedger::STAGE_DOWNLOAD);
+
+        $this->assertSame(0, (new UnwantedVideoCleaner($this->pdo))->removePages([$debate]));
+        $this->assertTrue($this->exists($debate));
+    }
+
     public function testNeverRemovesVideosFromBeforeThisPipeline(): void
     {
         $legacy = $this->seed('House Joint Commission on Health Care', '/video/house/2009/jchc.mp4', null, 0, 'a:1:{s:4:"bill";a:0:{}}');

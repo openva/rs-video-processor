@@ -12,7 +12,8 @@
  *
  * Videos that have already been downloaded, screenshotted, indexed or
  * transcribed, or that came from the old site, are listed and left alone.
- * Nothing is deleted from S3 or the Internet Archive.
+ * Recordings of the page program (mock sessions, debates) are removed however
+ * far along they are. Nothing is deleted from S3 or the Internet Archive.
  */
 
 declare(strict_types=1);
@@ -35,16 +36,25 @@ $print = static function (array $rows): void {
 printf("Not worked on yet, %s (%d):\n", $apply ? 'removing' : 'would be removed', count($plan['remove']));
 $print($plan['remove']);
 
+printf("\nThe page program, %s however far along (%d):\n", $apply ? 'removing' : 'would be removed', count($plan['pages']));
+$print($plan['pages']);
+
 printf("\nAlready worked on, or from the old site, so left alone (%d):\n", count($plan['processed']));
 $print($plan['processed']);
 
 if (!$apply) {
-    echo "\nNothing was changed. Add --apply to remove the first list.\n";
+    echo "\nNothing was changed. Add --apply to remove the first two lists.\n";
     exit(0);
 }
 
+$pages = $cleaner->removePages(array_column($plan['pages'], 'id'));
+printf("\nRemoved %d page program video(s).\n", $pages);
+if ($pages > 0) {
+    $app->log?->put(sprintf('Removed %d video(s) of the page program.', $pages), 3);
+}
+
 $removed = $cleaner->remove(array_column($plan['remove'], 'id'));
-printf("\nRemoved %d video(s).\n", $removed);
+printf("Removed %d other video(s).\n", $removed);
 if ($removed < count($plan['remove'])) {
     printf("%d were worked on since the list was made and were kept.\n", count($plan['remove']) - $removed);
 }

@@ -35,9 +35,29 @@ class VideoFilter
     ];
 
     /**
+     * The page program: teenagers who serve in each chamber during the session,
+     * and hold mock sessions and debates of their own. Matched as a whole word
+     * ("Page Mock Session", "House Page Debate", "Senate Page Capstone").
+     */
+    private const PAGE_PROGRAM = '/\bpages?\b/i';
+
+    /** Whether any of these names is that of a page program event. */
+    public static function isPageProgram(?string ...$names): bool
+    {
+        foreach ($names as $name) {
+            if ($name !== null && preg_match(self::PAGE_PROGRAM, $name)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Decide whether a scraped video record should be kept: floor sessions,
      * committees and subcommittees, which advance legislation. Meetings of task
-     * forces, work groups, councils, commissions and the like are skipped.
+     * forces, work groups, councils, commissions and the like are skipped, and
+     * so are the pages' mock sessions.
      *
      * This works from names rather than the committees table, because that
      * table lacked several real 2026 committees (Labor and Commerce, Firearms
@@ -49,6 +69,12 @@ class VideoFilter
         $committee = trim((string) ($record['committee_name'] ?? ''));
         if ($title === '' && $committee === '') {
             return true; // can't decide; keep
+        }
+
+        // Before the floor check: a page mock session is held in the chamber
+        // and titled like a floor session.
+        if (self::isPageProgram($title, $committee)) {
+            return false;
         }
 
         if (MeetingClassifier::classify($title, $record['description'] ?? null) === 'floor') {
