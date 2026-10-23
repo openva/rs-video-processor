@@ -3,7 +3,12 @@
 namespace RichmondSunlight\VideoProcessor\Tests\Screenshots;
 
 use PDO;
+use GuzzleHttp\Client;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Psr7\Response;
 use PHPUnit\Framework\TestCase;
+use RichmondSunlight\VideoProcessor\Tests\Support\FakeBucket;
 use RichmondSunlight\VideoProcessor\Fetcher\CommitteeDirectory;
 use RichmondSunlight\VideoProcessor\Fetcher\S3KeyBuilder;
 use RichmondSunlight\VideoProcessor\Fetcher\StorageInterface;
@@ -177,7 +182,7 @@ class ScreenshotGeneratorTest extends TestCase
         );
     }
 
-    private function makeGenerator(): ScreenshotGenerator
+    private function makeGenerator(?FakeBucket $bucket = null, ?MockHandler $http = null): ScreenshotGenerator
     {
         $pdo = new PDO('sqlite::memory:');
         $pdo->exec('CREATE TABLE committees (id INTEGER PRIMARY KEY, name TEXT, shortname TEXT, chamber TEXT, parent_id INTEGER)');
@@ -194,7 +199,10 @@ class ScreenshotGeneratorTest extends TestCase
             new CommitteeDirectory($pdo),
             new S3KeyBuilder(),
             null,
-            sys_get_temp_dir()
+            sys_get_temp_dir(),
+            $http ? new Client(['handler' => HandlerStack::create($http)]) : null,
+            null,
+            $bucket?->reader
         );
     }
 
@@ -319,5 +327,65 @@ class ScreenshotGeneratorTest extends TestCase
         rmdir($dir . '/full');
         rmdir($dir . '/thumb');
         rmdir($dir);
+    }
+
+    /** Our own videos come from the bucket, never over HTTPS through CloudFront. */
+    public function testDownloadsOurOwnVideosFromTheBucket(): void
+    {
+        $this->requireFfmpeg();
+        // The smallest fixture: Guzzle's mock handler holds the whole body in memory.
+        $fixture = $this->getVideoFixture('senate-committee.mp4');
+        $bucket = new FakeBucket([new Response(200, ['Content-Type' => 'video/mp4'], fopen($fixture, 'rb'))]);
+        // No responses: any HTTPS request fails the test.
+        $http = new MockHandler([]);
+        $dest = tempnam(sys_get_temp_dir(), 'shot_video_');
+
+        try {
+            $this->invokeDownload($this->makeGenerator($bucket, $http), 'https://video.richmondsunlight.com/senate/floor/20251119-1.mp4', $dest);
+
+            $this->assertSame(filesize($fixture), filesize($dest));
+            $this->assertSame(['/video.richmondsunlight.com/senate/floor/20251119-1.mp4'], $bucket->requestedPaths());
+        } finally {
+            @unlink($dest);
+        }
+    }
+
+    public function testRejectsAnObjectFromTheBucketThatIsNotAVideo(): void
+    {
+        $bucket = new FakeBucket([new Response(200, ['Content-Type' => 'text/vtt'], "WEBVTT\n")]);
+        $dest = tempnam(sys_get_temp_dir(), 'shot_video_');
+
+        try {
+            $this->expectExceptionMessage('Content-Type "text/vtt"');
+            $this->invokeDownload($this->makeGenerator($bucket, new MockHandler([])), 'https://video.richmondsunlight.com/senate/floor/20251119-1.mp4', $dest);
+        } finally {
+            @unlink($dest);
+        }
+    }
+
+    /** If S3 can't supply a video, it's fetched over HTTPS, as before. */
+    public function testFallsBackToHttpsWhenTheBucketFails(): void
+    {
+        $this->requireFfmpeg();
+        // The smallest fixture: Guzzle's mock handler holds the whole body in memory.
+        $fixture = $this->getVideoFixture('senate-committee.mp4');
+        $bucket = new FakeBucket([new Response(403, [], '<Error><Code>AccessDenied</Code></Error>')]);
+        $http = new MockHandler([new Response(200, ['Content-Type' => 'video/mp4'], fopen($fixture, 'rb'))]);
+        $dest = tempnam(sys_get_temp_dir(), 'shot_video_');
+
+        try {
+            $this->invokeDownload($this->makeGenerator($bucket, $http), 'https://video.richmondsunlight.com/senate/floor/20251119-1.mp4', $dest);
+
+            $this->assertSame(filesize($fixture), filesize($dest));
+            $this->assertSame(0, $http->count(), 'The video was fetched over HTTPS.');
+        } finally {
+            @unlink($dest);
+        }
+    }
+
+    private function invokeDownload(ScreenshotGenerator $generator, string $url, string $destination): void
+    {
+        $method = new \ReflectionMethod($generator, 'downloadVideo');
+        $method->invoke($generator, $url, $destination);
     }
 }

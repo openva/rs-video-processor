@@ -65,6 +65,9 @@ The website (`class.Video.php` in richmondsunlight.com) reads `capture_rate` as 
 ### OCR is skipped on unchanged frames
 `BillDetectionProcessor` and `OcrSpeakerExtractor` compare each frame's crop with the last one OCRed (`CropSignature`) and reuse that reading when it looks the same. The thresholds (a pixel moving by more than 15, on more than 3% of the crop) were calibrated by OCRing every frame of the three fixture videos: bills came out identical, every speaker was found. Recalibrate the same way before changing them, and keep comparing with the last frame OCRed rather than the previous frame, or name plates that fade in are missed.
 
+### Our own files are read from S3, never through video.richmondsunlight.com
+`video.richmondsunlight.com` is Cloudflare in front of CloudFront in front of the bucket, and CloudFront bills for every byte. Workers downloading whole videos that way ran up about 700 GB of CloudFront transfer in October 2026, while reading from the bucket within AWS is free. So give `ScreenshotGenerator`, `AudioExtractor` and `InternetArchiveUploader` a `BucketReader`, which downloads our videos from the bucket (and gives ffmpeg presigned S3 URLs for `extractWindows()`), falling back to HTTPS only if S3 fails. `files.path` holds the literal key, `+` and `%` included, so `BucketReader::keyFor()` decodes nothing. `bin/align_transcripts.php` is left without one, because it may run outside AWS.
+
 ### Screenshots are read from S3, in batches
 Give `ScreenshotFetcher` the S3 client: it then reads frames straight from the bucket instead of through Cloudflare (slower, and the source of the 500/502 errors). Stages call `prefetch()` with the next batch of frames (`PREFETCH_CONCURRENCY`) and then `fetch()` each one; a frame that failed to prefetch is fetched again on its own, so errors surface as before. AWS `CommandPool` callbacks receive the command's position, not the generator's key.
 

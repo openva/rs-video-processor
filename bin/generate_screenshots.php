@@ -4,6 +4,7 @@
 declare(strict_types=1);
 
 use RichmondSunlight\VideoProcessor\Bootstrap\AppBootstrap;
+use RichmondSunlight\VideoProcessor\Fetcher\BucketReader;
 use RichmondSunlight\VideoProcessor\Fetcher\CommitteeDirectory;
 use RichmondSunlight\VideoProcessor\Fetcher\S3ClientFactory;
 use RichmondSunlight\VideoProcessor\Fetcher\S3KeyBuilder;
@@ -31,6 +32,8 @@ foreach ($argv as $arg) {
 
 $s3Client = S3ClientFactory::create(AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION);
 $storage = new S3Storage($s3Client, 'video.richmondsunlight.com');
+// Videos are read straight from the bucket, not through CloudFront.
+$bucket = new BucketReader($s3Client, 'video.richmondsunlight.com', $log);
 $keyBuilder = new S3KeyBuilder();
 
 $pdoFactory = AppBootstrap::connectionFactory();
@@ -42,7 +45,7 @@ $processed = $runner->run(
     static fn(ScreenshotJob $job): int => $job->id,
     // A failed job keeps its '/pending' claim on the files row; StaleClaimCleaner
     // releases it, and the ledger decides when the job may be tried again.
-    static function (ScreenshotJob $job) use ($pdoFactory, $storage, $keyBuilder, $log): void {
+    static function (ScreenshotJob $job) use ($pdoFactory, $storage, $keyBuilder, $log, $bucket): void {
         $pdo = $pdoFactory();
         $generator = new ScreenshotGenerator(
             $pdo,
@@ -52,7 +55,8 @@ $processed = $runner->run(
             $log,
             null,
             null,
-            $pdoFactory
+            $pdoFactory,
+            $bucket
         );
         $generator->process($job);
     }

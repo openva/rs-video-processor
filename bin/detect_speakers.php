@@ -19,6 +19,7 @@ use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerNameParser;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerResultWriter;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerTextExtractor;
 use RichmondSunlight\VideoProcessor\Bootstrap\AppBootstrap;
+use RichmondSunlight\VideoProcessor\Fetcher\BucketReader;
 use RichmondSunlight\VideoProcessor\Fetcher\S3ClientFactory;
 use RichmondSunlight\VideoProcessor\Jobs\JobLedger;
 use RichmondSunlight\VideoProcessor\Jobs\StageRunner;
@@ -62,7 +63,10 @@ $transcribeClient = new TranscribeServiceClient([
     'version' => '2017-10-26',
 ]);
 
-$diarizer = new AwsTranscribeDiarizer($transcribeClient, $s3Client, 'video.richmondsunlight.com', new AudioExtractor());
+$diarizer = new AwsTranscribeDiarizer($transcribeClient, $s3Client, 'video.richmondsunlight.com', new AudioExtractor(
+    null,
+    new BucketReader($s3Client, 'video.richmondsunlight.com', $log)
+));
 $ocrExtractor = new OcrSpeakerExtractor(
     new ScreenshotManifestLoader(),
     // Frames are read straight from the bucket, not through Cloudflare.

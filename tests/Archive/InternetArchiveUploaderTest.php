@@ -2,9 +2,11 @@
 
 namespace RichmondSunlight\VideoProcessor\Tests\Archive;
 
+use GuzzleHttp\Psr7\Response;
 use PHPUnit\Framework\TestCase;
 use RichmondSunlight\VideoProcessor\Archive\ArchiveJob;
 use RichmondSunlight\VideoProcessor\Archive\InternetArchiveUploader;
+use RichmondSunlight\VideoProcessor\Tests\Support\FakeBucket;
 
 class InternetArchiveUploaderTest extends TestCase
 {
@@ -91,5 +93,23 @@ class TestLogger extends \Log
     {
         $this->entries[] = ['level' => $level, 'message' => $message];
         return true;
+    }
+
+    /** Our own videos come from the bucket, never over HTTPS through CloudFront. */
+    public function testDownloadsOurOwnVideosFromTheBucket(): void
+    {
+        $bucket = new FakeBucket([new Response(200, ['Content-Type' => 'video/mp4'], 'MP4DATA')]);
+        $uploader = new InternetArchiveUploader(null, null, null, null, null, $bucket->reader);
+        $downloader = (new \ReflectionProperty($uploader, 'downloader'))->getValue($uploader);
+
+        $path = $downloader('https://video.richmondsunlight.com/house/floor/20260216-18637.mp4');
+
+        try {
+            $this->assertStringEndsWith('.mp4', $path);
+            $this->assertSame('MP4DATA', file_get_contents($path));
+            $this->assertSame(['/video.richmondsunlight.com/house/floor/20260216-18637.mp4'], $bucket->requestedPaths());
+        } finally {
+            @unlink($path);
+        }
     }
 }

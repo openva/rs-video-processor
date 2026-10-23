@@ -6,6 +6,8 @@ declare(strict_types=1);
 use GuzzleHttp\Client;
 use RichmondSunlight\VideoProcessor\Bootstrap\AppBootstrap;
 use RichmondSunlight\VideoProcessor\Contract\ContractValidator;
+use RichmondSunlight\VideoProcessor\Fetcher\BucketReader;
+use RichmondSunlight\VideoProcessor\Fetcher\S3ClientFactory;
 use RichmondSunlight\VideoProcessor\Jobs\JobLedger;
 use RichmondSunlight\VideoProcessor\Jobs\StageRunner;
 use RichmondSunlight\VideoProcessor\Transcripts\AudioExtractor;
@@ -40,9 +42,15 @@ foreach ($argv as $arg) {
 $pdoFactory = AppBootstrap::connectionFactory();
 $writer = new TranscriptWriter($app->pdo, $pdoFactory);
 $transcriber = new OpenAITranscriber(new Client(['timeout' => 1800]), OPENAI_KEY);
+// Videos are read straight from the bucket, not through CloudFront.
+$audioExtractor = new AudioExtractor(null, new BucketReader(
+    S3ClientFactory::create(AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION),
+    'video.richmondsunlight.com',
+    $log
+));
 // Captions are checked against the audio, and shifted when they run early or late.
-$aligner = new CaptionAligner($transcriber, new AudioExtractor());
-$processor = new TranscriptProcessor($writer, $transcriber, new CaptionParser(), null, $log, $aligner);
+$aligner = new CaptionAligner($transcriber, $audioExtractor);
+$processor = new TranscriptProcessor($writer, $transcriber, new CaptionParser(), $audioExtractor, $log, $aligner);
 
 $runner = new StageRunner(new JobLedger($app->pdo, $pdoFactory), JobLedger::STAGE_TRANSCRIPT, $log);
 

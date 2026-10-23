@@ -7,6 +7,7 @@ use GuzzleHttp\ClientInterface;
 use Log;
 use PDO;
 use RichmondSunlight\VideoProcessor\Fetcher\BatchStorageInterface;
+use RichmondSunlight\VideoProcessor\Fetcher\BucketReader;
 use RichmondSunlight\VideoProcessor\Fetcher\CommitteeDirectory;
 use RichmondSunlight\VideoProcessor\Fetcher\S3KeyBuilder;
 use RichmondSunlight\VideoProcessor\Fetcher\StorageInterface;
@@ -29,7 +30,8 @@ class ScreenshotGenerator
         private ?Log $logger = null,
         ?string $workingDir = null,
         ?ClientInterface $http = null,
-        ?\Closure $pdoFactory = null
+        ?\Closure $pdoFactory = null,
+        private ?BucketReader $bucket = null
     ) {
         $this->pdoFactory = $pdoFactory;
         // Videos run to several GB and archive.org is slow; ten minutes was not enough.
@@ -97,6 +99,15 @@ class ScreenshotGenerator
             $this->validateVideo($destination);
             return;
         }
+
+        // Our own videos come straight from the bucket, which is free, rather than through CloudFront.
+        $result = $this->bucket?->download($url, $destination);
+        if ($result !== null) {
+            $this->assertVideoContentType((string) ($result['ContentType'] ?? ''), $url);
+            $this->validateVideo($destination);
+            return;
+        }
+
         // Only our own bucket holds keys with literal '+' and '%' that need
         // escaping again. archive.org URLs are already correctly encoded.
         $fetchUrl = str_contains($url, '://video.richmondsunlight.com/') ? $this->encodeUrlPath($url) : $url;
@@ -105,11 +116,19 @@ class ScreenshotGenerator
             throw new RuntimeException('Unable to download video for screenshots.');
         }
 
-        // A wrong or stale key can return HTTP 200 with a caption file, a JSON
-        // manifest, or an HTML error page. Reject those before ffmpeg sees them.
-        // Note S3 serves the known-bad 2020 objects as video/mp4, so this is a
-        // guard for the general case, not a substitute for validateVideo().
-        $contentType = strtolower(trim(explode(';', $response->getHeaderLine('Content-Type'))[0]));
+        $this->assertVideoContentType($response->getHeaderLine('Content-Type'), $url);
+        $this->validateVideo($destination);
+    }
+
+    /**
+     * A wrong or stale key can return a caption file, a JSON manifest, or an
+     * HTML error page. Reject those before ffmpeg sees them. Note S3 serves
+     * the known-bad 2020 objects as video/mp4, so this is a guard for the
+     * general case, not a substitute for validateVideo().
+     */
+    private function assertVideoContentType(string $header, string $url): void
+    {
+        $contentType = strtolower(trim(explode(';', $header)[0]));
         if (
             $contentType !== '' && !str_starts_with($contentType, 'video/')
             && $contentType !== 'application/octet-stream' && $contentType !== 'binary/octet-stream'
@@ -120,8 +139,6 @@ class ScreenshotGenerator
                 $url
             ));
         }
-
-        $this->validateVideo($destination);
     }
 
 

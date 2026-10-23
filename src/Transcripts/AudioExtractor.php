@@ -3,6 +3,7 @@
 namespace RichmondSunlight\VideoProcessor\Transcripts;
 
 use GuzzleHttp\Client;
+use RichmondSunlight\VideoProcessor\Fetcher\BucketReader;
 use RuntimeException;
 
 class AudioExtractor
@@ -12,7 +13,11 @@ class AudioExtractor
     /** Seconds to wait before trying a failed audio window again. */
     public int $retryPauseSeconds = 5;
 
-    public function __construct(private ?string $workingDir = null)
+    /**
+     * @param BucketReader|null $bucket read our own videos straight from S3,
+     *        which is free, rather than through CloudFront, which is not
+     */
+    public function __construct(private ?string $workingDir = null, private ?BucketReader $bucket = null)
     {
         // Videos run to several GB; ten minutes was not always enough.
         $this->http = new Client(['timeout' => 3600, 'connect_timeout' => 30]);
@@ -128,7 +133,9 @@ class AudioExtractor
      */
     private function runWindows(string $videoUrl, array $starts, int $seconds): array
     {
-        $input = str_starts_with($videoUrl, 'file://') ? substr($videoUrl, 7) : $videoUrl;
+        $input = str_starts_with($videoUrl, 'file://')
+            ? substr($videoUrl, 7)
+            : ($this->bucket?->presignedUrl($videoUrl) ?? $videoUrl);
         $running = [];
         foreach ($starts as $key => $start) {
             $audioPath = $this->workingDir . '/window_' . uniqid('', true) . '.mp3';
@@ -187,6 +194,9 @@ class AudioExtractor
             return $dest;
         }
         $dest = tempnam($this->workingDir, 'video_');
+        if ($this->bucket?->download($url, $dest) !== null) {
+            return $dest;
+        }
         $response = $this->http->get($url, ['sink' => $dest]);
         if ($response->getStatusCode() >= 400) {
             throw new RuntimeException('Failed to download video for transcription.');

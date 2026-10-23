@@ -9,6 +9,8 @@ use RichmondSunlight\VideoProcessor\Archive\ArchiveJobQueue;
 use RichmondSunlight\VideoProcessor\Archive\InternetArchiveUploader;
 use RichmondSunlight\VideoProcessor\Archive\MetadataBuilder;
 use RichmondSunlight\VideoProcessor\Bootstrap\AppBootstrap;
+use RichmondSunlight\VideoProcessor\Fetcher\BucketReader;
+use RichmondSunlight\VideoProcessor\Fetcher\S3ClientFactory;
 use RichmondSunlight\VideoProcessor\Jobs\JobLedger;
 use RichmondSunlight\VideoProcessor\Jobs\StageRunner;
 
@@ -36,7 +38,12 @@ $pdoFactory = AppBootstrap::connectionFactory();
 $processor = new ArchiveJobProcessor(
     new ArchiveJobQueue($app->pdo),
     new MetadataBuilder(),
-    new InternetArchiveUploader($log),
+    // Videos are read straight from the bucket, not through CloudFront.
+    new InternetArchiveUploader($log, null, null, null, null, new BucketReader(
+        S3ClientFactory::create(AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION),
+        'video.richmondsunlight.com',
+        $log
+    )),
     $app->pdo,
     $log,
     $pdoFactory

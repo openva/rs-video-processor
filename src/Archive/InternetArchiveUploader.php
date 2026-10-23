@@ -4,6 +4,7 @@ namespace RichmondSunlight\VideoProcessor\Archive;
 
 use Log;
 use GuzzleHttp\Client;
+use RichmondSunlight\VideoProcessor\Fetcher\BucketReader;
 use RuntimeException;
 
 class InternetArchiveUploader
@@ -18,16 +19,21 @@ class InternetArchiveUploader
         ?callable $commandRunner = null,
         ?callable $downloader = null,
         ?callable $metadataFetcher = null,
-        ?Client $http = null
+        ?Client $http = null,
+        ?BucketReader $bucket = null
     ) {
         $this->commandRunner = $commandRunner ?? function (string $command, array &$output): int {
             exec($command, $output, $status);
             return $status;
         };
-        $this->downloader = $downloader ?? function (string $url): string {
+        $this->downloader = $downloader ?? function (string $url) use ($bucket): string {
             $temp = tempnam(sys_get_temp_dir(), 'ia_video_');
             $tempWithExt = $temp . '.mp4';
             rename($temp, $tempWithExt);
+            // Our own videos come straight from the bucket, which is free, rather than through CloudFront.
+            if ($bucket?->download($url, $tempWithExt) !== null) {
+                return $tempWithExt;
+            }
             // -f: fail on an HTTP error instead of saving the error page as the video.
             $cmd = sprintf('curl -fL --retry 3 --silent --show-error %s -o %s', escapeshellarg($url), escapeshellarg($tempWithExt));
             exec($cmd, $out, $status);

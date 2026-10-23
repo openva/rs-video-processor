@@ -13,6 +13,7 @@ use RichmondSunlight\VideoProcessor\Analysis\Classification\ClassificationVerifi
 use RichmondSunlight\VideoProcessor\Analysis\Classification\ClassificationVerificationProcessor;
 use RichmondSunlight\VideoProcessor\Analysis\Classification\FrameClassifier;
 use RichmondSunlight\VideoProcessor\Fetcher\CommitteeDirectory;
+use RichmondSunlight\VideoProcessor\Fetcher\S3ClientFactory;
 use RichmondSunlight\VideoProcessor\Queue\JobType;
 
 $app = require __DIR__ . '/bootstrap.php';
@@ -38,7 +39,8 @@ $mapper = new ClassificationVerificationPayloadMapper();
 
 $processor = new ClassificationVerificationProcessor(
     new ScreenshotManifestLoader(),
-    new ScreenshotFetcher(),
+    // Frames are read straight from the bucket, not through Cloudflare.
+    new ScreenshotFetcher(null, null, [2, 5], S3ClientFactory::create(AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION)),
     new FrameClassifier(new TesseractOcrEngine()),
     new ClassificationCorrectionWriter($pdo),
     new CommitteeDirectory($pdo),

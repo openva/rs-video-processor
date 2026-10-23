@@ -17,6 +17,7 @@ declare(strict_types=1);
 
 use RichmondSunlight\VideoProcessor\Fetcher\S3ClientFactory;
 use GuzzleHttp\Client;
+use RichmondSunlight\VideoProcessor\Fetcher\BucketReader;
 use RichmondSunlight\VideoProcessor\Fetcher\CommitteeDirectory;
 use RichmondSunlight\VideoProcessor\Fetcher\S3KeyBuilder;
 use RichmondSunlight\VideoProcessor\Fetcher\S3Storage;
@@ -93,14 +94,16 @@ $bucket = 'video.richmondsunlight.com';
 $storage = new S3Storage($s3Client, $bucket);
 $committeeDirectory = new CommitteeDirectory($pdo);
 $keyBuilder = new S3KeyBuilder();
+// Videos are read straight from the bucket, not through CloudFront.
+$bucketReader = new BucketReader($s3Client, $bucket, $log);
 
 switch ($stage) {
     case 'screenshots':
-        repairScreenshots($pdo, $storage, $committeeDirectory, $keyBuilder, $log, $limit, $specificId, $reset, $dryRun);
+        repairScreenshots($pdo, $storage, $committeeDirectory, $keyBuilder, $bucketReader, $log, $limit, $specificId, $reset, $dryRun);
         break;
 
     case 'transcripts':
-        repairTranscripts($pdo, $log, $limit, $specificId, $reset, $dryRun);
+        repairTranscripts($pdo, $bucketReader, $log, $limit, $specificId, $reset, $dryRun);
         break;
 
     case 'metadata':
@@ -117,6 +120,7 @@ function repairScreenshots(
     S3Storage $storage,
     CommitteeDirectory $committeeDirectory,
     S3KeyBuilder $keyBuilder,
+    BucketReader $bucketReader,
     Log $log,
     int $limit,
     ?int $specificId,
@@ -157,7 +161,7 @@ function repairScreenshots(
         return;
     }
 
-    $generator = new ScreenshotGenerator($pdo, $storage, $committeeDirectory, $keyBuilder, $log);
+    $generator = new ScreenshotGenerator($pdo, $storage, $committeeDirectory, $keyBuilder, $log, null, null, null, $bucketReader);
 
     foreach ($rows as $row) {
         if ($reset && $specificId !== null) {
@@ -189,6 +193,7 @@ function repairScreenshots(
 
 function repairTranscripts(
     PDO $pdo,
+    BucketReader $bucketReader,
     Log $log,
     int $limit,
     ?int $specificId,
@@ -234,8 +239,9 @@ function repairTranscripts(
     $httpClient = new Client(['timeout' => 1800]);
     $writer = new TranscriptWriter($pdo);
     $transcriber = new OpenAITranscriber($httpClient, OPENAI_KEY);
-    $aligner = new CaptionAligner($transcriber, new AudioExtractor());
-    $processor = new TranscriptProcessor($writer, $transcriber, null, null, $log, $aligner);
+    $audioExtractor = new AudioExtractor(null, $bucketReader);
+    $aligner = new CaptionAligner($transcriber, $audioExtractor);
+    $processor = new TranscriptProcessor($writer, $transcriber, null, $audioExtractor, $log, $aligner);
 
     foreach ($rows as $row) {
         if ($reset && $specificId !== null) {
