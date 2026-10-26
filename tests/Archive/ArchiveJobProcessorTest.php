@@ -4,6 +4,7 @@ namespace RichmondSunlight\VideoProcessor\Tests\Archive;
 
 use PDO;
 use PHPUnit\Framework\TestCase;
+use RichmondSunlight\VideoProcessor\Fetcher\ColdStorage;
 use RichmondSunlight\VideoProcessor\Archive\ArchiveJob;
 use RichmondSunlight\VideoProcessor\Archive\ArchiveJobProcessor;
 use RichmondSunlight\VideoProcessor\Archive\ArchiveJobQueue;
@@ -122,6 +123,68 @@ class ArchiveJobProcessorTest extends TestCase
             $pdo->query('SELECT path FROM files WHERE id = 1')->fetchColumn(),
             'A failed upload must not change the path.'
         );
+    }
+
+    public function testMovesTheS3CopyToColdStorageOnceArchived(): void
+    {
+        [$processor, $cold] = $this->processorWithColdStorage(null);
+
+        $processor->processJob($this->job('https://video.richmondsunlight.com/senate/floor/20200226-6304.mp4'));
+
+        $this->assertSame(['senate/floor/20200226-6304.mp4'], $cold->moved);
+    }
+
+    public function testArchivingSucceedsWhenTheMoveFails(): void
+    {
+        [$processor, $cold, $logger, $pdo] = $this->processorWithColdStorage(new \RuntimeException('Access Denied'));
+
+        $processor->processJob($this->job('https://video.richmondsunlight.com/senate/floor/20200226-6304.mp4'));
+
+        $this->assertSame('https://archive.org/download/va-senate-20200226-6304/video.mp4', $pdo->query('SELECT path FROM files WHERE id = 1')->fetchColumn());
+        $this->assertNotEmpty(array_filter($logger->entries, static fn($e) => str_contains($e['message'], 'Could not move the S3 copy') && $e['level'] === 4));
+    }
+
+    /** @return array{0:ArchiveJobProcessor,1:object,2:ArchiveJobProcessorTestLogger,3:PDO} */
+    private function processorWithColdStorage(?\Throwable $failure): array
+    {
+        $pdo = $this->createDatabase();
+        $pdo->exec("INSERT INTO files (id, path) VALUES (1, 'https://video.richmondsunlight.com/senate/floor/20200226-6304.mp4')");
+        $uploader = new class extends InternetArchiveUploader {
+            public function __construct()
+            {
+                parent::__construct(null);
+            }
+
+            public function upload(ArchiveJob $job, array $metadata): ?string
+            {
+                return 'https://archive.org/download/va-senate-20200226-6304/video.mp4';
+            }
+        };
+        $cold = new class ($failure) extends ColdStorage {
+            public array $moved = [];
+
+            public function __construct(private ?\Throwable $failure)
+            {
+            }
+
+            public function move(string $key): string
+            {
+                if ($this->failure) {
+                    throw $this->failure;
+                }
+                $this->moved[] = $key;
+                return 'moved';
+            }
+        };
+        $logger = new ArchiveJobProcessorTestLogger();
+        $processor = new ArchiveJobProcessor($this->queue([]), new MetadataBuilder(), $uploader, $pdo, $logger, null, $cold);
+
+        return [$processor, $cold, $logger, $pdo];
+    }
+
+    private function job(string $s3Path): ArchiveJob
+    {
+        return new ArchiveJob(1, 'senate', 'Senate Session', '2020-02-26', $s3Path, 'WEBVTT', null, null, null);
     }
 
     public function testLogsWhenNoJobsAvailable(): void

@@ -8,6 +8,8 @@ Richmond Sunlight’s standalone pipeline for finding Virginia General Assembly 
 
 ---
 
+
+Once a video is on the Internet Archive, viewers play that copy, and its S3 copy is kept only as a backup, in Glacier Instant Retrieval ($0.004 a GB-month against Standard's $0.023). The archive stage moves each one as it uploads it; `bin/move_archived_to_cold_storage.php` moves those archived earlier.
 ## Overview
 
 The worker stack mirrors the main `richmondsunlight.com` repo: PHP 8.x, Composer-managed dependencies (vendor dir lives under `includes/`), and the shared `Log`/`Database` helpers. Core modules:
