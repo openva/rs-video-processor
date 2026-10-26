@@ -8,8 +8,18 @@ Richmond Sunlight’s standalone pipeline for finding Virginia General Assembly 
 
 ---
 
+## Which videos are processed
+
+**The pipeline downloads floor sessions from 2020 on, and committee and subcommittee meetings from 2024 on.** Older videos are still scraped and kept in the `files` table, but they are not downloaded, so nothing else is done with them either.
+
+This was decided in October 2026, on cost. Once Granicus downloads started working again, the pipeline began working through the Senate's archive back to 2018: 1,086 videos, some 2,000 hours. Every video downloaded is stored on S3 (about 1.2 GB each), screenshotted (two S3 writes for every second of video, about $0.036 an hour), transcribed, and archived. In October 2026 that took S3 from about $40 a month to over $85, most of it screenshot uploads. Floor sessions are where bills pass and legislators speak, and bill and speaker detection only cover 2020 on, so floor sessions back to 2020 are worth it. Committee meetings before 2024 were not.
+
+To change it, edit `VideoDownloadQueue::FLOOR_FROM` and `VideoDownloadQueue::COMMITTEES_FROM` (`src/Fetcher/VideoDownloadQueue.php`). Videos newly included will be downloaded and processed on the following runs, with the costs above. Whether a video is a floor session is read from its source record (`event_type` in `video_index_cache`).
 
 Once a video is on the Internet Archive, viewers play that copy, and its S3 copy is kept only as a backup, in Glacier Instant Retrieval ($0.004 a GB-month against Standard's $0.023). The archive stage moves each one as it uploads it; `bin/move_archived_to_cold_storage.php` moves those archived earlier.
+
+---
+
 ## Overview
 
 The worker stack mirrors the main `richmondsunlight.com` repo: PHP 8.x, Composer-managed dependencies (vendor dir lives under `includes/`), and the shared `Log`/`Database` helpers. Core modules:
@@ -84,12 +94,13 @@ That script ensures the container is running, verifies dependencies, and launche
 ## Key CLI entry points
 
 * `bin/scrape.php` — gather fresh metadata from the public House/Senate sources (Granicus and YouTube).
-* `bin/fetch_videos.php --limit=N` — download any missing videos to S3 (`video.richmondsunlight.com`).
+* `bin/fetch_videos.php --limit=N` — download any missing videos to S3 (`video.richmondsunlight.com`), within the dates above.
 * `bin/generate_screenshots.php --limit=N` — generate screenshots for videos that need them.
 * `bin/generate_transcripts.php`, `bin/detect_bills.php`, `bin/detect_speakers.php` — same `--limit=N` pattern for the other analysis stages.
 * `bin/reset_stale_claims.php` — release stale in-progress claims so interrupted jobs get retried (threshold via `STALE_CLAIM_MAX_AGE_HOURS`, default 3h).
 * `bin/resolve_raw_text.php --file-id=N|--limit=N|--dry-run` — resolve OCR text to database references (legislators, bills).
 * `bin/upload_archive.php --limit=N` — upload S3-hosted files + captions to the Internet Archive, updating the `files` table.
+* `bin/move_archived_to_cold_storage.php [--apply]` — move the S3 copies of videos no longer played from S3 (those on the Internet Archive) to Glacier Instant Retrieval. A dry run by default.
 * `bin/generate_upload_manifest.php` — writes a JSON manifest of Senate YouTube videos not yet on S3 to `uploads/manifest.json` in the video bucket. Runs automatically each pipeline pass.
 * `bin/process_uploads.php` — processes videos staged in `uploads/` by the local upload script: extracts metadata, moves each file to its final S3 path, and updates the `files` table. Runs automatically each pipeline pass.
 

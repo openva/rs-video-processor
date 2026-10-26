@@ -8,6 +8,16 @@ use RichmondSunlight\VideoProcessor\Jobs\ProcessingPriority;
 
 class VideoDownloadQueue
 {
+    /**
+     * The oldest videos downloaded. Older ones stay in the database, and are
+     * downloaded if these dates are moved back. See README.md, "Which videos
+     * are processed": every video downloaded is stored, screenshotted (two S3
+     * writes a second) and archived, and downloading the Senate's archive back
+     * to 2018 cost far more than older committee meetings are worth.
+     */
+    public const FLOOR_FROM = '2020-01-01';
+    public const COMMITTEES_FROM = '2024-01-01';
+
     public function __construct(
         private PDO $pdo
     ) {
@@ -16,8 +26,10 @@ class VideoDownloadQueue
     /**
      * Videos with scraped metadata that are not yet on S3 or archive.org.
      * YouTube sources are excluded: they are staged by hand with
-     * scripts/fetch_youtube_uploads.sh. The ledger clause hides videos another
-     * worker has claimed, that are waiting to be retried, or that were given up on.
+     * scripts/fetch_youtube_uploads.sh. Floor sessions from FLOOR_FROM on and
+     * committee and subcommittee meetings from COMMITTEES_FROM on are wanted.
+     * The ledger clause hides videos another worker has claimed, that are
+     * waiting to be retried, or that were given up on.
      */
     private function pendingWhere(): string
     {
@@ -30,6 +42,8 @@ class VideoDownloadQueue
             AND f.video_index_cache LIKE '{%'
             AND f.video_index_cache NOT LIKE '%youtube.com%'
             AND f.video_index_cache NOT LIKE '%youtu.be%'
+            AND (f.date >= '" . self::COMMITTEES_FROM . "'
+                 OR (f.date >= '" . self::FLOOR_FROM . "' AND f.video_index_cache LIKE '%\"event_type\": \"floor\"%'))
             AND " . JobLedger::eligibleSql(JobLedger::STAGE_DOWNLOAD);
     }
 

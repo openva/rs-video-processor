@@ -34,6 +34,12 @@ class BucketReader
      */
     public function keyFor(string $url): ?string
     {
+        return self::keyOf($url);
+    }
+
+    /** keyFor(), for callers without a reader. */
+    public static function keyOf(string $url): ?string
+    {
         $prefix = 'https://' . self::PUBLIC_HOST . '/';
         if (!str_starts_with($url, $prefix)) {
             return null;

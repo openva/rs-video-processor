@@ -50,6 +50,39 @@ class VideoDownloadQueueTest extends TestCase
         $this->assertSame('https://granicus.com/player/clip/12345', $job->remoteUrl);
     }
 
+    /** Floor sessions from 2020, committees and subcommittees from 2024; see README.md. */
+    public function testDownloadsOnlyRecentVideos(): void
+    {
+        $stmt = $this->pdo->prepare('INSERT INTO files (chamber, title, date, path, video_index_cache, date_created) VALUES (:chamber, :title, :date, :path, :cache, :created)');
+        $add = function (string $date, string $eventType) use ($stmt): int {
+            $stmt->execute([
+                ':chamber' => 'senate',
+                ':title' => $eventType . ' ' . $date,
+                ':date' => $date,
+                ':path' => '',
+                // Stored with JSON_PRETTY_PRINT, as VideoImporter does.
+                ':cache' => json_encode(['video_url' => 'https://example.com/' . $date . '.mp4', 'event_type' => $eventType], JSON_PRETTY_PRINT),
+                ':created' => $date . ' 12:00:00',
+            ]);
+            return (int) $this->pdo->lastInsertId();
+        };
+        $floor2020 = $add('2020-02-26', 'floor');
+        $add('2019-12-31', 'floor');
+        $committee2024 = $add('2024-01-10', 'committee');
+        $subcommittee2025 = $add('2025-02-03', 'subcommittee');
+        $add('2023-12-31', 'committee');
+        $add('2022-03-10', 'subcommittee');
+
+        $queue = new VideoDownloadQueue($this->pdo);
+
+        // Counted first: fetching claims the jobs.
+        $this->assertSame(3, $queue->countPending());
+        $this->assertEqualsCanonicalizing(
+            [$floor2020, $committee2024, $subcommittee2025],
+            array_map(static fn($job) => $job->id, $queue->fetch(10))
+        );
+    }
+
     public function testFetchSkipsYouTubeUrls(): void
     {
         $stmt = $this->pdo->prepare('INSERT INTO files (chamber, committee_id, title, date, path, video_index_cache, date_created) VALUES (:chamber, :committee_id, :title, :date, :path, :cache, :created)');
