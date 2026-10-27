@@ -70,7 +70,7 @@ class InternetArchiveUploader
             @unlink($file);
         }
         if ($status !== 0) {
-            $message = trim(implode('; ', $output));
+            $message = trim(implode('; ', self::withoutProgressBars($output)));
             $message = $message !== '' ? $message : 'No output from ia upload command.';
             $this->logger?->put('Internet Archive upload failed for file #' . $job->fileId . ': ' . $message, 5);
             return null;
@@ -101,7 +101,11 @@ class InternetArchiveUploader
 
     private function buildCommand(string $identifier, string $videoPath, array $metadata, ?string $captionPath): string
     {
-        $parts = ['ia', 'upload', escapeshellarg($identifier), escapeshellarg($videoPath)];
+        // ia draws an upload progress bar with tqdm, which redraws itself hundreds
+        // of times, and all of it ended up in the log when an upload failed.
+        // TQDM_DISABLE turns off only the bar; ia's --quiet would hide its error
+        // messages too.
+        $parts = ['TQDM_DISABLE=1', 'ia', 'upload', escapeshellarg($identifier), escapeshellarg($videoPath)];
         foreach ($metadata as $key => $value) {
             $parts[] = '--metadata=' . escapeshellarg(sprintf('%s:%s', $key, $value));
         }
@@ -109,6 +113,30 @@ class InternetArchiveUploader
             $parts[] = escapeshellarg($captionPath);
         }
         return implode(' ', $parts) . ' 2>&1';
+    }
+
+    /**
+     * ia's output without progress bar redraws, for a tqdm too old to obey
+     * TQDM_DISABLE. Each redraw starts with a carriage return and reads like
+     * " uploading video.mp4:  45%|####   | 540/1205 [00:18<00:22, 30.1MiB/s]".
+     *
+     * @param string[] $lines
+     * @return string[]
+     */
+    public static function withoutProgressBars(array $lines): array
+    {
+        $kept = [];
+        foreach ($lines as $line) {
+            foreach (explode("\r", (string) $line) as $part) {
+                $part = trim($part);
+                if ($part === '' || preg_match('/:\s*\d+%\|/', $part)) {
+                    continue;
+                }
+                $kept[] = $part;
+            }
+        }
+
+        return $kept;
     }
 
     private function resolveMp4Url(string $identifier, string $preferredFilename, int $attempts = 3, int $delaySeconds = 90): ?string

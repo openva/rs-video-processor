@@ -73,16 +73,20 @@ if (!$apply) {
     exit(0);
 }
 
+// Each copy runs inside S3 and takes about half a minute for a video, so the
+// whole run takes hours; say what is happening as it goes.
 $moved = 0;
 $failed = 0;
-foreach ($toMove as $video) {
+foreach ($toMove as $i => $video) {
     try {
-        if ($cold->move($video['key']) === 'moved') {
+        $result = $cold->move($video['key']);
+        if ($result === 'moved') {
             $moved++;
         }
+        printf("  [%d/%d] %s (%.1f GB): %s\n", $i + 1, count($toMove), $video['key'], $video['size'] / 1e9, $result);
     } catch (Throwable $e) {
         $failed++;
-        printf("  FAILED %s: %s\n", $video['key'], $e->getMessage());
+        printf("  [%d/%d] FAILED %s: %s\n", $i + 1, count($toMove), $video['key'], $e->getMessage());
     }
 }
 

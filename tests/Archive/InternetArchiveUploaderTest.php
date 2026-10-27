@@ -59,6 +59,44 @@ class InternetArchiveUploaderTest extends TestCase
         $this->assertNotEmpty($commandLog);
     }
 
+    /** The progress bar ran to hundreds of log lines when an upload failed. */
+    public function testAFailedUploadIsLoggedWithoutTheProgressBar(): void
+    {
+        $home = sys_get_temp_dir() . '/ia-home-' . uniqid();
+        mkdir($home . '/.config/internetarchive', 0777, true);
+        file_put_contents($home . '/.config/internetarchive/ia.ini', '[s3]');
+        putenv('HOME=' . $home);
+        $video = tempnam(sys_get_temp_dir(), 'video_') . '.mp4';
+        file_put_contents($video, 'not really a video');
+
+        $logger = new TestLogger();
+        $commands = [];
+        $uploader = new InternetArchiveUploader(
+            $logger,
+            function (string $command, array &$output) use (&$commands) {
+                $commands[] = $command;
+                // What exec() collects from ia: the bar redraws itself with \r.
+                $bar = '';
+                for ($i = 0; $i <= 100; $i += 5) {
+                    $bar .= sprintf("\r uploading video.mp4: %3d%%|#####     | %d/1205 [00:%02d<00:40, 30.1MiB/s]", $i, $i * 12, $i % 60);
+                }
+                $output = ['va-house-20250101-1:', $bar, ' error uploading video.mp4: 503 Slow Down. Please reduce your request rate.'];
+                return 1;
+            },
+            static fn(string $url) => $video
+        );
+
+        $result = $uploader->upload(new ArchiveJob(1, 'house', 'Test', '2025-01-01', 'https://video.richmondsunlight.com/house/floor/file.mp4', null, null, null, null), []);
+
+        $this->assertNull($result);
+        $this->assertStringStartsWith('TQDM_DISABLE=1 ia upload ', $commands[0], 'ia is told not to draw the bar.');
+        $failure = array_values(array_filter($logger->entries, static fn($e) => str_contains($e['message'], 'upload failed')))[0]['message'];
+        $this->assertStringContainsString('503 Slow Down', $failure);
+        $this->assertStringNotContainsString('%|', $failure);
+        $this->assertStringNotContainsString("\r", $failure);
+        @unlink($video);
+    }
+
     public function testLogsMissingConfig(): void
     {
         $home = sys_get_temp_dir() . '/ia-home-' . uniqid();
