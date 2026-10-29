@@ -4,6 +4,13 @@ namespace RichmondSunlight\VideoProcessor\Analysis\Speakers;
 
 class SpeakerNameParser
 {
+    /**
+     * Longer than any name plate. When a meeting shows a presentation, the
+     * speaker crop takes in a line of the slide (107 characters, on file
+     * #17448), which is not a name and was too long for video_index.raw_text.
+     */
+    public const MAX_LENGTH = 50;
+
     public function parse(string $text): ?string
     {
         $value = str_replace(["\r", "\n", "\t"], ' ', $text);
@@ -26,7 +33,7 @@ class SpeakerNameParser
         }
 
         $letters = preg_replace('/[^A-Za-z]/', '', $value);
-        if ($letters === '' || strlen($letters) < 3) {
+        if ($letters === '' || strlen($letters) < 3 || strlen($value) > self::MAX_LENGTH) {
             return null;
         }
 

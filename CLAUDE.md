@@ -62,6 +62,8 @@ The website (`class.Video.php` in richmondsunlight.com) reads `capture_rate` as 
 ### Speaker OCR reads one line
 `SpeakerNameOcrEngine` runs Tesseract with `--psm 7` (a single line of text), so each speaker region in `config/chyron_regions.yaml` must cover only the name line. When the House floor region also took in the district line, OCR read none of the House names. `SpeakerDetectionFixtureTest` runs the production speaker classes, so check a region change with it. (Bill OCR uses `TesseractOcrEngine`, `--psm 6`.)
 
+The Senate committee crop is a wide strip, so when a meeting shows a presentation it reads a line of the slide. `SpeakerNameParser` rejects anything over 50 characters (`MAX_LENGTH`) as not a name, and `SpeakerResultWriter` writes in one transaction: any `legislator` row marks a video done for the speaker queue, so a write that failed partway left it unfinished for good.
+
 ### OCR is skipped on unchanged frames
 `BillDetectionProcessor` and `OcrSpeakerExtractor` compare each frame's crop with the last one OCRed (`CropSignature`) and reuse that reading when it looks the same. The thresholds (a pixel moving by more than 15, on more than 3% of the crop) were calibrated by OCRing every frame of the three fixture videos: bills came out identical, every speaker was found. Recalibrate the same way before changing them, and keep comparing with the last frame OCRed rather than the previous frame, or name plates that fade in are missed.
 

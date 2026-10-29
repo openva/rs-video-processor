@@ -7,6 +7,9 @@ use PDO;
 
 class SpeakerResultWriter
 {
+    /** The size of video_index.raw_text, varchar(100). */
+    private const RAW_TEXT_LENGTH = 100;
+
     /** @var (\Closure(): PDO)|null */
     private ?\Closure $pdoFactory;
 
@@ -74,6 +77,24 @@ class SpeakerResultWriter
         if (empty($segments)) {
             return;
         }
+        // All or nothing. Any legislator row tells the speaker queue the video
+        // is done, so rows left by a write that failed partway were never
+        // replaced: the job was retried, but the queue no longer offered it.
+        $this->pdo->beginTransaction();
+        try {
+            $this->insert($fileId, $segments);
+            $this->pdo->commit();
+        } catch (\Throwable $e) {
+            $this->pdo->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * @param array<int,array{name:string,start:float,legislator_id:?int}> $segments
+     */
+    private function insert(int $fileId, array $segments): void
+    {
         $this->clearExisting($fileId);
 
         $now = new DateTimeImmutable('now');
@@ -86,7 +107,9 @@ class SpeakerResultWriter
                 ':file_id' => $fileId,
                 ':time' => $this->formatTime($segment['start']),
                 ':shot' => $screenshotNumber,
-                ':raw' => $segment['name'],
+                // Names come from OCR, official listings and diarization; none
+                // may be longer than the column.
+                ':raw' => mb_substr($segment['name'], 0, self::RAW_TEXT_LENGTH),
                 ':type' => 'legislator',
                 ':linked' => $segment['legislator_id'] ?? null,
                 ':created' => $now->format('Y-m-d H:i:s'),
