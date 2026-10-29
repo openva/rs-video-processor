@@ -88,6 +88,8 @@ Never align captions against a copy that is another meeting's video. `Transcript
 
 Do not add a new "is this pending?" query anywhere. Ask the queue class (`countPending()`) or `PendingWork`. Do not write a worker loop by hand; use `StageRunner`, which counts attempts and records failures in `video_jobs` through `JobLedger`.
 
+A stage waiting on someone else throws `NotReadyYet`: `StageRunner` then puts the job aside as `waiting` without using an attempt. The instance runs only on demand (rs-machine starts it when `PendingWork` counts anything), so a waiting job is left out of `countPending()` (`JobLedger::notWaitingSql()`) but still handed out by `fetch()`: it is checked on a run that is happening anyway, never one started for it. The archive stage does this until the Internet Archive lists the uploaded MP4, and keeps `files.path` on S3 meanwhile, because the website plays `files.path` directly and an `archive.org/details/` page is not a video. A later try asks the archive before uploading, since the identifier (`IdentifierBuilder`) is fixed.
+
 New SQL in `src/` must run on SQLite as well as MariaDB, because the unit tests use SQLite: no `NOW()`, no `ON DUPLICATE KEY`. `tests/Integration/MariaDbQueueTest.php` runs the queues on MariaDB, inside Docker only.
 
 ## Manual YouTube Upload Pipeline

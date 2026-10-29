@@ -62,8 +62,9 @@ $uploaded = $runner->run(
 
 $log->put("Uploaded {$uploaded} video(s) to the Internet Archive.", 3);
 
-// After uploads complete, check once for any videos that processed quickly.
-// Videos that take longer are caught at the start of the next session.
+// Uploads before November 2026 stored a details URL when the archive was slow,
+// and these are swapped for the MP4 once it is listed. New uploads keep their
+// S3 path until then instead, so this only finds those older ones.
 require_once __DIR__ . '/repair_archive_urls_helper.php';
 
 $log->put('Checking for Archive.org videos that finished processing...', 3);

@@ -10,6 +10,7 @@ use RichmondSunlight\VideoProcessor\Archive\ArchiveJobProcessor;
 use RichmondSunlight\VideoProcessor\Archive\ArchiveJobQueue;
 use RichmondSunlight\VideoProcessor\Archive\InternetArchiveUploader;
 use RichmondSunlight\VideoProcessor\Archive\MetadataBuilder;
+use RichmondSunlight\VideoProcessor\Jobs\NotReadyYet;
 
 class ArchiveJobProcessorTest extends TestCase
 {
@@ -144,19 +145,37 @@ class ArchiveJobProcessorTest extends TestCase
         $this->assertNotEmpty(array_filter($logger->entries, static fn($e) => str_contains($e['message'], 'Could not move the S3 copy') && $e['level'] === 4));
     }
 
+    /** Until the archive has the video, viewers keep playing the S3 copy. */
+    public function testWhileTheArchiveIsProcessingTheVideoStaysOnS3(): void
+    {
+        [$processor, $cold, , $pdo] = $this->processorWithColdStorage(null, new NotReadyYet('Still processing.', 3600));
+
+        try {
+            $processor->processJob($this->job('https://video.richmondsunlight.com/senate/floor/20200226-6304.mp4'));
+            $this->fail('Expected NotReadyYet.');
+        } catch (NotReadyYet) {
+        }
+
+        $this->assertSame('https://video.richmondsunlight.com/senate/floor/20200226-6304.mp4', $pdo->query('SELECT path FROM files WHERE id = 1')->fetchColumn());
+        $this->assertSame([], $cold->moved);
+    }
+
     /** @return array{0:ArchiveJobProcessor,1:object,2:ArchiveJobProcessorTestLogger,3:PDO} */
-    private function processorWithColdStorage(?\Throwable $failure): array
+    private function processorWithColdStorage(?\Throwable $failure, ?\Throwable $uploadThrows = null): array
     {
         $pdo = $this->createDatabase();
         $pdo->exec("INSERT INTO files (id, path) VALUES (1, 'https://video.richmondsunlight.com/senate/floor/20200226-6304.mp4')");
-        $uploader = new class extends InternetArchiveUploader {
-            public function __construct()
+        $uploader = new class ($uploadThrows) extends InternetArchiveUploader {
+            public function __construct(private ?\Throwable $throws)
             {
                 parent::__construct(null);
             }
 
             public function upload(ArchiveJob $job, array $metadata): ?string
             {
+                if ($this->throws) {
+                    throw $this->throws;
+                }
                 return 'https://archive.org/download/va-senate-20200226-6304/video.mp4';
             }
         };

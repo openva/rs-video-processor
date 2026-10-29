@@ -87,6 +87,29 @@ class JobLedgerTest extends TestCase
         $this->assertSame(3, (int) $this->row()['attempts']);
     }
 
+    /** Waiting on someone else (the Internet Archive) is not a failed attempt. */
+    public function testWaitingHidesTheJobForAWhileWithoutUsingAnAttempt(): void
+    {
+        $this->ledger->begin(1, JobLedger::STAGE_ARCHIVE);
+        $this->ledger->recordFailure(1, JobLedger::STAGE_ARCHIVE, 'ia upload failed');
+        $this->now += 6 * 3600 + 1;
+
+        for ($i = 0; $i < 10; $i++) {
+            $this->assertTrue($this->ledger->begin(1, JobLedger::STAGE_ARCHIVE), 'Waiting never runs out the attempts.');
+            $this->ledger->recordWaiting(1, JobLedger::STAGE_ARCHIVE, 'Still processing.', 3600);
+            $this->assertFalse($this->eligible(JobLedger::STAGE_ARCHIVE));
+            $this->now += 3601;
+            $this->assertTrue($this->eligible(JobLedger::STAGE_ARCHIVE));
+        }
+
+        $row = $this->row(JobLedger::STAGE_ARCHIVE);
+        $this->assertSame(JobLedger::STATUS_WAITING, $row['status']);
+        $this->assertSame(1, (int) $row['attempts'], 'The one real failure still counts.');
+        $this->assertSame('Still processing.', $row['last_error']);
+        $this->assertLessThanOrEqual(10, strlen(JobLedger::STATUS_WAITING), 'video_jobs.status is varchar(10).');
+        $this->assertSame([1], array_map(fn($job) => (int) $job['file_id'], $this->ledger->waitingJobs()));
+    }
+
     public function testJobInterruptedOnEveryAttemptIsGivenUpOn(): void
     {
         for ($i = 0; $i < JobLedger::MAX_ATTEMPTS; $i++) {

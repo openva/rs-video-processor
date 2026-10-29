@@ -5,6 +5,7 @@ namespace RichmondSunlight\VideoProcessor\Tests\Jobs;
 use PDO;
 use PHPUnit\Framework\TestCase;
 use RichmondSunlight\VideoProcessor\Jobs\JobLedger;
+use RichmondSunlight\VideoProcessor\Jobs\NotReadyYet;
 use RichmondSunlight\VideoProcessor\Jobs\StageRunner;
 use RichmondSunlight\VideoProcessor\Tests\Support\TestDatabaseFactory;
 use RichmondSunlight\VideoProcessor\Tests\Support\TestLogger;
@@ -141,6 +142,30 @@ class StageRunnerTest extends TestCase
         );
 
         $this->assertSame([1, 2, 3, 4, 5], $attempted);
+    }
+
+    public function testAJobThatIsNotReadyYetWaitsWithoutFailing(): void
+    {
+        $attempted = [];
+        $count = $this->runner()->run(
+            10,
+            $this->jobs([1, 2, 3, 4, 5]),
+            fn(object $job): int => $job->id,
+            function (object $job) use (&$attempted): void {
+                $attempted[] = $job->id;
+                if ($job->id !== 5) {
+                    throw new NotReadyYet('Still processing on the Internet Archive.', 3600);
+                }
+            }
+        );
+
+        $this->assertSame(1, $count, 'Only the finished job counts as a success.');
+        $this->assertSame([1, 2, 3, 4, 5], $attempted, 'Waiting jobs are not failures, so the run does not stop.');
+        $this->assertSame(JobLedger::STATUS_WAITING, $this->jobStatus(1));
+        $this->assertSame(0, (int) $this->pdo->query("SELECT attempts FROM video_jobs WHERE file_id = 1")->fetchColumn());
+        $messages = array_column($this->log->entries, 'message');
+        $this->assertNotEmpty(array_filter($messages, fn($m) => str_contains($m, 'file #1') && str_contains($m, 'Still processing')));
+        $this->assertSame([], array_filter($this->log->entries, fn($e) => $e['level'] >= 5), 'Waiting is not logged as an error.');
     }
 
     public function testSkipsAJobThatHasNoAttemptsLeft(): void

@@ -59,6 +59,20 @@ class StageRunner
                 if ($process($job) === false) {
                     $error = 'The stage finished without a usable result; see earlier log lines for this file.';
                 }
+            } catch (NotReadyYet $e) {
+                // Waiting on someone else: neither a success nor a failure.
+                $this->ledger->recordWaiting($fileId, $this->stage, $e->getMessage(), $e->retrySeconds);
+                $this->log?->put(
+                    sprintf(
+                        '%s for file #%d is not finished: %s It will be checked again on a later run, after at least %d minute(s).',
+                        ucfirst($this->stage),
+                        $fileId,
+                        $e->getMessage(),
+                        (int) ceil($e->retrySeconds / 60)
+                    ),
+                    3
+                );
+                continue;
             } catch (Throwable $e) {
                 $error = $e->getMessage();
             }

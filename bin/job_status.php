@@ -50,6 +50,18 @@ foreach ((new PendingWork($pdo))->counts() as $stage => $count) {
     echo sprintf("  %-12s %d\n", $stage, $count);
 }
 
+$waiting = $ledger->waitingJobs();
+echo sprintf("\nWaiting on someone else (%d):\n", count($waiting));
+foreach ($waiting as $job) {
+    echo sprintf(
+        "  file #%-6d %-12s next check %s UTC  %s\n",
+        (int) $job['file_id'],
+        $job['stage'],
+        $job['next_attempt_at'],
+        substr(str_replace("\n", ' ', (string) $job['last_error']), 0, 120)
+    );
+}
+
 $failed = $ledger->failedJobs();
 echo sprintf("\nGiven up on (%d):\n", count($failed));
 foreach ($failed as $job) {

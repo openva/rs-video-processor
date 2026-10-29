@@ -5,6 +5,7 @@ namespace RichmondSunlight\VideoProcessor\Archive;
 use Log;
 use GuzzleHttp\Client;
 use RichmondSunlight\VideoProcessor\Fetcher\BucketReader;
+use RichmondSunlight\VideoProcessor\Jobs\NotReadyYet;
 use RuntimeException;
 
 class InternetArchiveUploader
@@ -13,6 +14,15 @@ class InternetArchiveUploader
     private $downloader;
     private $metadataFetcher;
     private Client $http;
+
+    /** Seconds to wait after uploading before the first look for the video. */
+    public int $firstCheckSeconds = 60;
+    /**
+     * The soonest the archive is asked again. A waiting job does not start the
+     * instance (see JobLedger::notWaitingSql()), so the check happens on a
+     * later pass of this run, or on whatever run comes next.
+     */
+    public const RECHECK_SECONDS = 600;
 
     public function __construct(
         private ?Log $logger = null,
@@ -52,6 +62,25 @@ class InternetArchiveUploader
             return null;
         }
         $identifier = (new IdentifierBuilder())->build($job);
+
+        // An earlier try may have uploaded it already, so ask the archive first.
+        $item = $this->fetchMetadata($identifier);
+        if ($item === null) {
+            $this->logger?->put('Could not ask the Internet Archive about ' . $identifier . ', so file #' . $job->fileId . ' was not uploaded.', 5);
+            return null;
+        }
+        $url = $this->mp4Url($identifier, $item);
+        if ($url !== null) {
+            $this->logger?->put('File #' . $job->fileId . ' is already on the Internet Archive.', 3);
+            return $url;
+        }
+        if (!empty($item['pending_tasks'])) {
+            throw new NotReadyYet(self::processing($item), self::RECHECK_SECONDS);
+        }
+        if ($item !== []) {
+            $this->logger?->put(sprintf('%s exists without its video and has nothing pending; uploading file #%d again.', $identifier, $job->fileId), 4);
+        }
+
         $videoPath = call_user_func($this->downloader, $job->s3Path);
         $tempFiles = [$videoPath];
         $captions = null;
@@ -76,17 +105,19 @@ class InternetArchiveUploader
             return null;
         }
 
-        $mp4Url = $this->resolveMp4Url($identifier, basename($videoPath));
-        if (!$mp4Url) {
-            $detailsUrl = sprintf('https://archive.org/details/%s', $identifier);
-            $this->logger?->put(
-                'Unable to resolve Archive.org MP4 URL for file #' . $job->fileId . '; storing details URL.',
-                5
-            );
-            return $detailsUrl;
+        // The archive lists the video once it has filed it, which can take
+        // anything from a minute to hours. Until then files.path stays on S3,
+        // where the video still plays, and the job is put aside.
+        if ($this->firstCheckSeconds > 0) {
+            sleep($this->firstCheckSeconds);
+        }
+        $item = $this->fetchMetadata($identifier);
+        $url = $item === null ? null : $this->mp4Url($identifier, $item);
+        if ($url === null) {
+            throw new NotReadyYet('Uploaded; ' . lcfirst(self::processing($item ?? [])), self::RECHECK_SECONDS);
         }
 
-        return $mp4Url;
+        return $url;
     }
 
     private function ensureConfigExists(): bool
@@ -139,57 +170,6 @@ class InternetArchiveUploader
         return $kept;
     }
 
-    private function resolveMp4Url(string $identifier, string $preferredFilename, int $attempts = 3, int $delaySeconds = 90): ?string
-    {
-        for ($i = 0; $i < $attempts; $i++) {
-            // Wait before checking (except first attempt)
-            if ($i > 0) {
-                $this->logger?->put(
-                    sprintf('Waiting %d seconds for Archive.org to process video...', $delaySeconds),
-                    4
-                );
-                sleep($delaySeconds);
-            }
-
-            $metadata = $this->fetchMetadata($identifier);
-            if (is_array($metadata) && !empty($metadata)) {
-                $files = $metadata['files'] ?? [];
-                $this->logger?->put(
-                    sprintf(
-                        'Archive.org metadata for %s (attempt %d/%d): %d files found, looking for %s',
-                        $identifier,
-                        $i + 1,
-                        $attempts,
-                        count($files),
-                        $preferredFilename
-                    ),
-                    4
-                );
-
-                $file = $this->selectMp4File($files, $preferredFilename);
-                if ($file) {
-                    $this->logger?->put(
-                        sprintf('Successfully resolved MP4 URL for %s on attempt %d', $identifier, $i + 1),
-                        3
-                    );
-                    return $this->buildDownloadUrl($identifier, $file['name']);
-                }
-            } else {
-                $this->logger?->put(
-                    sprintf('Archive.org metadata for %s (attempt %d/%d): item still processing (empty metadata)', $identifier, $i + 1, $attempts),
-                    4
-                );
-            }
-        }
-
-        $totalWaitTime = ($attempts - 1) * $delaySeconds;
-        $this->logger?->put(
-            sprintf('Failed to resolve MP4 URL for %s after %d attempts over %d seconds. Video may still be processing. Will use repair script later.', $identifier, $attempts, $totalWaitTime),
-            4
-        );
-        return null;
-    }
-
     private function fetchMetadata(string $identifier): ?array
     {
         if ($this->metadataFetcher) {
@@ -218,38 +198,41 @@ class InternetArchiveUploader
     }
 
     /**
-     * @param array<int,array<string,mixed>> $files
-     * @return array<string,mixed>|null
+     * The download URL of the video we uploaded: the item's largest original
+     * MP4, not one the archive derived from it. Null when it is not listed yet.
+     *
+     * @param array<string,mixed> $item the metadata API's reply
      */
-    private function selectMp4File(array $files, string $preferredFilename): ?array
+    private function mp4Url(string $identifier, array $item): ?string
     {
-        $preferred = null;
-        $fallback = null;
-        $fallbackSize = 0;
-        $mp4Files = [];
-
-        foreach ($files as $file) {
+        $best = null;
+        foreach ($item['files'] ?? [] as $file) {
             $name = $file['name'] ?? '';
-            if (!is_string($name) || $name === '' || !str_ends_with(strtolower($name), '.mp4')) {
+            if (!is_string($name) || !str_ends_with(strtolower($name), '.mp4') || ($file['source'] ?? '') !== 'original') {
                 continue;
             }
-            $mp4Files[] = $name;
-            if ($name === $preferredFilename) {
-                $preferred = $file;
-                break;
-            }
-            $size = isset($file['size']) ? (int) $file['size'] : 0;
-            if ($size >= $fallbackSize) {
-                $fallbackSize = $size;
-                $fallback = $file;
+            if ($best === null || (int) ($file['size'] ?? 0) > (int) ($best['size'] ?? 0)) {
+                $best = $file;
             }
         }
 
-        if (!empty($mp4Files)) {
-            $this->logger?->put('MP4 files found in Archive.org metadata: ' . implode(', ', $mp4Files), 4);
+        return $best === null ? null : $this->buildDownloadUrl($identifier, $best['name']);
+    }
+
+    /**
+     * What the archive is doing with an item, e.g. "The Internet Archive is
+     * still processing it (archive.php queued)."
+     *
+     * @param array<string,mixed> $item
+     */
+    private static function processing(array $item): string
+    {
+        $tasks = [];
+        foreach ($item['tasks'] ?? [] as $task) {
+            $tasks[] = trim(($task['cmd'] ?? 'task') . ' ' . ($task['status'] ?? ''));
         }
 
-        return $preferred ?? $fallback;
+        return 'The Internet Archive is still processing it' . ($tasks ? ' (' . implode(', ', $tasks) . ')' : '') . '.';
     }
 
     private function buildDownloadUrl(string $identifier, string $filename): string

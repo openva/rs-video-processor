@@ -38,6 +38,8 @@ class JobLedger
     public const STATUS_RETRY = 'retry';
     public const STATUS_FAILED = 'failed';
     public const STATUS_DONE = 'done';
+    /** Put aside until next_attempt_at, waiting on someone else; not a failure. */
+    public const STATUS_WAITING = 'waiting';
 
     /** A job is given up on after this many attempts. */
     public const MAX_ATTEMPTS = 3;
@@ -78,8 +80,25 @@ class JobLedger
             SELECT 1 FROM video_jobs vj
             WHERE vj.file_id = {$fileIdColumn} AND vj.stage = '{$stage}'
               AND (vj.status = 'failed'
-                   OR (vj.status = 'retry' AND vj.next_attempt_at > :ledger_now)
+                   OR (vj.status IN ('retry', 'waiting') AND vj.next_attempt_at > :ledger_now)
                    OR (vj.status = 'running' AND vj.claimed_at > :ledger_stale))
+        )";
+    }
+
+    /**
+     * SQL condition that is true unless this file's job is waiting on someone
+     * else. Such a job is handed out once its time comes, but only to a run
+     * that is going anyway: rs-machine starts the instance whenever work is
+     * pending, and asking the Internet Archive one question is not worth that.
+     * So a countPending() adds this, and its fetch() does not.
+     */
+    public static function notWaitingSql(string $stage, string $fileIdColumn = 'f.id'): string
+    {
+        self::assertStage($stage);
+
+        return "NOT EXISTS (
+            SELECT 1 FROM video_jobs vw
+            WHERE vw.file_id = {$fileIdColumn} AND vw.stage = '{$stage}' AND vw.status = 'waiting'
         )";
     }
 
@@ -196,6 +215,30 @@ class JobLedger
     }
 
     /**
+     * Put a job aside for $seconds because it is waiting on someone else. The
+     * attempt that begin() counted is given back, so waiting never uses up a
+     * job's attempts; earlier failures still count.
+     */
+    public function recordWaiting(int $fileId, string $stage, string $reason, int $seconds): void
+    {
+        self::assertStage($stage);
+        $pdo = $this->connection();
+        $row = $this->row($pdo, $fileId, $stage);
+
+        $this->write(
+            $pdo,
+            $row !== null,
+            $fileId,
+            $stage,
+            self::STATUS_WAITING,
+            max(0, (int) ($row['attempts'] ?? 0) - 1),
+            null,
+            self::format($this->now() + $seconds),
+            self::cleanError($reason)
+        );
+    }
+
+    /**
      * Give up on a job at once, for a problem no retry can fix.
      */
     public function markFailed(int $fileId, string $stage, string $error): void
@@ -254,6 +297,22 @@ class JobLedger
             "SELECT file_id, stage, attempts, last_error, date_modified
              FROM video_jobs WHERE status = 'failed'
              ORDER BY date_modified DESC, file_id DESC"
+        );
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Jobs put aside while waiting on someone else, soonest check first.
+     *
+     * @return array<int,array{file_id:int|string,stage:string,next_attempt_at:string,last_error:?string}>
+     */
+    public function waitingJobs(): array
+    {
+        $stmt = $this->connection()->query(
+            "SELECT file_id, stage, next_attempt_at, last_error
+             FROM video_jobs WHERE status = 'waiting'
+             ORDER BY next_attempt_at, file_id"
         );
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);

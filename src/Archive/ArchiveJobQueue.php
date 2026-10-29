@@ -26,7 +26,9 @@ class ArchiveJobQueue
 
     public function countPending(): int
     {
-        $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM files f WHERE ' . $this->pendingWhere());
+        // A video waiting on the Internet Archive is not work for this machine.
+        $stmt = $this->pdo->prepare('SELECT COUNT(*) FROM files f WHERE ' . $this->pendingWhere()
+            . ' AND ' . JobLedger::notWaitingSql(JobLedger::STAGE_ARCHIVE));
         foreach (JobLedger::eligibleParams() as $name => $value) {
             $stmt->bindValue($name, $value);
         }

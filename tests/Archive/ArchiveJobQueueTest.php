@@ -68,6 +68,24 @@ class ArchiveJobQueueTest extends TestCase
         $this->assertSame(0, $queue->countPending());
     }
 
+    /**
+     * rs-machine starts the instance when anything is pending. A job waiting on
+     * the Internet Archive must not start it, or keep it running, just to ask
+     * the archive one question; it is checked on whatever run comes next.
+     */
+    public function testAJobWaitingOnTheArchiveIsCheckedButIsNotPendingWork(): void
+    {
+        $pdo = $this->createTestDatabase();
+        $pdo->exec('INSERT INTO files (chamber,title,date,path,webvtt,capture_directory,transcript,date_created) VALUES ("house","Floor","2025-01-01","https://video.richmondsunlight.com/house/floor/20250101-1.mp4","WEBVTT","/house/floor/1","Some transcript","2025-01-01")');
+        $ledger = new \RichmondSunlight\VideoProcessor\Jobs\JobLedger($pdo, null, fn(): int => time() - 7200);
+        $ledger->begin(1, 'archive');
+        $ledger->recordWaiting(1, 'archive', 'Still processing.', 600);
+
+        $queue = new ArchiveJobQueue($pdo);
+        $this->assertSame(0, $queue->countPending());
+        $this->assertCount(1, $queue->fetch(), 'A run that is going anyway checks it.');
+    }
+
     private function createTestDatabase(): PDO
     {
         $pdo = new PDO('sqlite::memory:');

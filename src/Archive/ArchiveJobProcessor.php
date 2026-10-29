@@ -28,6 +28,8 @@ class ArchiveJobProcessor
     /**
      * Upload one video and point its files row at the Internet Archive.
      *
+     * @throws \RichmondSunlight\VideoProcessor\Jobs\NotReadyYet while the archive is
+     *         still processing the upload; files.path stays on S3 until it is done
      * @throws \RuntimeException when the upload does not produce a URL
      */
     public function processJob(ArchiveJob $job): void
@@ -38,8 +40,8 @@ class ArchiveJobProcessor
             throw new \RuntimeException('The Internet Archive upload did not return a URL; see the log.');
         }
 
-        // Get a fresh connection — uploads take minutes (video download,
-        // ia upload, metadata polling with 90s sleeps) and the original
+        // Get a fresh connection: uploads take minutes (video download, ia
+        // upload, a wait before checking the archive) and the original
         // connection will have timed out.
         $pdo = $this->pdoFactory ? ($this->pdoFactory)() : $this->pdo;
         $stmt = $pdo->prepare('UPDATE files SET path = :path WHERE id = :id');
