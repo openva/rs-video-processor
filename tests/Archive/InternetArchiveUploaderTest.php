@@ -86,6 +86,62 @@ class InternetArchiveUploaderTest extends TestCase
         $this->assertCount(1, $commands);
     }
 
+    /**
+     * The archive's player shows captions only when they share the video's
+     * name ("myvid.mp4" with "myvid.en.vtt"), and ia names each file in the
+     * item after the local file, so both are named after the identifier.
+     */
+    public function testTheVideoAndCaptionsAreNamedAfterTheIdentifier(): void
+    {
+        $commands = [];
+        $files = [];
+        $home = sys_get_temp_dir() . '/ia-home-' . uniqid();
+        mkdir($home . '/.config/internetarchive', 0777, true);
+        file_put_contents($home . '/.config/internetarchive/ia.ini', '[s3]');
+        putenv('HOME=' . $home);
+        $downloaded = tempnam(sys_get_temp_dir(), 'ia_video_') . '.mp4';
+        $uploader = new InternetArchiveUploader(
+            new TestLogger(),
+            function (string $command, array &$output) use (&$commands, &$files) {
+                $commands[] = $command;
+                preg_match_all("/'([^']+\\.(?:mp4|vtt|srt))'/", $command, $m);
+                foreach ($m[1] as $path) {
+                    $files[basename($path)] = is_file($path) ? file_get_contents($path) : null;
+                }
+                return 0;
+            },
+            function (string $url) use ($downloaded) {
+                file_put_contents($downloaded, 'video');
+                return $downloaded;
+            },
+            function () use (&$commands) {
+                // Nothing there before the upload; the video once it is done.
+                return $commands === [] ? [] : self::item(true);
+            }
+        );
+        $uploader->firstCheckSeconds = 0;
+
+        $uploader->upload($this->job(), []);
+
+        $this->assertSame(['va-house-20250101-1.mp4' => 'video', 'va-house-20250101-1.en.vtt' => 'WEBVTT'], $files);
+        $this->assertFileDoesNotExist($downloaded, 'The download is moved, not copied.');
+        foreach (array_keys($files) as $name) {
+            $this->assertStringNotContainsString(sys_get_temp_dir() . '/' . $name, $commands[0], 'Each upload gets its own folder.');
+        }
+    }
+
+    public function testSrtCaptionsAreNamedAfterTheIdentifierToo(): void
+    {
+        $commands = [];
+        $uploader = $this->uploader([[], self::item(true)], $commands);
+        $job = new ArchiveJob(1, 'house', 'Test Video', '2025-01-01', 'https://video.richmondsunlight.com/house/floor/file.mp4', null, "1\n00:00:01,000 --> 00:00:02,000\nHello", null, null);
+
+        $uploader->upload($job, []);
+
+        $this->assertMatchesRegularExpression("#/va-house-20250101-1\\.mp4' #", $commands[0]);
+        $this->assertMatchesRegularExpression("#/va-house-20250101-1\\.en\\.srt'#", $commands[0]);
+    }
+
     /** A later try finds the earlier upload finished, and does not upload again. */
     public function testAVideoAlreadyOnTheArchiveIsNotUploadedAgain(): void
     {

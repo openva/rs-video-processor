@@ -87,22 +87,42 @@ class InternetArchiveUploader
             $this->logger?->put(sprintf('%s exists without its video and has nothing pending; uploading file #%d again.', $identifier, $job->fileId), 4);
         }
 
-        $videoPath = call_user_func($this->downloader, $job->s3Path);
+        // ia names each file in the item after the local file, and the
+        // archive's player shows captions only when they share the video's
+        // name ("myvid.mp4" with "myvid.en.vtt"). So both are named after the
+        // identifier, in a folder of their own.
+        $dir = sys_get_temp_dir() . '/ia_upload_' . uniqid('', true);
+        if (!mkdir($dir, 0700)) {
+            throw new RuntimeException('Unable to create a working directory for the Internet Archive upload.');
+        }
+        $videoPath = $dir . '/' . $identifier . '.mp4';
+        $downloaded = call_user_func($this->downloader, $job->s3Path);
+        if (!rename($downloaded, $videoPath)) {
+            @unlink($downloaded);
+            @rmdir($dir);
+            throw new RuntimeException('Unable to move the downloaded video into place for the Internet Archive.');
+        }
         $tempFiles = [$videoPath];
         $captions = null;
         if ($job->webvtt) {
-            $captions = $this->writeTempFile($job->webvtt, 'ia_vtt_', '.vtt');
-            $tempFiles[] = $captions;
+            $captions = $dir . '/' . $identifier . '.en.vtt';
         } elseif ($job->srt) {
-            $captions = $this->writeTempFile($job->srt, 'ia_srt_', '.srt');
+            $captions = $dir . '/' . $identifier . '.en.srt';
+        }
+        if ($captions !== null) {
+            file_put_contents($captions, $job->webvtt ?: $job->srt);
             $tempFiles[] = $captions;
         }
 
         $command = $this->buildCommand($identifier, $videoPath, $metadata, $captions);
         $output = [];
-        $status = $this->invokeCommandRunner($command, $output);
-        foreach ($tempFiles as $file) {
-            @unlink($file);
+        try {
+            $status = $this->invokeCommandRunner($command, $output);
+        } finally {
+            foreach ($tempFiles as $file) {
+                @unlink($file);
+            }
+            @rmdir($dir);
         }
         if ($status !== 0) {
             $message = trim(implode('; ', self::withoutProgressBars($output)));
@@ -250,18 +270,6 @@ class InternetArchiveUploader
     {
         $encoded = str_replace('%2F', '/', rawurlencode($filename));
         return sprintf('https://archive.org/download/%s/%s', rawurlencode($identifier), $encoded);
-    }
-
-    private function writeTempFile(string $contents, string $prefix, string $extension = ''): string
-    {
-        $path = tempnam(sys_get_temp_dir(), $prefix);
-        if ($extension) {
-            $pathWithExt = $path . $extension;
-            rename($path, $pathWithExt);
-            $path = $pathWithExt;
-        }
-        file_put_contents($path, $contents);
-        return $path;
     }
 
     private function invokeCommandRunner(string $command, array &$output): int

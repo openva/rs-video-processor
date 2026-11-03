@@ -86,6 +86,9 @@ Never align captions against a copy that is another meeting's video. `Transcript
 ### GD cannot scale with IMG_BICUBIC
 `imagescale(..., IMG_BICUBIC)` returns false with GD 2.3.3, so the 3x enlargement in `BillTextExtractor` and `SpeakerTextExtractor` never happens; they fall back to the unscaled crop. Measured on the fixture frames, enlarging (with `IMG_BILINEAR_FIXED`) made no difference to accuracy, so it has been left alone. Don't assume the enlargement is happening.
 
+### Internet Archive captions must share the video's name
+The archive's player shows captions only when the caption file has the same name as the video (`myvid.mp4` with `myvid.en.vtt`). `ia upload` names each file in the item after the local file, so `InternetArchiveUploader` uploads `{identifier}.mp4` and `{identifier}.en.vtt` (or `.en.srt`). Uploads before November 2026 used random temporary names (`ia_video_….mp4`, `ia_vtt_….vtt`), so their captions don't show. Renaming the caption file to match the video was confirmed to fix that (rs-house-20260309-house-session).
+
 ### Job state lives in video_jobs
 
 Do not add a new "is this pending?" query anywhere. Ask the queue class (`countPending()`) or `PendingWork`. Do not write a worker loop by hand; use `StageRunner`, which counts attempts and records failures in `video_jobs` through `JobLedger`.
