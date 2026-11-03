@@ -72,6 +72,10 @@ class StageRunner
                     ),
                     3
                 );
+                if ($e->everyJobWaits) {
+                    $this->log?->put(sprintf('Stopping %s: the other jobs would wait for the same reason.', $this->stage), 4);
+                    break;
+                }
                 continue;
             } catch (Throwable $e) {
                 $error = $e->getMessage();

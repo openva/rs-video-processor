@@ -170,7 +170,7 @@ class InternetArchiveUploaderTest extends TestCase
                 for ($i = 0; $i <= 100; $i += 5) {
                     $bar .= sprintf("\r uploading video.mp4: %3d%%|#####     | %d/1205 [00:%02d<00:40, 30.1MiB/s]", $i, $i * 12, $i % 60);
                 }
-                $output = ['va-house-20250101-1:', $bar, ' error uploading video.mp4: 503 Slow Down. Please reduce your request rate.'];
+                $output = ['va-house-20250101-1:', $bar, ' error uploading video.mp4: 403 Forbidden. Access Denied.'];
                 return 1;
             },
             static fn(string $url) => $video,
@@ -182,10 +182,51 @@ class InternetArchiveUploaderTest extends TestCase
         $this->assertNull($result);
         $this->assertStringStartsWith('TQDM_DISABLE=1 ia upload ', $commands[0], 'ia is told not to draw the bar.');
         $failure = array_values(array_filter($logger->entries, static fn($e) => str_contains($e['message'], 'upload failed')))[0]['message'];
-        $this->assertStringContainsString('503 Slow Down', $failure);
+        $this->assertStringContainsString('403 Forbidden', $failure);
         $this->assertStringNotContainsString('%|', $failure);
         $this->assertStringNotContainsString("\r", $failure);
         @unlink($video);
+    }
+
+    /**
+     * When its task queue is full the archive turns away every upload, so
+     * the job waits, and so does the rest of the run.
+     */
+    public function testAnUploadTurnedAwayForTheRequestRateWaits(): void
+    {
+        $home = sys_get_temp_dir() . '/ia-home-' . uniqid();
+        mkdir($home . '/.config/internetarchive', 0777, true);
+        file_put_contents($home . '/.config/internetarchive/ia.ini', '[s3]');
+        putenv('HOME=' . $home);
+        $video = tempnam(sys_get_temp_dir(), 'video_') . '.mp4';
+        file_put_contents($video, 'not really a video');
+
+        $logger = new TestLogger();
+        $uploader = new InternetArchiveUploader(
+            $logger,
+            function (string $command, array &$output) {
+                // As ia reported it on 2026-11-03.
+                $output = [
+                    'va-senate-20190128-18362:',
+                    ' error uploading ia_video_3v6ia2tvg5os23eOqV7.mp4: Please reduce your request rate. - total_tasks_queued exceeds global_limit',
+                ];
+                return 1;
+            },
+            static fn(string $url) => $video,
+            static fn(string $identifier) => []
+        );
+        $uploader->firstCheckSeconds = 0;
+
+        try {
+            $uploader->upload($this->job(), []);
+            $this->fail('Expected NotReadyYet.');
+        } catch (NotReadyYet $e) {
+            $this->assertSame(InternetArchiveUploader::BUSY_RECHECK_SECONDS, $e->retrySeconds);
+            $this->assertTrue($e->everyJobWaits);
+            $this->assertStringContainsString('total_tasks_queued exceeds global_limit', $e->getMessage());
+        }
+        $this->assertSame([], array_filter($logger->entries, static fn($e) => $e['level'] >= 5), 'It is not logged as an error.');
+        $this->assertFileDoesNotExist($video, 'The downloaded video is still deleted.');
     }
 
     public function testLogsMissingConfig(): void

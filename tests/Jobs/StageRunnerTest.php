@@ -168,6 +168,27 @@ class StageRunnerTest extends TestCase
         $this->assertSame([], array_filter($this->log->entries, fn($e) => $e['level'] >= 5), 'Waiting is not logged as an error.');
     }
 
+    /** When every job is waiting on the same thing, trying the rest is pointless. */
+    public function testARunStopsWhenEveryJobWaits(): void
+    {
+        $attempted = [];
+        $count = $this->runner()->run(
+            10,
+            $this->jobs([1, 2, 3]),
+            fn(object $job): int => $job->id,
+            function (object $job) use (&$attempted): void {
+                $attempted[] = $job->id;
+                throw new NotReadyYet('The Internet Archive is turning uploads away.', 3600, true);
+            }
+        );
+
+        $this->assertSame(0, $count);
+        $this->assertSame([1], $attempted);
+        $this->assertSame(JobLedger::STATUS_WAITING, $this->jobStatus(1));
+        $this->assertSame(0, (int) $this->pdo->query("SELECT attempts FROM video_jobs WHERE file_id = 1")->fetchColumn());
+        $this->assertNull($this->jobStatus(2), 'Job 2 was not touched.');
+    }
+
     public function testSkipsAJobThatHasNoAttemptsLeft(): void
     {
         for ($i = 0; $i < JobLedger::MAX_ATTEMPTS; $i++) {

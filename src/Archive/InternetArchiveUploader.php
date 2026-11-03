@@ -23,6 +23,12 @@ class InternetArchiveUploader
      * later pass of this run, or on whatever run comes next.
      */
     public const RECHECK_SECONDS = 600;
+    /**
+     * The soonest an upload is tried again after the archive turned it away
+     * for the request rate. "total_tasks_queued exceeds global_limit" means
+     * the archive's own task queue is full, which can last for hours.
+     */
+    public const BUSY_RECHECK_SECONDS = 3600;
 
     public function __construct(
         private ?Log $logger = null,
@@ -101,6 +107,11 @@ class InternetArchiveUploader
         if ($status !== 0) {
             $message = trim(implode('; ', self::withoutProgressBars($output)));
             $message = $message !== '' ? $message : 'No output from ia upload command.';
+            // The archive's answer when it is overloaded (an S3 503 SlowDown).
+            // Every upload gets it, so it is a wait, not a fault in this video.
+            if (preg_match('/reduce your request rate|slow ?down|exceeds global_limit/i', $message)) {
+                throw new NotReadyYet('The Internet Archive is turning uploads away for now: ' . $message, self::BUSY_RECHECK_SECONDS, true);
+            }
             $this->logger?->put('Internet Archive upload failed for file #' . $job->fileId . ': ' . $message, 5);
             return null;
         }
