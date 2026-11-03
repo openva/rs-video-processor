@@ -18,8 +18,7 @@ class NotReadyYet extends RuntimeException
         string $message,
         public readonly int $retrySeconds,
         public readonly bool $everyJobWaits = false
-    )
-    {
+    ) {
         parent::__construct($message);
     }
 }
