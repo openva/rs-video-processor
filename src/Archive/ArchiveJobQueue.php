@@ -15,12 +15,15 @@ class ArchiveJobQueue
     private function pendingWhere(): string
     {
         // A real screenshot directory has at least two slashes. The markers
-        // '/pending' and '/deleted-source' have one and must not pass: archiving
-        // moves the video to archive.org, after which it cannot be screenshotted.
+        // '/pending' and '/deleted-source' have one and must not pass.
+        // Screenshots are made a few steps earlier in the same run, from S3,
+        // which is faster than from archive.org.
+        //
+        // A transcript and captions are not waited for: some videos never get
+        // them. The transcript stage reads archived videos from archive.org,
+        // and the archive_captions stage adds captions to the item later.
         return "f.path LIKE 'https://video.richmondsunlight.com/%'
-            AND (f.webvtt IS NOT NULL OR f.srt IS NOT NULL)
             AND (f.capture_directory LIKE '/%/%' OR f.capture_directory LIKE 'https://%')
-            AND f.transcript IS NOT NULL
             AND " . JobLedger::eligibleSql(JobLedger::STAGE_ARCHIVE);
     }
 
@@ -42,7 +45,7 @@ class ArchiveJobQueue
      */
     public function fetch(int $limit = 3): array
     {
-        $sql = 'SELECT f.id, f.chamber, f.title, f.date, f.path, f.webvtt, f.srt,
+        $sql = 'SELECT f.id, f.chamber, f.title, f.date, f.path, f.webvtt, f.srt, f.caption_alignment,
                        f.capture_directory, f.video_index_cache, f.committee_id, c.name as committee_name
             FROM files f
             LEFT JOIN committees c ON f.committee_id = c.id
@@ -77,7 +80,8 @@ class ArchiveJobQueue
                 $row['capture_directory'] ?? null,
                 $row['video_index_cache'] ?? null,
                 $row['committee_id'] !== null ? (int) $row['committee_id'] : null,
-                $row['committee_name'] ?? null
+                $row['committee_name'] ?? null,
+                $row['caption_alignment'] ?? null
             );
         }
 

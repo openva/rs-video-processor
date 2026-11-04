@@ -202,9 +202,9 @@ class ArchiveJobProcessorTest extends TestCase
         return [$processor, $cold, $logger, $pdo];
     }
 
-    private function job(string $s3Path): ArchiveJob
+    private function job(string $s3Path, ?string $captionAlignment = 'aligned'): ArchiveJob
     {
-        return new ArchiveJob(1, 'senate', 'Senate Session', '2020-02-26', $s3Path, 'WEBVTT', null, null, null);
+        return new ArchiveJob(1, 'senate', 'Senate Session', '2020-02-26', $s3Path, 'WEBVTT', null, null, null, null, null, $captionAlignment);
     }
 
     public function testLogsWhenNoJobsAvailable(): void
@@ -276,6 +276,17 @@ class ArchiveJobProcessorTest extends TestCase
         $pdo->exec("UPDATE files SET webvtt = 'WEBVTT newer', caption_alignment = 'aligned' WHERE id = 1");
 
         $processor->processJob($this->job('https://video.richmondsunlight.com/senate/floor/20200226-6304.mp4'));
+
+        $this->assertSame('pending', $pdo->query("SELECT status FROM video_jobs WHERE file_id = 1 AND stage = 'archive_captions'")->fetchColumn());
+    }
+
+    /** Uploaded alone because their timing was unchecked; checked by the time the upload finished. */
+    public function testCaptionsCheckedDuringTheUploadAreSentAfterward(): void
+    {
+        [$processor, , , $pdo] = $this->processorWithColdStorage(null);
+        $pdo->exec("UPDATE files SET webvtt = 'WEBVTT', caption_alignment = 'not_needed' WHERE id = 1");
+
+        $processor->processJob($this->job('https://video.richmondsunlight.com/senate/floor/20200226-6304.mp4', null));
 
         $this->assertSame('pending', $pdo->query("SELECT status FROM video_jobs WHERE file_id = 1 AND stage = 'archive_captions'")->fetchColumn());
     }

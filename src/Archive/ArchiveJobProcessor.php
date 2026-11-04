@@ -53,10 +53,10 @@ class ArchiveJobProcessor
     }
 
     /**
-     * The upload sent the captions as they were when the job was fetched, and
-     * an upload can take an hour. Captions the transcript stage wrote meanwhile
-     * were written while the video was still on S3, so nothing asked for them
-     * to be sent; ask now.
+     * The upload sent the captions as they were when the job was fetched, or
+     * none if their timing was unchecked, and an upload can take an hour.
+     * Captions the transcript stage wrote meanwhile were written while the
+     * video was still on S3, so nothing asked for them to be sent; ask now.
      */
     private function requestNewerCaptions(PDO $pdo, ArchiveJob $job): void
     {
@@ -64,7 +64,8 @@ class ArchiveJobProcessor
         $stmt->execute([':id' => $job->fileId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['webvtt' => null, 'caption_alignment' => null];
         $now = ArchiveCaptions::sendable($row['webvtt'], $row['caption_alignment']);
-        if ($now !== null && $now !== $job->webvtt) {
+        $sent = ArchiveCaptions::sendable($job->webvtt, $job->captionAlignment);
+        if ($now !== null && $now !== $sent) {
             ArchiveCaptions::requestIfArchived($pdo, $job->fileId);
         }
     }

@@ -15,7 +15,9 @@ class ArchiveJob
         public ?string $captureDirectory,
         public ?string $videoIndexCache,
         public ?int $committeeId = null,
-        public ?string $committeeName = null
+        public ?string $committeeName = null,
+        /** files.caption_alignment: null until the transcript stage has checked the captions' timing */
+        public ?string $captionAlignment = null
     ) {
     }
 }

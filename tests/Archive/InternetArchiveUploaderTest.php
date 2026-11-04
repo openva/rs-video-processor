@@ -54,9 +54,36 @@ class InternetArchiveUploaderTest extends TestCase
         return $uploader;
     }
 
-    private function job(): ArchiveJob
+    private function job(?string $captionAlignment = 'aligned'): ArchiveJob
     {
-        return new ArchiveJob(1, 'house', 'Test Video', '2025-01-01', 'https://video.richmondsunlight.com/house/floor/file.mp4', 'WEBVTT', null, null, null);
+        return new ArchiveJob(1, 'house', 'Test Video', '2025-01-01', 'https://video.richmondsunlight.com/house/floor/file.mp4', 'WEBVTT', null, null, null, null, null, $captionAlignment);
+    }
+
+    /**
+     * The House and Senate's own captions can be minutes early or late until
+     * the transcript stage has checked them, so the video goes up alone and
+     * the archive_captions stage adds them once they are checked.
+     */
+    public function testCaptionsWhoseTimingIsUncheckedAreNotUploaded(): void
+    {
+        $commands = [];
+        $uploader = $this->uploader([[], self::item(true)], $commands);
+
+        $uploader->upload($this->job(null), []);
+
+        $this->assertStringNotContainsString('.vtt', $commands[0]);
+        $this->assertStringNotContainsString('.srt', $commands[0]);
+    }
+
+    /** Checked and found impossible to line up: nothing will improve on them, and the website shows them too. */
+    public function testUnalignedCaptionsAreUploaded(): void
+    {
+        $commands = [];
+        $uploader = $this->uploader([[], self::item(true)], $commands);
+
+        $uploader->upload($this->job('unaligned'), []);
+
+        $this->assertStringContainsString("/va-house-20250101-1.en.vtt'", $commands[0]);
     }
 
     /** An item as the metadata API describes it: our original MP4 and what IA derives from it. */
@@ -130,7 +157,11 @@ class InternetArchiveUploaderTest extends TestCase
         }
     }
 
-    public function testSrtCaptionsAreNamedAfterTheIdentifierToo(): void
+    /**
+     * The transcript stage writes its checked captions as WebVTT, so SRT on
+     * its own has never been checked.
+     */
+    public function testSrtCaptionsAloneAreNotUploaded(): void
     {
         $commands = [];
         $uploader = $this->uploader([[], self::item(true)], $commands);
@@ -139,7 +170,7 @@ class InternetArchiveUploaderTest extends TestCase
         $uploader->upload($job, []);
 
         $this->assertMatchesRegularExpression("#/va-house-20250101-1\\.mp4' #", $commands[0]);
-        $this->assertMatchesRegularExpression("#/va-house-20250101-1\\.en\\.srt'#", $commands[0]);
+        $this->assertStringNotContainsString('.srt', $commands[0]);
     }
 
     /** A later try finds the earlier upload finished, and does not upload again. */

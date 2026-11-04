@@ -36,16 +36,27 @@ class ArchiveJobQueueTest extends TestCase
         $this->assertCount(0, $jobs);
     }
 
-    public function testExcludesRowsWithoutTranscript(): void
+    /**
+     * Videos are archived without waiting for a transcript or captions, which
+     * some never get. The archive_captions stage adds captions later.
+     */
+    public function testArchivesVideosWithoutATranscriptOrCaptions(): void
     {
         $pdo = $this->createTestDatabase();
-
-        // Has captions and capture_directory but no transcript
-        $pdo->exec('INSERT INTO files (chamber,title,date,path,webvtt,capture_directory,transcript,date_created) VALUES ("house","Floor","2025-01-01","https://video.richmondsunlight.com/house/floor/20250101.mp4","WEBVTT","/screenshots/1",NULL,"2025-01-01")');
+        $pdo->exec('INSERT INTO files (chamber,title,date,path,webvtt,capture_directory,transcript,date_created) VALUES ("house","Floor","2025-01-01","https://video.richmondsunlight.com/house/floor/20250101.mp4",NULL,"/house/floor/20250101-1/",NULL,"2025-01-01")');
 
         $queue = new ArchiveJobQueue($pdo);
-        $jobs = $queue->fetch();
-        $this->assertCount(0, $jobs);
+
+        $this->assertSame(1, $queue->countPending());
+        $this->assertCount(1, $queue->fetch());
+    }
+
+    public function testCarriesTheCaptionTimingCheck(): void
+    {
+        $pdo = $this->createTestDatabase();
+        $pdo->exec('INSERT INTO files (chamber,title,date,path,webvtt,caption_alignment,capture_directory,date_created) VALUES ("house","Floor","2025-01-01","https://video.richmondsunlight.com/house/floor/20250101.mp4","WEBVTT","aligned","/house/floor/20250101-1/","2025-01-01")');
+
+        $this->assertSame('aligned', (new ArchiveJobQueue($pdo))->fetch()[0]->captionAlignment);
     }
 
     /**
@@ -99,6 +110,7 @@ class ArchiveJobQueueTest extends TestCase
             html TEXT,
             webvtt TEXT,
             srt TEXT,
+            caption_alignment TEXT,
             capture_directory TEXT,
             transcript TEXT,
             video_index_cache TEXT,

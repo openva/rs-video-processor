@@ -103,14 +103,13 @@ class InternetArchiveUploader
             throw new RuntimeException('Unable to move the downloaded video into place for the Internet Archive.');
         }
         $tempFiles = [$videoPath];
+        // Only captions whose timing has been checked; otherwise the video goes
+        // up alone, and the archive_captions stage adds them once they are.
         $captions = null;
-        if ($job->webvtt) {
+        $sendable = ArchiveCaptions::sendable($job->webvtt, $job->captionAlignment);
+        if ($sendable !== null) {
             $captions = $dir . '/' . $identifier . '.en.vtt';
-        } elseif ($job->srt) {
-            $captions = $dir . '/' . $identifier . '.en.srt';
-        }
-        if ($captions !== null) {
-            file_put_contents($captions, $job->webvtt ?: $job->srt);
+            file_put_contents($captions, $sendable);
             $tempFiles[] = $captions;
         }
 
