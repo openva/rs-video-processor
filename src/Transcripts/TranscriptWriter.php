@@ -4,6 +4,7 @@ namespace RichmondSunlight\VideoProcessor\Transcripts;
 
 use DateTimeImmutable;
 use PDO;
+use RichmondSunlight\VideoProcessor\Archive\ArchiveCaptions;
 use RuntimeException;
 
 class TranscriptWriter
@@ -89,6 +90,9 @@ class TranscriptWriter
             $this->pdo->prepare('UPDATE files SET caption_alignment = :alignment, caption_offset = :offset WHERE id = :id')
                 ->execute([':alignment' => $alignment, ':offset' => $offset, ':id' => $fileId]);
         }
+
+        // An archived video's Internet Archive item still has the old captions, or none.
+        ArchiveCaptions::requestIfArchived($this->pdo, $fileId);
 
         $this->pdo->commit();
     }

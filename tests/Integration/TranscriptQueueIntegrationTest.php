@@ -90,7 +90,7 @@ class TranscriptQueueIntegrationTest extends TestCase
             date_created TEXT
         )');
         $pdo->exec('CREATE TABLE files (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT,
             transcript TEXT,
             webvtt TEXT,
             srt TEXT,

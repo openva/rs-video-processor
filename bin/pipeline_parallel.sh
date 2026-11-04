@@ -127,6 +127,8 @@ for i in $(seq 1 "$ARCHIVE_WORKERS"); do
     pids+=($!)
 done
 for pid in "${pids[@]}"; do wait "$pid" || true; done
+# New captions for videos already on the Internet Archive (one worker is plenty).
+run_step "send captions to the Internet Archive" php "$SCRIPT_DIR/sync_archive_captions.php" --limit="$JOBS_PER_WORKER"
 echo "✓ Archive uploads complete"
 echo ""
 

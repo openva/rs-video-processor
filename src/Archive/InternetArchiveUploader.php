@@ -127,9 +127,7 @@ class InternetArchiveUploader
         if ($status !== 0) {
             $message = trim(implode('; ', self::withoutProgressBars($output)));
             $message = $message !== '' ? $message : 'No output from ia upload command.';
-            // The archive's answer when it is overloaded (an S3 503 SlowDown).
-            // Every upload gets it, so it is a wait, not a fault in this video.
-            if (preg_match('/reduce your request rate|slow ?down|exceeds global_limit/i', $message)) {
+            if (ArchiveCaptions::isRateLimited($message)) {
                 throw new NotReadyYet('The Internet Archive is turning uploads away for now: ' . $message, self::BUSY_RECHECK_SECONDS, true);
             }
             $this->logger?->put('Internet Archive upload failed for file #' . $job->fileId . ': ' . $message, 5);

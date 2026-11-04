@@ -196,4 +196,38 @@ class JobLedgerTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->ledger->claim(1, 'nonsense');
     }
+
+    /** archive_captions jobs exist only once asked for. */
+    public function testARequestedJobIsPendingAndEligible(): void
+    {
+        $this->ledger->request(1, JobLedger::STAGE_ARCHIVE_CAPTIONS);
+
+        $row = $this->row(JobLedger::STAGE_ARCHIVE_CAPTIONS);
+        $this->assertSame(JobLedger::STATUS_PENDING, $row['status']);
+        $this->assertSame(0, (int) $row['attempts']);
+        $this->assertTrue($this->eligible(JobLedger::STAGE_ARCHIVE_CAPTIONS));
+    }
+
+    /** New captions are new work, however the last captions went. */
+    public function testARequestStartsAfreshOverADoneOrFailedJob(): void
+    {
+        $stage = JobLedger::STAGE_ARCHIVE_CAPTIONS;
+        $this->ledger->begin(1, $stage);
+        $this->ledger->recordSuccess(1, $stage);
+        $this->ledger->request(1, $stage);
+        $this->assertSame(JobLedger::STATUS_PENDING, $this->row($stage)['status']);
+
+        for ($i = 0; $i < JobLedger::MAX_ATTEMPTS; $i++) {
+            $this->ledger->begin(1, $stage);
+            $this->ledger->recordFailure(1, $stage, 'archive down');
+        }
+        $this->assertSame(JobLedger::STATUS_FAILED, $this->row($stage)['status']);
+
+        $this->ledger->request(1, $stage);
+        $row = $this->row($stage);
+        $this->assertSame(JobLedger::STATUS_PENDING, $row['status']);
+        $this->assertSame(0, (int) $row['attempts']);
+        $this->assertNull($row['last_error']);
+        $this->assertTrue($this->eligible($stage));
+    }
 }

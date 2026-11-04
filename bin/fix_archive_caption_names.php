@@ -27,6 +27,7 @@
 declare(strict_types=1);
 
 use GuzzleHttp\Client;
+use RichmondSunlight\VideoProcessor\Archive\ArchiveCaptions;
 use RichmondSunlight\VideoProcessor\Archive\CaptionNameFixer;
 
 $app = require __DIR__ . '/bootstrap.php';
@@ -115,7 +116,7 @@ foreach ($rows as $row) {
     $counts['failed']++;
     printf("    failed: %s\n", $message !== '' ? $message : 'no output from ia');
     // The archive is overloaded: every request would get the same answer.
-    if (preg_match('/reduce your request rate|slow ?down|exceeds global_limit/i', $message)) {
+    if (ArchiveCaptions::isRateLimited($message)) {
         echo "The Internet Archive is turning requests away for now. Stopping; run this again later.\n";
         break;
     }

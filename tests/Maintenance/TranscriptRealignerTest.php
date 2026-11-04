@@ -187,6 +187,36 @@ class TranscriptRealignerTest extends TestCase
     }
 
     /** A realigner whose copies all check out. */
+    private function captionsRequested(int $fileId): bool
+    {
+        $stmt = $this->pdo->prepare("SELECT status FROM video_jobs WHERE file_id = :id AND stage = 'archive_captions'");
+        $stmt->execute([':id' => $fileId]);
+        return $stmt->fetchColumn() === 'pending';
+    }
+
+    /** Shifted captions, or captions whose timing is now checked, belong on the archived item. */
+    public function testAShiftOrAFirstCheckAsksForTheCaptionsToBeSent(): void
+    {
+        $realigner = $this->realigner($this->aligner(7.0));
+
+        $realigner->apply(1, new CaptionAlignment(true, 7.0, 40, 1.0, [], false, ''));
+        $this->assertTrue($this->captionsRequested(1), 'Shifted.');
+
+        $realigner->apply(2, new CaptionAlignment(true, 0.2, 40, 1.0, [], false, ''));
+        $this->assertTrue($this->captionsRequested(2), 'Checked for the first time, not shifted.');
+    }
+
+    public function testACheckThatChangesNothingAsksForNothing(): void
+    {
+        $realigner = $this->realigner($this->aligner(7.0));
+        $realigner->apply(1, new CaptionAlignment(true, 0.2, 40, 1.0, [], false, ''));
+        $this->pdo->exec('DELETE FROM video_jobs');
+
+        $realigner->apply(1, new CaptionAlignment(true, 0.2, 40, 1.0, [], false, ''));
+
+        $this->assertFalse($this->captionsRequested(1));
+    }
+
     private function realigner(CaptionAligner $aligner): TranscriptRealigner
     {
         return new TranscriptRealigner($this->pdo, $aligner, new CopyDurationCheck(static fn() => null));

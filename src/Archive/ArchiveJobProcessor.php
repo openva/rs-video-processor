@@ -48,7 +48,25 @@ class ArchiveJobProcessor
         $stmt->execute([':path' => $url, ':id' => $job->fileId]);
         $this->logger->put('Uploaded file #' . $job->fileId . ' to ' . $url, 3);
 
+        $this->requestNewerCaptions($pdo, $job);
         $this->moveToColdStorage($job);
+    }
+
+    /**
+     * The upload sent the captions as they were when the job was fetched, and
+     * an upload can take an hour. Captions the transcript stage wrote meanwhile
+     * were written while the video was still on S3, so nothing asked for them
+     * to be sent; ask now.
+     */
+    private function requestNewerCaptions(PDO $pdo, ArchiveJob $job): void
+    {
+        $stmt = $pdo->prepare('SELECT webvtt, caption_alignment FROM files WHERE id = :id');
+        $stmt->execute([':id' => $job->fileId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['webvtt' => null, 'caption_alignment' => null];
+        $now = ArchiveCaptions::sendable($row['webvtt'], $row['caption_alignment']);
+        if ($now !== null && $now !== $job->webvtt) {
+            ArchiveCaptions::requestIfArchived($pdo, $job->fileId);
+        }
     }
 
     /**

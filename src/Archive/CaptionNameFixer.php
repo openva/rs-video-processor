@@ -29,6 +29,19 @@ class CaptionNameFixer
     }
 
     /**
+     * The file a download URL names within its item (decoded), or null for a
+     * details URL or anything else.
+     */
+    public static function fileFromPath(string $path): ?string
+    {
+        if (!preg_match('#^https://archive\.org/download/[^/]+/(.+)$#', $path, $m)) {
+            return null;
+        }
+
+        return rawurldecode($m[1]);
+    }
+
+    /**
      * @param string $path the video's files.path
      * @param array<string,mixed> $item the archive's metadata API reply for its item
      * @return array{action:string, reason:string, from?:string, to?:string}
@@ -123,8 +136,8 @@ class CaptionNameFixer
      */
     private static function videoName(string $path, array $videos): ?string
     {
-        if (preg_match('#^https://archive\.org/download/[^/]+/(.+)$#', $path, $m)) {
-            $name = rawurldecode($m[1]);
+        $name = self::fileFromPath($path);
+        if ($name !== null) {
             return in_array($name, $videos, true) ? $name : null;
         }
 

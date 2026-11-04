@@ -22,7 +22,7 @@ class TranscriptWriterTest extends TestCase
             date_created TEXT
         )');
         $pdo->exec('CREATE TABLE files (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT,
             transcript TEXT,
             webvtt TEXT,
             date_modified TIMESTAMP
@@ -60,7 +60,7 @@ class TranscriptWriterTest extends TestCase
             date_created TEXT
         )');
         $pdo->exec('CREATE TABLE files (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT,
             transcript TEXT,
             webvtt TEXT,
             date_modified TIMESTAMP
@@ -93,7 +93,7 @@ class TranscriptWriterTest extends TestCase
             date_created TEXT
         )');
         $pdo->exec('CREATE TABLE files (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT,
             transcript TEXT,
             webvtt TEXT,
             date_modified TIMESTAMP
@@ -130,7 +130,7 @@ class TranscriptWriterTest extends TestCase
             date_created TEXT
         )');
         $pdo->exec('CREATE TABLE files (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT,
             transcript TEXT,
             webvtt TEXT,
             date_modified TIMESTAMP
@@ -166,7 +166,7 @@ class TranscriptWriterTest extends TestCase
             date_created TEXT
         )');
         $pdo->exec('CREATE TABLE files (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT,
             transcript TEXT,
             webvtt TEXT,
             date_modified TIMESTAMP
@@ -201,7 +201,7 @@ class TranscriptWriterTest extends TestCase
             date_created TEXT
         )');
         $pdo->exec('CREATE TABLE files (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT,
             transcript TEXT,
             webvtt TEXT,
             date_modified TIMESTAMP
@@ -219,5 +219,41 @@ class TranscriptWriterTest extends TestCase
 
         $full = $pdo->query('SELECT transcript FROM files WHERE id = 1')->fetchColumn();
         $this->assertSame($long, $full, 'The full text is kept in files.transcript.');
+    }
+
+    private function databaseWithPath(string $path): PDO
+    {
+        $pdo = new PDO('sqlite::memory:');
+        $pdo->exec('CREATE TABLE video_transcript (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, file_id INTEGER, text TEXT, time_start TEXT,
+            time_end TEXT, new_speaker TEXT, legislator_id INTEGER, date_created TEXT
+        )');
+        $pdo->exec('CREATE TABLE files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT, transcript TEXT, webvtt TEXT,
+            caption_alignment TEXT, caption_offset REAL, date_modified TIMESTAMP
+        )');
+        \RichmondSunlight\VideoProcessor\Tests\Support\TestDatabaseFactory::addPipelineTables($pdo);
+        $pdo->prepare('INSERT INTO files (id, path) VALUES (1, :path)')->execute([':path' => $path]);
+        return $pdo;
+    }
+
+    /** An archived video's Internet Archive item needs the new captions. */
+    public function testWritingCaptionsForAnArchivedVideoAsksForThemToBeSent(): void
+    {
+        $pdo = $this->databaseWithPath('https://archive.org/download/va-house-20250101-1/va-house-20250101-1.mp4');
+
+        (new TranscriptWriter($pdo))->write(1, [['start' => 1.0, 'end' => 2.0, 'text' => 'Hello']], 'aligned', 0.0);
+
+        $status = $pdo->query("SELECT status FROM video_jobs WHERE file_id = 1 AND stage = 'archive_captions'")->fetchColumn();
+        $this->assertSame('pending', $status);
+    }
+
+    public function testWritingCaptionsForAVideoOnS3AsksForNothing(): void
+    {
+        $pdo = $this->databaseWithPath('https://video.richmondsunlight.com/house/floor/20250101-1.mp4');
+
+        (new TranscriptWriter($pdo))->write(1, [['start' => 1.0, 'end' => 2.0, 'text' => 'Hello']], 'aligned', 0.0);
+
+        $this->assertSame(0, (int) $pdo->query('SELECT COUNT(*) FROM video_jobs')->fetchColumn());
     }
 }

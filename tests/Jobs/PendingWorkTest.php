@@ -29,7 +29,7 @@ class PendingWorkTest extends TestCase
         $pending = new PendingWork($pdo);
 
         $this->assertSame(
-            ['download' => 1, 'screenshots' => 1, 'transcript' => 1, 'bills' => 0, 'speakers' => 0, 'archive' => 0],
+            ['download' => 1, 'screenshots' => 1, 'transcript' => 1, 'bills' => 0, 'speakers' => 0, 'archive' => 0, 'archive_captions' => 0],
             $pending->counts()
         );
         $this->assertSame(3, $pending->total());

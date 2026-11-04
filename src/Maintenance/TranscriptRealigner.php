@@ -3,6 +3,7 @@
 namespace RichmondSunlight\VideoProcessor\Maintenance;
 
 use PDO;
+use RichmondSunlight\VideoProcessor\Archive\ArchiveCaptions;
 use RichmondSunlight\VideoProcessor\Transcripts\CaptionAligner;
 use RichmondSunlight\VideoProcessor\Transcripts\CaptionAlignment;
 use RichmondSunlight\VideoProcessor\Transcripts\CaptionParser;
@@ -222,6 +223,12 @@ class TranscriptRealigner
                         ':offset' => $alignment->aligned ? 0.0 : null,
                         ':id' => $fileId,
                     ]);
+            }
+
+            // The captions were shifted, or their timing has now been checked
+            // and so may be sent; either way an archived video's item needs them.
+            if ($file['webvtt'] !== null && ($alignment->shouldShift() || $file['caption_alignment'] === null)) {
+                ArchiveCaptions::requestIfArchived($this->pdo, $fileId);
             }
 
             $this->pdo->commit();

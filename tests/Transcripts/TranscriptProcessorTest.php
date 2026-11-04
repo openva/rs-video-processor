@@ -30,7 +30,7 @@ class TranscriptProcessorTest extends TestCase
             date_created TEXT
         )');
         $pdo->exec('CREATE TABLE files (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT,
             transcript TEXT,
             webvtt TEXT,
             date_modified TIMESTAMP
@@ -66,7 +66,7 @@ class TranscriptProcessorTest extends TestCase
             date_created TEXT
         )');
         $pdo->exec('CREATE TABLE files (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT,
             transcript TEXT,
             webvtt TEXT,
             date_modified TIMESTAMP
@@ -103,7 +103,7 @@ class TranscriptProcessorTest extends TestCase
             date_created TEXT
         )');
         $pdo->exec('CREATE TABLE files (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT,
             transcript TEXT,
             webvtt TEXT,
             date_modified TIMESTAMP
@@ -273,7 +273,7 @@ class TranscriptProcessorTest extends TestCase
             new_speaker TEXT, legislator_id INTEGER, date_created TEXT
         )');
         $pdo->exec('CREATE TABLE files (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, transcript TEXT, webvtt TEXT, date_modified TIMESTAMP,
+            id INTEGER PRIMARY KEY AUTOINCREMENT, path TEXT, transcript TEXT, webvtt TEXT, date_modified TIMESTAMP,
             caption_offset REAL, caption_alignment TEXT
         )');
         $pdo->exec('INSERT INTO files (id) VALUES (1)');

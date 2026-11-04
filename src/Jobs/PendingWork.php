@@ -5,6 +5,7 @@ namespace RichmondSunlight\VideoProcessor\Jobs;
 use PDO;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\BillDetectionJobQueue;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerJobQueue;
+use RichmondSunlight\VideoProcessor\Archive\ArchiveCaptionQueue;
 use RichmondSunlight\VideoProcessor\Archive\ArchiveJobQueue;
 use RichmondSunlight\VideoProcessor\Fetcher\VideoDownloadQueue;
 use RichmondSunlight\VideoProcessor\Screenshots\ScreenshotJobQueue;
@@ -35,6 +36,7 @@ class PendingWork
             JobLedger::STAGE_BILLS => (new BillDetectionJobQueue($this->pdo))->countPending(),
             JobLedger::STAGE_SPEAKERS => (new SpeakerJobQueue($this->pdo))->countPending(),
             JobLedger::STAGE_ARCHIVE => (new ArchiveJobQueue($this->pdo))->countPending(),
+            JobLedger::STAGE_ARCHIVE_CAPTIONS => (new ArchiveCaptionQueue($this->pdo))->countPending(),
         ];
     }
 

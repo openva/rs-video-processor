@@ -24,6 +24,12 @@ class JobLedger
     public const STAGE_BILLS = 'bills';
     public const STAGE_SPEAKERS = 'speakers';
     public const STAGE_ARCHIVE = 'archive';
+    /**
+     * Sending new captions to a video already on the Internet Archive. Unlike
+     * the other stages, its jobs exist only when requested (request()), since
+     * most archived videos have nothing to send.
+     */
+    public const STAGE_ARCHIVE_CAPTIONS = 'archive_captions';
 
     public const STAGES = [
         self::STAGE_DOWNLOAD,
@@ -32,6 +38,7 @@ class JobLedger
         self::STAGE_BILLS,
         self::STAGE_SPEAKERS,
         self::STAGE_ARCHIVE,
+        self::STAGE_ARCHIVE_CAPTIONS,
     ];
 
     public const STATUS_RUNNING = 'running';
@@ -40,6 +47,8 @@ class JobLedger
     public const STATUS_DONE = 'done';
     /** Put aside until next_attempt_at, waiting on someone else; not a failure. */
     public const STATUS_WAITING = 'waiting';
+    /** Asked for by request(), and not yet tried. */
+    public const STATUS_PENDING = 'pending';
 
     /** A job is given up on after this many attempts. */
     public const MAX_ATTEMPTS = 3;
@@ -236,6 +245,22 @@ class JobLedger
             self::format($this->now() + $seconds),
             self::cleanError($reason)
         );
+    }
+
+    /**
+     * Ask for a job to be done, for a stage whose jobs exist only on request
+     * (STAGE_ARCHIVE_CAPTIONS). It starts afresh, with all its attempts, even
+     * over a job that was done or given up on: there is new work to do. A job
+     * running now is marked too; the stage re-reads its input just before
+     * finishing, so the newer work is not lost.
+     */
+    public function request(int $fileId, string $stage): void
+    {
+        self::assertStage($stage);
+        $pdo = $this->connection();
+        $row = $this->row($pdo, $fileId, $stage);
+
+        $this->write($pdo, $row !== null, $fileId, $stage, self::STATUS_PENDING, 0, null, null, null);
     }
 
     /**

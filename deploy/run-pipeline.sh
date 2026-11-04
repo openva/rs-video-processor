@@ -125,6 +125,8 @@ run_pipeline_pass() {
 
   run_step "Step 12: Archiving videos" php bin/upload_archive.php --limit=10
 
+  run_step "Step 13: Sending new captions to the Internet Archive" php bin/sync_archive_captions.php --limit=10
+
   echo "Pipeline pass #${pass_num} complete at $(date)"
 }
 

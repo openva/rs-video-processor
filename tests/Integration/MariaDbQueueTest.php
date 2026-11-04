@@ -6,8 +6,10 @@ use PDO;
 use PHPUnit\Framework\TestCase;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\BillDetectionJobQueue;
 use RichmondSunlight\VideoProcessor\Analysis\Speakers\SpeakerJobQueue;
+use RichmondSunlight\VideoProcessor\Archive\ArchiveCaptionQueue;
 use RichmondSunlight\VideoProcessor\Archive\ArchiveJobQueue;
 use RichmondSunlight\VideoProcessor\Fetcher\VideoDownloadQueue;
+use RichmondSunlight\VideoProcessor\Jobs\JobLedger;
 use RichmondSunlight\VideoProcessor\Screenshots\ScreenshotJobQueue;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptJobQueue;
 
@@ -171,5 +173,33 @@ class MariaDbQueueTest extends TestCase
         foreach ($makeQueue($workerA)->fetch(5) as $job) {
             $this->assertNotContains($idOf($job), $seeded);
         }
+    }
+
+    /** archive_captions jobs exist only on request, so it is not in queues(). */
+    public function testTwoWorkersNeverReceiveTheSameCaptions(): void
+    {
+        $workerA = $this->connect();
+        $workerB = $this->connect();
+        $row = [
+            'path' => 'https://archive.org/download/va-house-20990101-1/va-house-20990101-1.mp4',
+            'webvtt' => 'WEBVTT',
+            'caption_alignment' => 'aligned',
+        ];
+        $seeded = [$this->seed($workerA, $row), $this->seed($workerA, $row)];
+        foreach ($seeded as $id) {
+            (new JobLedger($workerA))->request($id, JobLedger::STAGE_ARCHIVE_CAPTIONS);
+        }
+
+        $this->assertGreaterThanOrEqual(2, (new ArchiveCaptionQueue($workerA))->countPending());
+
+        $first = (new ArchiveCaptionQueue($workerA))->fetch(1);
+        $second = (new ArchiveCaptionQueue($workerB))->fetch(1);
+
+        $this->assertCount(1, $first);
+        $this->assertCount(1, $second);
+        $this->assertContains($first[0], $seeded);
+        $this->assertContains($second[0], $seeded);
+        $this->assertNotSame($first[0], $second[0], 'Two workers received the same video.');
+        $this->assertSame([], array_intersect((new ArchiveCaptionQueue($workerA))->fetch(5), $seeded));
     }
 }

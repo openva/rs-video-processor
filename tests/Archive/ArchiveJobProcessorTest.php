@@ -11,6 +11,7 @@ use RichmondSunlight\VideoProcessor\Archive\ArchiveJobQueue;
 use RichmondSunlight\VideoProcessor\Archive\InternetArchiveUploader;
 use RichmondSunlight\VideoProcessor\Archive\MetadataBuilder;
 use RichmondSunlight\VideoProcessor\Jobs\NotReadyYet;
+use RichmondSunlight\VideoProcessor\Tests\Support\TestDatabaseFactory;
 
 class ArchiveJobProcessorTest extends TestCase
 {
@@ -242,8 +243,11 @@ class ArchiveJobProcessorTest extends TestCase
         $pdo = new PDO('sqlite::memory:');
         $pdo->exec('CREATE TABLE files (
             id INTEGER PRIMARY KEY,
-            path TEXT
+            path TEXT,
+            webvtt TEXT,
+            caption_alignment TEXT
         )');
+        TestDatabaseFactory::addPipelineTables($pdo);
         return $pdo;
     }
 
@@ -261,6 +265,30 @@ class ArchiveJobProcessorTest extends TestCase
             }
         };
     }
+    /**
+     * An upload can take an hour, and the transcript stage can write new
+     * captions meanwhile, while the video is still on S3, so nothing else
+     * would ask for them to be sent.
+     */
+    public function testCaptionsWrittenDuringTheUploadAreSentAfterward(): void
+    {
+        [$processor, , , $pdo] = $this->processorWithColdStorage(null);
+        $pdo->exec("UPDATE files SET webvtt = 'WEBVTT newer', caption_alignment = 'aligned' WHERE id = 1");
+
+        $processor->processJob($this->job('https://video.richmondsunlight.com/senate/floor/20200226-6304.mp4'));
+
+        $this->assertSame('pending', $pdo->query("SELECT status FROM video_jobs WHERE file_id = 1 AND stage = 'archive_captions'")->fetchColumn());
+    }
+
+    public function testCaptionsUnchangedDuringTheUploadAreNotSentAgain(): void
+    {
+        [$processor, , , $pdo] = $this->processorWithColdStorage(null);
+        $pdo->exec("UPDATE files SET webvtt = 'WEBVTT', caption_alignment = 'aligned' WHERE id = 1");
+
+        $processor->processJob($this->job('https://video.richmondsunlight.com/senate/floor/20200226-6304.mp4'));
+
+        $this->assertSame(0, (int) $pdo->query('SELECT COUNT(*) FROM video_jobs')->fetchColumn());
+    }
 }
 
 class ArchiveJobProcessorTestLogger extends \Log
@@ -272,4 +300,5 @@ class ArchiveJobProcessorTestLogger extends \Log
         $this->entries[] = ['message' => $message, 'level' => $level];
         return true;
     }
+
 }
