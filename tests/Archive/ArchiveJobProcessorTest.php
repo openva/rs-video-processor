@@ -300,5 +300,4 @@ class ArchiveJobProcessorTestLogger extends \Log
         $this->entries[] = ['message' => $message, 'level' => $level];
         return true;
     }
-
 }

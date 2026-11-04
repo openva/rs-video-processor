@@ -84,7 +84,7 @@ class ArchiveCaptionUploader
             throw new NotReadyYet('The Internet Archive is still processing ' . $identifier . '.', InternetArchiveUploader::RECHECK_SECONDS);
         }
 
-        for ($send = 1; ; $send++) {
+        for ($send = 1;; $send++) {
             $this->upload($identifier, $name, $file['captions']);
             $this->logger?->put(sprintf('Sent the captions of file #%d to the Internet Archive as %s/%s.', $fileId, $identifier, $name), 3);
 
