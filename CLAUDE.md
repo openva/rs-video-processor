@@ -64,6 +64,11 @@ The website (`class.Video.php` in richmondsunlight.com) reads `capture_rate` as 
 
 The Senate committee crop is a wide strip, so when a meeting shows a presentation it reads a line of the slide. `SpeakerNameParser` rejects anything over 50 characters (`MAX_LENGTH`) as not a name, and `SpeakerResultWriter` writes in one transaction: any `legislator` row marks a video done for the speaker queue, so a write that failed partway left it unfinished for good.
 
+### Senate floor bills are written "S.B. 956"
+`BillParser` accepts a period after each letter. Until November 2026 it did not, so Tesseract read every Senate floor bill correctly and the parser dropped them all; `BillDetectionFixtureTest` checked the OCR text, not the parser's output, so nothing failed. It now checks what the parser finds. `bin/redo_senate_floor_bills.php` sends those videos back through bill detection.
+
+Preprocessing the crops (enlarging, inverting, black-and-white thresholding) was measured on every fixture plate in November 2026 and changed no result: OCR reads every chyron on screen, and the misses are frames without one.
+
 ### OCR is skipped on unchanged frames
 `BillDetectionProcessor` and `OcrSpeakerExtractor` compare each frame's crop with the last one OCRed (`CropSignature`) and reuse that reading when it looks the same. The thresholds (a pixel moving by more than 15, on more than 3% of the crop) were calibrated by OCRing every frame of the three fixture videos: bills came out identical, every speaker was found. Recalibrate the same way before changing them, and keep comparing with the last frame OCRed rather than the previous frame, or name plates that fade in are missed.
 

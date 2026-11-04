@@ -95,6 +95,9 @@ php bin/report_shared_media.php
 # Send a video through the whole pipeline again
 php bin/requeue_video.php --id=N --apply
 
+# Send Senate floor videos back through bill detection (counts unless --apply)
+php bin/redo_senate_floor_bills.php --apply --limit=50
+
 # Upload to Internet Archive
 php bin/upload_archive.php --limit=N
 

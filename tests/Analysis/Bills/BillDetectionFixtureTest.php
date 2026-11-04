@@ -3,6 +3,7 @@
 namespace RichmondSunlight\VideoProcessor\Tests\Analysis\Bills;
 
 use PHPUnit\Framework\TestCase;
+use RichmondSunlight\VideoProcessor\Analysis\Bills\BillParser;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\BillTextExtractor;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\ChamberConfig;
 use RichmondSunlight\VideoProcessor\Analysis\Bills\TesseractOcrEngine;
@@ -87,7 +88,10 @@ class BillDetectionFixtureTest extends TestCase
             $this->fail(sprintf('No crop config for %s (%s)', $fixture['chamber'], $fixture['event_type']));
         }
 
+        // Checked through BillParser, as bin/detect_bills.php does. Checking the
+        // OCR text alone passed while the parser dropped every Senate floor bill.
         $extractor = new BillTextExtractor(new TesseractOcrEngine());
+        $parser = new BillParser();
 
         foreach ($fixture['expected'] as $timestamp => $bill) {
             $framePath = $this->captureFrame($fixture['path'], $timestamp);
@@ -96,7 +100,7 @@ class BillDetectionFixtureTest extends TestCase
             } finally {
                 @unlink($framePath);
             }
-            $this->assertBillDetected($bill, $text, $key, $timestamp);
+            $this->assertBillDetected($bill, $parser->parse($text), $text, $key, $timestamp);
         }
     }
 
@@ -116,19 +120,19 @@ class BillDetectionFixtureTest extends TestCase
         return $output;
     }
 
-    private function assertBillDetected(string $expected, string $actualText, string $fixture, string $timestamp): void
+    /** @param string[] $found what BillParser made of the OCR text */
+    private function assertBillDetected(string $expected, array $found, string $ocrText, string $fixture, string $timestamp): void
     {
-        $normalizedExpected = strtoupper(preg_replace('/\s+/', '', $expected));
-        $normalizedActual = strtoupper(preg_replace('/\s+/', '', $actualText));
-        $this->assertStringContainsString(
-            $normalizedExpected,
-            $normalizedActual,
+        $this->assertContains(
+            preg_replace('/[^A-Z0-9]/', '', strtoupper($expected)),
+            $found,
             sprintf(
-                'Expected %s in %s at %s, OCR output: "%s"',
+                'Expected %s in %s at %s. OCR output: "%s"; bills found: %s',
                 $expected,
                 $fixture,
                 $timestamp,
-                $actualText
+                $ocrText,
+                json_encode($found)
             )
         );
     }

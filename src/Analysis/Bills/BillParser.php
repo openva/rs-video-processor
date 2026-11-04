@@ -17,12 +17,13 @@ class BillParser
         $text = strtoupper($text);
         $text = preg_replace(self::MISREAD_HB, 'HB', $text) ?? $text;
 
+        // "HB 1234", and Senate floor video's "S.B. 956". A space between the
+        // letters is allowed only after a period, so stray "H B 12" is not a bill.
         $matches = [];
-        preg_match_all('/\b([HS]B\s*\d{1,4})\b/', $text, $matches);
+        preg_match_all('/\b([HS])(?:\.\s?)?B\.?\s*(\d{1,4})\b/', $text, $matches, PREG_SET_ORDER);
         $bills = [];
-        foreach ($matches[1] as $bill) {
-            $normalized = preg_replace('/\s+/', '', $bill);
-            $bills[] = $normalized;
+        foreach ($matches as $match) {
+            $bills[] = $match[1] . 'B' . $match[2];
         }
         return array_values(array_unique($bills));
     }

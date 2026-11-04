@@ -51,6 +51,16 @@ class BillParserTest extends TestCase
         $this->assertSame(['HB1234', 'SB567'], $parser->parse('HB 1234 SB 567'));
     }
 
+    /** Senate floor video writes "S.B. 956"; this is Tesseract's reading of it. */
+    public function testReadsBillNumbersWithPeriods(): void
+    {
+        $parser = new BillParser();
+        $this->assertSame(['SB956'], $parser->parse('S.B. 956'));
+        $this->assertSame(['SB1048'], $parser->parse('S.B.1048'));
+        $this->assertSame(['HB1930'], $parser->parse('H.B. 1930'));
+        $this->assertSame(['HB12', 'SB34'], $parser->parse('H. B. 12 and S. B. 34'));
+    }
+
     public function testDoesNotInventBillsFromOrdinaryWords(): void
     {
         $parser = new BillParser();
