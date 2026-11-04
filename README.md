@@ -18,6 +18,8 @@ To change it, edit `VideoDownloadQueue::FLOOR_FROM` and `VideoDownloadQueue::COM
 
 Once a video is on the Internet Archive, viewers play that copy, and its S3 copy is kept only as a backup, in Glacier Instant Retrieval ($0.004 a GB-month against Standard's $0.023). The archive stage moves each one as it uploads it; `bin/move_archived_to_cold_storage.php` moves those archived earlier.
 
+Archived videos without a transcript are transcribed from 2020 on (`TranscriptJobQueue::ARCHIVED_FROM`), reading the audio from archive.org, which is free, not from Glacier. Almost none of the older ones have captions, so each would be transcribed in full by OpenAI: about $300 for 2008–2014, in November 2026.
+
 ---
 
 ## Overview

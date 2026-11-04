@@ -15,12 +15,14 @@ class AudioExtractor
 
     /**
      * @param BucketReader|null $bucket read our own videos straight from S3,
-     *        which is free, rather than through CloudFront, which is not
+     *        which is free, rather than through CloudFront, which is not.
+     *        Anything else, such as an archived video on archive.org, is
+     *        read over HTTPS.
      */
-    public function __construct(private ?string $workingDir = null, private ?BucketReader $bucket = null)
+    public function __construct(private ?string $workingDir = null, private ?BucketReader $bucket = null, ?Client $http = null)
     {
         // Videos run to several GB; ten minutes was not always enough.
-        $this->http = new Client(['timeout' => 3600, 'connect_timeout' => 30]);
+        $this->http = $http ?? new Client(['timeout' => 3600, 'connect_timeout' => 30]);
         $this->workingDir = $workingDir ?? sys_get_temp_dir();
     }
 

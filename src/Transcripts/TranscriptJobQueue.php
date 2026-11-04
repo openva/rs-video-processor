@@ -12,9 +12,21 @@ class TranscriptJobQueue
     {
     }
 
+    /**
+     * Archived videos are transcribed from this date on, the earliest date
+     * bill and speaker detection cover (ScreenshotJobQueue uses it too). The
+     * older ones have almost no captions, so each would be transcribed in
+     * full by OpenAI: about $300 for the 2008 to 2014 videos, in November 2026.
+     */
+    public const ARCHIVED_FROM = '2020-01-01';
+
     private function pendingWhere(): string
     {
-        return "f.path LIKE 'https://video.richmondsunlight.com/%'
+        // An archived video's audio is read from archive.org, which is free;
+        // its S3 copy is in Glacier, where reading costs $0.03 a GB. Only
+        // download URLs name a file; old details URLs do not.
+        return "(f.path LIKE 'https://video.richmondsunlight.com/%'
+                 OR (f.path LIKE 'https://archive.org/download/%' AND f.date >= '" . self::ARCHIVED_FROM . "'))
             AND NOT EXISTS (SELECT 1 FROM video_transcript vt WHERE vt.file_id = f.id)
             AND " . JobLedger::eligibleSql(JobLedger::STAGE_TRANSCRIPT);
     }
