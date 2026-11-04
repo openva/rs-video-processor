@@ -20,7 +20,9 @@ class SpeakerDetectionFixtureTest extends TestCase
                 '00:03:00' => 'Del. Jackie Hope Glass',
                 '00:03:30' => 'Del. C. Todd Gilbert',
                 '00:04:00' => 'Del. Joseph P. McNamara',
-                '00:04:30' => 'Del. Josh E. Thomas',
+                // Not 00:04:30: his plate flashes up for about a second there, and
+                // how much of it Tesseract reads differs between versions.
+                '00:04:45' => 'Del. Josh E. Thomas',
                 '00:05:15' => 'Del. Candi Mundon King',
                 '00:07:15' => 'Del. Israel D. O\'Quinn',
                 '00:08:30' => 'Del. Sam Rasoul',
