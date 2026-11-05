@@ -44,11 +44,12 @@ jobs:
       - name: Run test suite inside Docker
         run: ./docker-tests.sh
 
+      # Inside the container, so the check uses the PHP the code runs on.
+      - name: Make sure there are no fatal errors in PHP
+        run: docker compose exec -T processor bash -c "find src bin tests -name '*.php' -print0 | xargs -0 -n1 -P8 php -l > /dev/null"
+
       - name: Stop Docker environment
         run: ./docker-stop.sh
-      
-      - name: Make sure there are no fatal errors in PHP
-        run: find *.php -print0 |xargs -0 -n1 -P8 php -l
 
       # Everything below runs only for deploys. The bundle contains production
       # secrets, so it goes straight to the private S3 bucket and must never be
