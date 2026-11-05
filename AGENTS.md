@@ -302,7 +302,7 @@ The file ID in the key is what keeps two videos from one chamber, committee and 
 
 ### Style Guide
 
-Follow **PSR-12** coding standards. The repository uses modern PHP 8.1+ patterns:
+Follow **PSR-12** coding standards. The repository uses PHP 8.4:
 - Typed properties and return types
 - Constructor property promotion
 - Named arguments where clarity helps
