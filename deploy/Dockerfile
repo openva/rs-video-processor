@@ -1,4 +1,4 @@
-FROM php:cli
+FROM php:8.4-cli
 
 WORKDIR video-processor/
 

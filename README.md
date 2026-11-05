@@ -42,7 +42,7 @@ Sample MP4 fixtures are pulled from `video.richmondsunlight.com/fixtures` (see `
 
 ## Requirements
 
-* PHP 8.1+ with `ext-pdo`, `ext-json`, `ext-simplexml`.
+* PHP 8.4 with `ext-pdo`, `ext-json`, `ext-simplexml`.
 * Composer (for installing/updating dependencies under `includes/vendor`).
 * ffmpeg and curl for screenshot/transcription stages.
 * Docker (optional) for the provided test environment (`docker-run.sh`, `docker-tests.sh`).

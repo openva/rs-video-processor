@@ -53,17 +53,21 @@ sudo apt-get install -y \
   imagemagick \
   python3 \
   python3-pip \
-  php8.5-cli \
-  php8.5-mbstring \
-  php8.5-xml \
-  php8.5-curl \
-  php8.5-gd \
-  php8.5-mysql \
-  php8.5-zip \
-  php8.5-intl \
-  php-memcached \
+  php8.4-cli \
+  php8.4-mbstring \
+  php8.4-xml \
+  php8.4-curl \
+  php8.4-gd \
+  php8.4-mysql \
+  php8.4-zip \
+  php8.4-intl \
+  php8.4-memcached \
   internetarchive \
   composer
+
+# Run PHP 8.4 even if a newer PHP is also installed: apt points `php` at the
+# newest version it has.
+sudo update-alternatives --set php /usr/bin/php8.4
 
 # YouTube downloads require cookies file at /home/ubuntu/youtube-cookies.txt
 # Export from your browser using "Get cookies.txt LOCALLY" extension
