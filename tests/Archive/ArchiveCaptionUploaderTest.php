@@ -2,9 +2,14 @@
 
 namespace RichmondSunlight\VideoProcessor\Tests\Archive;
 
+use GuzzleHttp\Client;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Psr7\Response;
 use PDO;
 use PHPUnit\Framework\TestCase;
 use RichmondSunlight\VideoProcessor\Archive\ArchiveCaptionUploader;
+use RichmondSunlight\VideoProcessor\Archive\ArchiveMetadata;
 use RichmondSunlight\VideoProcessor\Archive\InternetArchiveUploader;
 use RichmondSunlight\VideoProcessor\Jobs\NotReadyYet;
 use RichmondSunlight\VideoProcessor\Tests\Support\TestLogger;
@@ -144,6 +149,32 @@ class ArchiveCaptionUploaderTest extends TestCase
 
         $this->expectException(\RuntimeException::class);
         $this->uploader(null)->send(1);
+    }
+
+    /** "Internet Archive: Temporarily Offline" is the archive's outage, not this video's failure. */
+    public function testTheArchiveBeingDownMakesEveryJobWait(): void
+    {
+        $this->video(self::OLD_ITEM);
+        $offline = new Response(503, [], '<html><head><title>Internet Archive: Temporarily Offline</title></head></html>');
+        $uploader = new ArchiveCaptionUploader(
+            fn(): PDO => $this->pdo,
+            new TestLogger(),
+            function (string $command, array &$output): int {
+                $this->uploads[] = ['command' => $command, 'name' => '', 'contents' => ''];
+                return 0;
+            },
+            null,
+            new Client(['handler' => HandlerStack::create(new MockHandler([$offline])), 'http_errors' => false])
+        );
+
+        try {
+            $uploader->send(1);
+            $this->fail('Expected NotReadyYet.');
+        } catch (NotReadyYet $e) {
+            $this->assertTrue($e->everyJobWaits);
+            $this->assertSame(ArchiveMetadata::OFFLINE_RECHECK_SECONDS, $e->retrySeconds);
+        }
+        $this->assertSame([], $this->uploads);
     }
 
     public function testATurnedAwayUploadMakesEveryJobWait(): void

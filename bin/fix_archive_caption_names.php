@@ -21,14 +21,16 @@
  * retried); each video's captions are the ones stored just after it, since
  * both went up in one ia upload. When that does not settle it, the video is
  * listed and left alone. Running it again skips items already fixed. If the archive turns
- * requests away for the rate, it stops; run it again later.
+ * requests away for the rate, or is down, it stops; run it again later.
  */
 
 declare(strict_types=1);
 
 use GuzzleHttp\Client;
 use RichmondSunlight\VideoProcessor\Archive\ArchiveCaptions;
+use RichmondSunlight\VideoProcessor\Archive\ArchiveMetadata;
 use RichmondSunlight\VideoProcessor\Archive\CaptionNameFixer;
+use RichmondSunlight\VideoProcessor\Jobs\NotReadyYet;
 
 $app = require __DIR__ . '/bootstrap.php';
 $log = $app->log;
@@ -70,14 +72,19 @@ foreach ($rows as $row) {
     }
     $seen[$identifier] = true;
 
-    $response = $http->get('https://archive.org/metadata/' . rawurlencode($identifier));
-    $item = json_decode((string) $response->getBody(), true);
-    if ($response->getStatusCode() >= 400 || !is_array($item) || empty($item['files'])) {
+    try {
+        $item = ArchiveMetadata::fetch($http, $identifier);
+    } catch (NotReadyYet $e) {
+        // Every other item would get the same answer.
+        printf("%s Stopping; run it again later.\n", $e->getMessage());
+        break;
+    }
+    if (!is_array($item) || empty($item['files'])) {
         printf(
             "#%d  %s  skipped: %s\n",
             $id,
             $identifier,
-            $response->getStatusCode() >= 400 ? 'the archive answered HTTP ' . $response->getStatusCode() : 'the archive has no item by that name'
+            $item === null ? 'the archive turned down the request' : 'the archive has no item by that name'
         );
         $counts['skip']++;
         continue;

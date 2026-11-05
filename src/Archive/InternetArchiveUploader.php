@@ -198,31 +198,21 @@ class InternetArchiveUploader
         return $kept;
     }
 
+    /**
+     * @throws NotReadyYet when the archive is down (ArchiveMetadata::fetch())
+     */
     private function fetchMetadata(string $identifier): ?array
     {
         if ($this->metadataFetcher) {
             return ($this->metadataFetcher)($identifier);
         }
 
-        try {
-            $url = sprintf('https://archive.org/metadata/%s', rawurlencode($identifier));
-            $response = $this->http->get($url);
-            if ($response->getStatusCode() >= 400) {
-                $this->logger?->put(
-                    sprintf('Archive.org metadata API returned status %d for %s', $response->getStatusCode(), $identifier),
-                    5
-                );
-                return null;
-            }
-            $data = json_decode((string) $response->getBody(), true);
-            return is_array($data) ? $data : null;
-        } catch (\Exception $e) {
-            $this->logger?->put(
-                sprintf('Failed to fetch Archive.org metadata for %s: %s', $identifier, $e->getMessage()),
-                5
-            );
-            return null;
+        $item = ArchiveMetadata::fetch($this->http, $identifier);
+        if ($item === null) {
+            $this->logger?->put(sprintf('Archive.org metadata API turned down the request for %s.', $identifier), 5);
         }
+
+        return $item;
     }
 
     /**

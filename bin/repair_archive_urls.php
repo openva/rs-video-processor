@@ -4,6 +4,8 @@
 declare(strict_types=1);
 
 use GuzzleHttp\Client;
+use RichmondSunlight\VideoProcessor\Archive\ArchiveMetadata;
+use RichmondSunlight\VideoProcessor\Jobs\NotReadyYet;
 
 $app = require __DIR__ . '/bootstrap.php';
 $pdo = $app->pdo;
@@ -60,7 +62,13 @@ foreach ($rows as $row) {
         continue;
     }
 
-    $metadata = fetchArchiveMetadata($http, $identifier);
+    try {
+        $metadata = fetchArchiveMetadata($http, $identifier);
+    } catch (NotReadyYet $e) {
+        // Every other item would get the same answer.
+        $log?->put($e->getMessage() . ' Stopping; run it again later.', 4);
+        break;
+    }
     $file = selectMp4File($metadata['files'] ?? []);
     if (!$file) {
         $log?->put('Skipping file #' . $id . ' (no MP4 found for ' . $identifier . ').', 4);
@@ -99,15 +107,12 @@ function extractIdentifier(string $detailsUrl): ?string
     return $identifier !== '' ? $identifier : null;
 }
 
+/**
+ * @throws NotReadyYet when the archive is down
+ */
 function fetchArchiveMetadata(Client $http, string $identifier): array
 {
-    $url = sprintf('https://archive.org/metadata/%s', rawurlencode($identifier));
-    $response = $http->get($url);
-    if ($response->getStatusCode() >= 400) {
-        return [];
-    }
-    $data = json_decode((string) $response->getBody(), true);
-    return is_array($data) ? $data : [];
+    return ArchiveMetadata::fetch($http, $identifier) ?? [];
 }
 
 /**

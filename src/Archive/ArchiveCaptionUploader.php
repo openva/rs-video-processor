@@ -55,7 +55,7 @@ class ArchiveCaptionUploader
 
     /**
      * @return string SENT, UNCHANGED or NOTHING
-     * @throws NotReadyYet while the archive is processing the item, or turning requests away
+     * @throws NotReadyYet while the archive is processing the item, turning requests away, or down
      * @throws RuntimeException when the item cannot be read or the upload fails
      */
     public function send(int $fileId): string
@@ -156,21 +156,15 @@ class ArchiveCaptionUploader
         return null;
     }
 
+    /**
+     * @throws NotReadyYet when the archive is down (ArchiveMetadata::fetch())
+     */
     private function fetchMetadata(string $identifier): ?array
     {
         if ($this->metadataFetcher) {
             return ($this->metadataFetcher)($identifier);
         }
-        try {
-            $response = $this->http->get('https://archive.org/metadata/' . rawurlencode($identifier));
-            if ($response->getStatusCode() >= 400) {
-                return null;
-            }
-            $data = json_decode((string) $response->getBody(), true);
-            return is_array($data) ? $data : null;
-        } catch (\Throwable $e) {
-            $this->logger?->put(sprintf('Failed to fetch Archive.org metadata for %s: %s', $identifier, $e->getMessage()), 5);
-            return null;
-        }
+
+        return ArchiveMetadata::fetch($this->http, $identifier);
     }
 }

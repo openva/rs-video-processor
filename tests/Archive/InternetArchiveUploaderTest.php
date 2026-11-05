@@ -2,9 +2,13 @@
 
 namespace RichmondSunlight\VideoProcessor\Tests\Archive;
 
+use GuzzleHttp\Client;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Response;
 use PHPUnit\Framework\TestCase;
 use RichmondSunlight\VideoProcessor\Archive\ArchiveJob;
+use RichmondSunlight\VideoProcessor\Archive\ArchiveMetadata;
 use RichmondSunlight\VideoProcessor\Archive\InternetArchiveUploader;
 use RichmondSunlight\VideoProcessor\Jobs\NotReadyYet;
 use RichmondSunlight\VideoProcessor\Tests\Support\FakeBucket;
@@ -314,6 +318,45 @@ class InternetArchiveUploaderTest extends TestCase
         }
         $this->assertSame([], array_filter($logger->entries, static fn($e) => $e['level'] >= 5), 'It is not logged as an error.');
         $this->assertFileDoesNotExist($video, 'The downloaded video is still deleted.');
+    }
+
+    /**
+     * "Internet Archive: Temporarily Offline" (HTTP 503) on 2026-11-05. Every
+     * video would get that answer, so the job waits without using an attempt
+     * and the run stops, rather than each video failing in turn.
+     */
+    public function testTheArchiveBeingDownMakesEveryJobWait(): void
+    {
+        $home = sys_get_temp_dir() . '/ia-home-' . uniqid();
+        mkdir($home . '/.config/internetarchive', 0777, true);
+        file_put_contents($home . '/.config/internetarchive/ia.ini', '[s3]');
+        putenv('HOME=' . $home);
+        $commands = [];
+        $downloads = [];
+        $offline = new Response(503, [], '<html><head><title>Internet Archive: Temporarily Offline</title></head></html>');
+        $uploader = new InternetArchiveUploader(
+            new TestLogger(),
+            function (string $command, array &$output) use (&$commands) {
+                $commands[] = $command;
+                return 0;
+            },
+            function (string $url) use (&$downloads) {
+                $downloads[] = $url;
+                return tempnam(sys_get_temp_dir(), 'ia_video_');
+            },
+            null,
+            new Client(['handler' => HandlerStack::create(new MockHandler([$offline]))])
+        );
+
+        try {
+            $uploader->upload($this->job(), []);
+            $this->fail('Expected NotReadyYet.');
+        } catch (NotReadyYet $e) {
+            $this->assertTrue($e->everyJobWaits);
+            $this->assertSame(ArchiveMetadata::OFFLINE_RECHECK_SECONDS, $e->retrySeconds);
+        }
+        $this->assertSame([], $downloads);
+        $this->assertSame([], $commands);
     }
 
     public function testLogsMissingConfig(): void

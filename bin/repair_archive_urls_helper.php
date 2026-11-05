@@ -42,7 +42,14 @@ function repairArchiveUrls(\PDO $pdo, ?\Log $log, int &$pendingCount = 0): int
             continue;
         }
 
-        $metadata = fetchArchiveMetadata($http, $identifier);
+        try {
+            $metadata = fetchArchiveMetadata($http, $identifier);
+        } catch (\RichmondSunlight\VideoProcessor\Jobs\NotReadyYet $e) {
+            // Every other item would get the same answer; try them all next time.
+            $log?->put($e->getMessage() . ' Stopping; the rest will be checked next time.', 4);
+            $pending = count($rows) - $updated;
+            break;
+        }
         $file = selectMp4File($metadata['files'] ?? []);
 
         if (!$file) {
@@ -75,19 +82,12 @@ function extractIdentifier(string $detailsUrl): ?string
     return $identifier !== '' ? $identifier : null;
 }
 
+/**
+ * @throws \RichmondSunlight\VideoProcessor\Jobs\NotReadyYet when the archive is down
+ */
 function fetchArchiveMetadata(\GuzzleHttp\Client $http, string $identifier): array
 {
-    try {
-        $url = sprintf('https://archive.org/metadata/%s', rawurlencode($identifier));
-        $response = $http->get($url);
-        if ($response->getStatusCode() >= 400) {
-            return [];
-        }
-        $data = json_decode((string) $response->getBody(), true);
-        return is_array($data) ? $data : [];
-    } catch (\Exception $e) {
-        return [];
-    }
+    return \RichmondSunlight\VideoProcessor\Archive\ArchiveMetadata::fetch($http, $identifier) ?? [];
 }
 
 function selectMp4File(array $files): ?array
