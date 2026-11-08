@@ -5,6 +5,7 @@ namespace RichmondSunlight\VideoProcessor\Tests\Transcripts;
 use RichmondSunlight\VideoProcessor\Tests\Support\TestDatabaseFactory;
 use PDO;
 use PHPUnit\Framework\TestCase;
+use RichmondSunlight\VideoProcessor\Jobs\JobLedger;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptJobQueue;
 
 class TranscriptJobQueueTest extends TestCase
@@ -62,6 +63,42 @@ class TranscriptJobQueueTest extends TestCase
         $pdo->prepare("INSERT INTO files (chamber, title, path, date, date_created) VALUES ('house', 'House Session', :path, :date, :date)")
             ->execute([':path' => $path, ':date' => $date]);
         return (int) $pdo->lastInsertId();
+    }
+
+    /**
+     * Once OpenAI's cap is reached, every transcript job is set aside, so
+     * none counts as pending and rs-machine does not start the instance.
+     */
+    public function testPutAllAsideStopsCountingUntilResumed(): void
+    {
+        $pdo = $this->database();
+        $first = $this->addVideo($pdo, 'https://video.richmondsunlight.com/house/floor/a.mp4', '2026-01-10');
+        $this->addVideo($pdo, 'https://video.richmondsunlight.com/house/floor/b.mp4', '2026-01-11');
+        $running = $this->addVideo($pdo, 'https://video.richmondsunlight.com/house/floor/c.mp4', '2026-01-12');
+        $ledger = new JobLedger($pdo);
+        $ledger->recordFailure($first, JobLedger::STAGE_TRANSCRIPT, 'earlier failure');
+        $pdo->exec("UPDATE video_jobs SET next_attempt_at = '2000-01-01 00:00:00'");
+        $ledger->claim($running, JobLedger::STAGE_TRANSCRIPT);
+        $queue = new TranscriptJobQueue($pdo);
+        $this->assertSame(2, $queue->countPending());
+
+        $this->assertSame(2, $queue->putAllAside('cap reached', time() + 86400));
+
+        $this->assertSame(0, $queue->countPending());
+        $this->assertSame([], $queue->fetch());
+        $rows = array_map(
+            static fn(array $r): array => ['file_id' => (int) $r['file_id'], 'status' => $r['status'], 'attempts' => (int) $r['attempts']],
+            $pdo->query('SELECT file_id, status, attempts FROM video_jobs ORDER BY file_id')->fetchAll(PDO::FETCH_ASSOC)
+        );
+        // An earlier failure still counts; a job running now is left alone.
+        $this->assertSame([
+            ['file_id' => $first, 'status' => 'waiting', 'attempts' => 1],
+            ['file_id' => $first + 1, 'status' => 'waiting', 'attempts' => 0],
+            ['file_id' => $running, 'status' => 'running', 'attempts' => 0],
+        ], $rows);
+
+        $this->assertSame(2, $ledger->resumeWaiting(JobLedger::STAGE_TRANSCRIPT));
+        $this->assertSame(2, $queue->countPending());
     }
 
     /** Once archived, a video's audio is read from archive.org, which is free. */

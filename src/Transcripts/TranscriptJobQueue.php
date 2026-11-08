@@ -43,6 +43,38 @@ class TranscriptJobQueue
     }
 
     /**
+     * Put every transcript job that could be handed out now aside until
+     * $until: every one of them needs OpenAI, to transcribe the audio or to
+     * check the captions' timing. Set aside, they are not counted as pending
+     * (so rs-machine does not start the instance for them) until then.
+     *
+     * @return int number of jobs put aside
+     */
+    public function putAllAside(string $reason, int $until): int
+    {
+        $stmt = $this->pdo->prepare('SELECT f.id FROM files f WHERE ' . $this->pendingWhere());
+        foreach (JobLedger::eligibleParams() as $name => $value) {
+            $stmt->bindValue($name, $value);
+        }
+        $stmt->execute();
+        $ids = array_map('intval', $stmt->fetchAll(\PDO::FETCH_COLUMN));
+
+        $ledger = new JobLedger($this->pdo);
+        $this->pdo->beginTransaction();
+        try {
+            foreach ($ids as $id) {
+                $ledger->putAside($id, JobLedger::STAGE_TRANSCRIPT, $reason, $until);
+            }
+            $this->pdo->commit();
+        } catch (\Throwable $e) {
+            $this->pdo->rollBack();
+            throw $e;
+        }
+
+        return count($ids);
+    }
+
+    /**
      * @return TranscriptJob[]
      */
     public function fetch(int $limit = 5): array

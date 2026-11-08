@@ -5,6 +5,7 @@ namespace RichmondSunlight\VideoProcessor\Tests\Transcripts;
 use PHPUnit\Framework\TestCase;
 use RichmondSunlight\VideoProcessor\Transcripts\AudioExtractor;
 use RichmondSunlight\VideoProcessor\Transcripts\CaptionAligner;
+use RichmondSunlight\VideoProcessor\Transcripts\OpenAIQuotaExceeded;
 use RichmondSunlight\VideoProcessor\Transcripts\WordTranscriber;
 
 class CaptionAlignerTest extends TestCase
@@ -249,6 +250,34 @@ class CaptionAlignerTest extends TestCase
         $this->assertCount(5, $audio->starts);
         $this->assertTrue($result->aligned, $result->summary());
         $this->assertEqualsWithDelta(-12.5, $result->offset, 0.5);
+    }
+
+    /** A spent cap is not a window that failed: every other window would fail the same way. */
+    public function testASpentOpenAiCapIsNotSkippedOver(): void
+    {
+        $speech = $this->speech(12, 0, 3600);
+        $audio = new class extends AudioExtractor {
+            public function extractWindows(string $videoUrl, array $starts, int $seconds): array
+            {
+                return array_map(static fn() => tempnam(sys_get_temp_dir(), 'window_'), $starts);
+            }
+        };
+        $transcriber = new class implements WordTranscriber {
+            public int $calls = 0;
+
+            public function transcribeWords(string $audioPath): array
+            {
+                $this->calls++;
+                throw new OpenAIQuotaExceeded('You exceeded your current quota.');
+            }
+        };
+
+        try {
+            (new CaptionAligner($transcriber, $audio))->align($this->captions($speech, 4.0), 'https://example.com/v.mp4');
+            $this->fail('Expected OpenAIQuotaExceeded.');
+        } catch (OpenAIQuotaExceeded $e) {
+            $this->assertSame(1, $transcriber->calls, 'No more windows are sent once the cap is reached.');
+        }
     }
 
     public function testAWindowThatFailsIsSkipped(): void

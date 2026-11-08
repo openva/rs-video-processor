@@ -81,6 +81,9 @@ class TranscriptProcessor
     {
         try {
             $result = $this->aligner->align($segments, $job->videoUrl);
+        } catch (OpenAIQuotaExceeded $e) {
+            // Recorded as unaligned, the captions would never be measured again.
+            throw $e;
         } catch (\Throwable $e) {
             $result = CaptionAlignment::failed('could not measure: ' . $e->getMessage());
         }

@@ -9,6 +9,7 @@
  *   php bin/job_status.php --reset=18797        # forget all ledger state for one file
  *   php bin/job_status.php --reset-stage=archive  # retry every given-up job in one stage
  *   php bin/job_status.php --reset-failed       # retry every given-up job
+ *   php bin/job_status.php --resume=transcript  # end a stage's waits now (e.g. after raising OpenAI's cap)
  */
 
 declare(strict_types=1);
@@ -20,7 +21,18 @@ $app = require __DIR__ . '/bootstrap.php';
 $pdo = $app->pdo;
 $ledger = new JobLedger($pdo);
 
-$options = getopt('', ['reset:', 'reset-stage:', 'reset-failed']);
+$options = getopt('', ['reset:', 'reset-stage:', 'reset-failed', 'resume:']);
+
+if (isset($options['resume'])) {
+    $stage = (string) $options['resume'];
+    if (!in_array($stage, JobLedger::STAGES, true)) {
+        fwrite(STDERR, 'Unknown stage. Choose one of: ' . implode(', ', JobLedger::STAGES) . "\n");
+        exit(1);
+    }
+    $released = $ledger->resumeWaiting($stage);
+    echo "Released {$released} waiting {$stage} job(s); the next run hands them out.\n";
+    exit(0);
+}
 
 if (isset($options['reset'])) {
     $removed = $ledger->reset((int) $options['reset']);

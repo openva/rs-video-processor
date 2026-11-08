@@ -83,6 +83,9 @@ class CaptionAligner
                 } finally {
                     @unlink($path);
                 }
+            } catch (OpenAIQuotaExceeded $e) {
+                // Not this window's problem: no other window would fare better.
+                throw $e;
             } catch (\Throwable $e) {
                 $skipped[] = sprintf('%s skipped: %s', gmdate('H:i:s', (int) $start), $e->getMessage());
                 continue;

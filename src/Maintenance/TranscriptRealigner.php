@@ -5,6 +5,7 @@ namespace RichmondSunlight\VideoProcessor\Maintenance;
 use PDO;
 use RichmondSunlight\VideoProcessor\Archive\ArchiveCaptions;
 use RichmondSunlight\VideoProcessor\Transcripts\CaptionAligner;
+use RichmondSunlight\VideoProcessor\Transcripts\OpenAIQuotaExceeded;
 use RichmondSunlight\VideoProcessor\Transcripts\CaptionAlignment;
 use RichmondSunlight\VideoProcessor\Transcripts\CaptionParser;
 use RichmondSunlight\VideoProcessor\Transcripts\CaptionShift;
@@ -140,6 +141,8 @@ class TranscriptRealigner
 
         try {
             $result = $this->aligner->align($segments, $video['path']);
+        } catch (OpenAIQuotaExceeded $e) {
+            throw $e;
         } catch (\Throwable $e) {
             return CaptionAlignment::failed('could not measure: ' . $e->getMessage());
         }

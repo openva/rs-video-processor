@@ -9,6 +9,7 @@ use RichmondSunlight\VideoProcessor\Transcripts\AudioExtractor;
 use RichmondSunlight\VideoProcessor\Transcripts\CaptionAligner;
 use RichmondSunlight\VideoProcessor\Transcripts\CaptionAlignment;
 use RichmondSunlight\VideoProcessor\Transcripts\CaptionParser;
+use RichmondSunlight\VideoProcessor\Transcripts\OpenAIQuotaExceeded;
 use RichmondSunlight\VideoProcessor\Transcripts\OpenAITranscriber;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptJob;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptProcessor;
@@ -244,6 +245,36 @@ class TranscriptProcessorTest extends TestCase
 
         $this->assertSame(1, (int) $pdo->query('SELECT COUNT(*) FROM video_transcript')->fetchColumn());
         $this->assertSame('unaligned', $pdo->query('SELECT caption_alignment FROM files WHERE id = 1')->fetchColumn());
+    }
+
+    /**
+     * Once OpenAI's cap is reached, the captions must not be stored as
+     * "unaligned": they would never be measured again, and the Internet
+     * Archive would get them with their timing unchecked.
+     */
+    public function testASpentOpenAiCapStoresNothing(): void
+    {
+        $pdo = $this->alignmentDatabase();
+        $aligner = new class extends CaptionAligner {
+            public function __construct()
+            {
+            }
+
+            public function align(array $segments, string $videoUrl): CaptionAlignment
+            {
+                throw new OpenAIQuotaExceeded('You exceeded your current quota.');
+            }
+        };
+        $processor = new TranscriptProcessor(new TranscriptWriter($pdo), $this->createMock(OpenAITranscriber::class), new CaptionParser(), null, null, $aligner);
+
+        try {
+            $processor->process(new TranscriptJob(1, 'house', 'https://example.com/v.mp4', "WEBVTT\n\n00:00:10.000 --> 00:00:12.000\nHello", null, null));
+            $this->fail('Expected OpenAIQuotaExceeded.');
+        } catch (OpenAIQuotaExceeded $e) {
+        }
+
+        $this->assertSame(0, (int) $pdo->query('SELECT COUNT(*) FROM video_transcript')->fetchColumn());
+        $this->assertNull($pdo->query('SELECT caption_alignment FROM files WHERE id = 1')->fetchColumn());
     }
 
     /** An aligner that reports $result without listening to anything. */

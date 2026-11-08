@@ -39,6 +39,7 @@ use RichmondSunlight\VideoProcessor\Maintenance\TranscriptRealigner;
 use RichmondSunlight\VideoProcessor\Transcripts\AudioExtractor;
 use RichmondSunlight\VideoProcessor\Transcripts\CaptionAligner;
 use RichmondSunlight\VideoProcessor\Transcripts\LocalWhisperTranscriber;
+use RichmondSunlight\VideoProcessor\Transcripts\OpenAIQuotaExceeded;
 use RichmondSunlight\VideoProcessor\Transcripts\OpenAITranscriber;
 
 $app = require __DIR__ . '/bootstrap.php';
@@ -113,7 +114,13 @@ foreach ($videos as $video) {
             continue;
         }
     }
-    $result ??= $realigner->measure($captions['segments'], $video);
+    try {
+        $result ??= $realigner->measure($captions['segments'], $video);
+    } catch (OpenAIQuotaExceeded $e) {
+        // Every other video would get the same answer.
+        printf("#%d: %s\nStopping.\n", $video['id'], $e->getMessage());
+        break;
+    }
     if (!$cachedOnly && !$realigner->lastWasCached()) {
         $realigner->reconnect();
     }

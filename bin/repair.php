@@ -26,6 +26,7 @@ use RichmondSunlight\VideoProcessor\Screenshots\ScreenshotGenerator;
 use RichmondSunlight\VideoProcessor\Screenshots\ScreenshotJob;
 use RichmondSunlight\VideoProcessor\Transcripts\AudioExtractor;
 use RichmondSunlight\VideoProcessor\Transcripts\CaptionAligner;
+use RichmondSunlight\VideoProcessor\Transcripts\OpenAIQuotaExceeded;
 use RichmondSunlight\VideoProcessor\Transcripts\OpenAITranscriber;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptProcessor;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptJob;
@@ -269,6 +270,10 @@ function repairTranscripts(
             echo sprintf("Processing transcript for file #%d...\n", $job->fileId);
             $processor->process($job);
             echo sprintf("  Completed file #%d\n", $job->fileId);
+        } catch (OpenAIQuotaExceeded $e) {
+            // Every other video would get the same answer.
+            echo sprintf("  %s\n  Stopping.\n", $e->getMessage());
+            break;
         } catch (Throwable $e) {
             echo sprintf("  Failed file #%d: %s\n", $job->fileId, $e->getMessage());
         }

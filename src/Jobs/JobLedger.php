@@ -248,6 +248,45 @@ class JobLedger
     }
 
     /**
+     * Put a job that has not started aside until $until (unix time), because
+     * something every job needs is unavailable, such as OpenAI once its
+     * spending cap is reached. Unlike recordWaiting(), no attempt was counted,
+     * so none is given back. A job running now is left alone.
+     */
+    public function putAside(int $fileId, string $stage, string $reason, int $until): void
+    {
+        self::assertStage($stage);
+        $pdo = $this->connection();
+        $stmt = $pdo->prepare('SELECT status, attempts, claimed_at, last_error FROM video_jobs WHERE file_id = :file_id AND stage = :stage');
+        $stmt->execute([':file_id' => $fileId, ':stage' => $stage]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        if ($row !== null && $row['status'] === self::STATUS_RUNNING
+            && $row['claimed_at'] > self::format($this->now() - self::STALE_CLAIM_HOURS * 3600)) {
+            return;
+        }
+
+        $this->write($pdo, $row !== null, $fileId, $stage, self::STATUS_WAITING, (int) ($row['attempts'] ?? 0), null, self::format($until), self::cleanError($reason));
+    }
+
+    /**
+     * End every wait in a stage now, so its jobs are handed out on the next
+     * run; for when what they were waiting on is back sooner than expected.
+     *
+     * @return int number of jobs released
+     */
+    public function resumeWaiting(string $stage): int
+    {
+        self::assertStage($stage);
+        $stmt = $this->connection()->prepare(
+            "UPDATE video_jobs SET next_attempt_at = :now, date_modified = :now
+             WHERE stage = :stage AND status = 'waiting'"
+        );
+        $stmt->execute([':now' => self::format($this->now()), ':stage' => $stage]);
+
+        return $stmt->rowCount();
+    }
+
+    /**
      * Ask for a job to be done, for a stage whose jobs exist only on request
      * (STAGE_ARCHIVE_CAPTIONS). It starts afresh, with all its attempts, even
      * over a job that was done or given up on: there is new work to do. A job

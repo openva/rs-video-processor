@@ -4,6 +4,7 @@ namespace RichmondSunlight\VideoProcessor\Analysis\Speakers;
 
 use GuzzleHttp\ClientInterface;
 use RichmondSunlight\VideoProcessor\Transcripts\AudioExtractor;
+use RichmondSunlight\VideoProcessor\Transcripts\OpenAIResponse;
 use RuntimeException;
 
 class OpenAIDiarizer implements DiarizerInterface
@@ -24,6 +25,7 @@ class OpenAIDiarizer implements DiarizerInterface
                 'headers' => [
                     'Authorization' => 'Bearer ' . $this->apiKey,
                 ],
+                'http_errors' => false,
                 'multipart' => [
                     ['name' => 'model', 'contents' => 'gpt-4o-transcribe-diarize'],
                     ['name' => 'file', 'contents' => fopen($audioPath, 'r'), 'filename' => basename($audioPath)],
@@ -31,7 +33,7 @@ class OpenAIDiarizer implements DiarizerInterface
                     ['name' => 'chunking_strategy', 'contents' => 'auto'],
                 ],
             ]);
-            $payload = json_decode((string) $response->getBody(), true);
+            $payload = OpenAIResponse::json($response);
             if (!isset($payload['segments'])) {
                 throw new RuntimeException('Unexpected response from transcription endpoint.');
             }

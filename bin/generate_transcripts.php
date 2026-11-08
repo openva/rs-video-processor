@@ -13,6 +13,7 @@ use RichmondSunlight\VideoProcessor\Jobs\StageRunner;
 use RichmondSunlight\VideoProcessor\Transcripts\AudioExtractor;
 use RichmondSunlight\VideoProcessor\Transcripts\CaptionAligner;
 use RichmondSunlight\VideoProcessor\Transcripts\CaptionParser;
+use RichmondSunlight\VideoProcessor\Transcripts\OpenAIQuotaExceeded;
 use RichmondSunlight\VideoProcessor\Transcripts\OpenAITranscriber;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptJob;
 use RichmondSunlight\VideoProcessor\Transcripts\TranscriptJobQueue;
@@ -59,7 +60,16 @@ $processed = $runner->run(
     static fn() => (new TranscriptJobQueue($pdoFactory()))->fetch(1)[0] ?? null,
     static fn(TranscriptJob $job): int => $job->fileId,
     static function (TranscriptJob $job) use ($processor, $pdoFactory, $log): void {
-        $processor->process($job);
+        try {
+            $processor->process($job);
+        } catch (OpenAIQuotaExceeded $e) {
+            // Every transcript job needs OpenAI. Set them all aside, so none is
+            // counted as pending and the instance is not started for them;
+            // StageRunner then sets this one aside and stops.
+            $count = (new TranscriptJobQueue($pdoFactory()))->putAllAside($e->getMessage(), $e->resumesAt);
+            $log->put(sprintf('Transcripts paused: %s %d other video(s) wait with it.', $e->getMessage(), $count), 6);
+            throw $e;
+        }
 
         $issues = (new ContractValidator($pdoFactory()))->validateFile($job->fileId);
         foreach ($issues as $issue) {

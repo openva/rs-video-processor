@@ -13,6 +13,7 @@ class OpenAITranscriber implements WordTranscriber
 
     /**
      * @return array<int,array{start:float,end:float,text:string}>
+     * @throws OpenAIQuotaExceeded when OpenAI's spending cap has been reached
      */
     public function transcribe(string $audioPath): array
     {
@@ -20,6 +21,8 @@ class OpenAITranscriber implements WordTranscriber
             'headers' => [
                 'Authorization' => 'Bearer ' . $this->apiKey,
             ],
+            // Error replies are read, so a spent cap is recognised (OpenAIResponse).
+            'http_errors' => false,
             'multipart' => [
                 ['name' => 'model', 'contents' => 'whisper-1'],
                 ['name' => 'response_format', 'contents' => 'verbose_json'],
@@ -27,7 +30,7 @@ class OpenAITranscriber implements WordTranscriber
             ],
         ]);
 
-        $payload = json_decode((string) $response->getBody(), true);
+        $payload = OpenAIResponse::json($response);
         if (!isset($payload['segments'])) {
             throw new RuntimeException('Unexpected response from OpenAI.');
         }
@@ -49,6 +52,7 @@ class OpenAITranscriber implements WordTranscriber
      * to give.
      *
      * @return list<array{word:string,start:float,end:float}>
+     * @throws OpenAIQuotaExceeded when OpenAI's spending cap has been reached
      */
     public function transcribeWords(string $audioPath): array
     {
@@ -56,6 +60,8 @@ class OpenAITranscriber implements WordTranscriber
             'headers' => [
                 'Authorization' => 'Bearer ' . $this->apiKey,
             ],
+            // Error replies are read, so a spent cap is recognised (OpenAIResponse).
+            'http_errors' => false,
             'multipart' => [
                 ['name' => 'model', 'contents' => 'whisper-1'],
                 ['name' => 'response_format', 'contents' => 'verbose_json'],
@@ -64,7 +70,7 @@ class OpenAITranscriber implements WordTranscriber
             ],
         ]);
 
-        $payload = json_decode((string) $response->getBody(), true);
+        $payload = OpenAIResponse::json($response);
         if (!isset($payload['words']) || !is_array($payload['words'])) {
             throw new RuntimeException('Unexpected response from OpenAI: no word timestamps.');
         }

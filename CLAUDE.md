@@ -88,6 +88,9 @@ House captions appear to be timed from the gavel, not from the start of the reco
 
 Never align captions against a copy that is another meeting's video. `TranscriptRealigner` checks the copy's length against the source record's `duration_seconds` (`CopyDurationCheck`), and `bin/find_mismatched_copies.php` lists every copy that fails that check. Senate `duration_seconds` is only to the minute, and records scraped before 2026-10 are whole hours: `SenateScraper` dropped the minutes (`&nbsp;` became U+00A0, which `\s` does not match without `/u`).
 
+### OpenAI's spending cap is a wait, not a failure
+OpenAI answers HTTP 429 `insufficient_quota` once the monthly spending cap is reached. `OpenAIResponse::json()` turns that into `OpenAIQuotaExceeded` (a `NotReadyYet` for every job), so send OpenAI requests with `'http_errors' => false` and read the reply through it. Every transcript job needs OpenAI (Whisper, or the five alignment samples), so `bin/generate_transcripts.php` then sets them all aside (`TranscriptJobQueue::putAllAside()`) until the start of next month UTC, which keeps `PendingWork` from starting the instance for them, and says so in Slack. To resume sooner after raising the cap: `php bin/job_status.php --resume=transcript`. Anything that catches alignment errors must rethrow `OpenAIQuotaExceeded`: before this was handled, a refused sample was taken for captions that cannot be aligned, and they were stored as `unaligned`, never to be measured again.
+
 ### GD cannot scale with IMG_BICUBIC
 `imagescale(..., IMG_BICUBIC)` returns false with GD 2.3.3, so the 3x enlargement in `BillTextExtractor` and `SpeakerTextExtractor` never happens; they fall back to the unscaled crop. Measured on the fixture frames, enlarging (with `IMG_BILINEAR_FIXED`) made no difference to accuracy, so it has been left alone. Don't assume the enlargement is happening.
 
