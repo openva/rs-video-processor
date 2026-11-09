@@ -260,8 +260,10 @@ class JobLedger
         $stmt = $pdo->prepare('SELECT status, attempts, claimed_at, last_error FROM video_jobs WHERE file_id = :file_id AND stage = :stage');
         $stmt->execute([':file_id' => $fileId, ':stage' => $stage]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
-        if ($row !== null && $row['status'] === self::STATUS_RUNNING
-            && $row['claimed_at'] > self::format($this->now() - self::STALE_CLAIM_HOURS * 3600)) {
+        if (
+            $row !== null && $row['status'] === self::STATUS_RUNNING
+            && $row['claimed_at'] > self::format($this->now() - self::STALE_CLAIM_HOURS * 3600)
+        ) {
             return;
         }
 

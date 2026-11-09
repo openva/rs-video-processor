@@ -23,8 +23,10 @@ final class OpenAIResponse
         $error = is_array($payload) && is_array($payload['error'] ?? null) ? $payload['error'] : [];
         $message = (string) ($error['message'] ?? '');
 
-        if ($status === 429 && (in_array($error['code'] ?? null, OpenAIQuotaExceeded::CODES, true)
-            || in_array($error['type'] ?? null, OpenAIQuotaExceeded::CODES, true))) {
+        if (
+            $status === 429 && (in_array($error['code'] ?? null, OpenAIQuotaExceeded::CODES, true)
+            || in_array($error['type'] ?? null, OpenAIQuotaExceeded::CODES, true))
+        ) {
             throw new OpenAIQuotaExceeded($message !== '' ? $message : 'insufficient_quota');
         }
         if ($status >= 400) {
