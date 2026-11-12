@@ -13,6 +13,7 @@ class TestDatabaseFactory
 
         $pdo->exec('CREATE TABLE files (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            slug TEXT UNIQUE,
             chamber TEXT,
             committee_id INTEGER,
             title TEXT,

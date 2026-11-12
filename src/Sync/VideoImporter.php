@@ -6,6 +6,8 @@ use DateInterval;
 use DateTimeImmutable;
 use Log;
 use PDO;
+use PDOException;
+use PDOStatement;
 use RichmondSunlight\VideoProcessor\Fetcher\CommitteeDirectory;
 use RuntimeException;
 
@@ -14,11 +16,19 @@ class VideoImporter
     /** Two rows for one chamber, date and committee are the same meeting if their lengths are this close. */
     private const DUPLICATE_DURATION_TOLERANCE_SECONDS = 300;
 
+    /** @var \Closure(): string */
+    private \Closure $newSlug;
+
+    /**
+     * @param (\Closure(): string)|null $newSlug makes video slugs (see VideoSlug); for tests
+     */
     public function __construct(
         private PDO $pdo,
         private CommitteeDirectory $committees,
-        private ?Log $logger = null
+        private ?Log $logger = null,
+        ?\Closure $newSlug = null
     ) {
+        $this->newSlug = $newSlug ?? fn(): string => VideoSlug::generate();
     }
 
     /**
@@ -32,11 +42,11 @@ class VideoImporter
 
         $insert = $this->pdo->prepare(
             'INSERT INTO files (
-                chamber, committee_id, title, description, type, length, date, sponsor,
+                slug, chamber, committee_id, title, description, type, length, date, sponsor,
                 width, height, fps, capture_rate, capture_directory, path, html,
                 author_name, license, date_created, date_modified, video_index_cache, raw_metadata
             ) VALUES (
-                :chamber, :committee_id, :title, :description, :type, :length, :date, :sponsor,
+                :slug, :chamber, :committee_id, :title, :description, :type, :length, :date, :sponsor,
                 :width, :height, :fps, :capture_rate, :capture_directory, :path, :html,
                 :author_name, :license, :date_created, :date_modified, :video_index_cache, :raw_metadata
             )'
@@ -82,10 +92,7 @@ class VideoImporter
 
             // One bad record must not stop the rest of the batch from importing.
             try {
-                if ($insert->execute($payload) === false) {
-                    throw new RuntimeException('Failed to insert video record into files table.');
-                }
-                $fileId = (int) $this->pdo->lastInsertId();
+                $fileId = $this->insertWithSlug($insert, $payload);
                 if ($identity) {
                     $sources->register($fileId, $identity['source'], $identity['source_id']);
                 }
@@ -118,6 +125,35 @@ class VideoImporter
         }
 
         return $count;
+    }
+
+    /**
+     * Insert a row with a new slug. If the slug is taken (unlikely, but
+     * possible), try another.
+     *
+     * @param array<string,mixed> $payload
+     * @return int the new row's ID
+     */
+    private function insertWithSlug(PDOStatement $insert, array $payload): int
+    {
+        for ($attempt = 1;; $attempt++) {
+            $payload['slug'] = ($this->newSlug)();
+            $error = null;
+            $exception = null;
+            try {
+                if ($insert->execute($payload) !== false) {
+                    return (int) $this->pdo->lastInsertId();
+                }
+                $error = $insert->errorInfo();
+            } catch (PDOException $e) {
+                $exception = $e;
+                $error = $e->errorInfo;
+            }
+            $insert->closeCursor();
+            if (!VideoSlug::isCollision($error) || $attempt >= VideoSlug::MAX_ATTEMPTS) {
+                throw $exception ?? new RuntimeException('Failed to insert video record into files table.');
+            }
+        }
     }
 
     /**

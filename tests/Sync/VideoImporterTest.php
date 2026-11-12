@@ -6,6 +6,7 @@ use PDO;
 use PHPUnit\Framework\TestCase;
 use RichmondSunlight\VideoProcessor\Fetcher\CommitteeDirectory;
 use RichmondSunlight\VideoProcessor\Sync\VideoImporter;
+use RichmondSunlight\VideoProcessor\Sync\VideoSlug;
 use RichmondSunlight\VideoProcessor\Tests\Support\TestDatabaseFactory;
 
 class VideoImporterTest extends TestCase
@@ -17,6 +18,7 @@ class VideoImporterTest extends TestCase
         $this->pdo = new PDO('sqlite::memory:');
         $this->pdo->exec('CREATE TABLE files (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            slug TEXT UNIQUE,
             chamber TEXT,
             committee_id INTEGER,
             title TEXT,
@@ -76,6 +78,64 @@ class VideoImporterTest extends TestCase
         $this->assertSame('00:55:00', $rows[0]['length']);
         $this->assertNull($rows[0]['sponsor']);  // sponsor field is no longer populated
         $this->assertNotEmpty($rows[0]['video_index_cache']);
+    }
+
+    public function testGivesEachVideoASlug(): void
+    {
+        $directory = new CommitteeDirectory($this->pdo);
+        $importer = new VideoImporter($this->pdo, $directory);
+        $importer->import([
+            [
+                'chamber' => 'house',
+                'title' => 'Appropriations',
+                'meeting_date' => '2025-01-31',
+                'duration_seconds' => 3300,
+                'committee_name' => 'Appropriations',
+                'event_type' => 'committee',
+                'video_url' => 'https://example.com/video.mp4',
+            ],
+            [
+                'chamber' => 'senate',
+                'title' => 'Floor Session',
+                'meeting_date' => '2025-02-15',
+                'duration_seconds' => 7200,
+                'event_type' => 'floor',
+                'video_url' => 'https://example.com/floor.mp4',
+            ],
+        ]);
+
+        $slugs = $this->pdo->query('SELECT slug FROM files ORDER BY id')->fetchAll(PDO::FETCH_COLUMN);
+        $this->assertCount(2, $slugs);
+        foreach ($slugs as $slug) {
+            $this->assertTrue(VideoSlug::isValid((string) $slug), "Not a valid slug: {$slug}");
+        }
+        $this->assertNotSame($slugs[0], $slugs[1]);
+    }
+
+    public function testTriesAnotherSlugWhenOneIsTaken(): void
+    {
+        $this->pdo->exec("INSERT INTO files (slug, chamber, title, date, type, path) VALUES ('bbbb', 'house', 'House Session', '2025-01-02', 'video', 'https://example.com/old.mp4')");
+        $slugs = ['bbbb', 'cccc'];
+        $directory = new CommitteeDirectory($this->pdo);
+        $importer = new VideoImporter($this->pdo, $directory, null, function () use (&$slugs): string {
+            return array_shift($slugs);
+        });
+        $count = $importer->import([
+            [
+                'chamber' => 'senate',
+                'title' => 'Floor Session',
+                'meeting_date' => '2025-02-15',
+                'duration_seconds' => 7200,
+                'event_type' => 'floor',
+                'video_url' => 'https://example.com/floor.mp4',
+            ],
+        ]);
+
+        $this->assertSame(1, $count);
+        $this->assertSame(
+            'cccc',
+            $this->pdo->query("SELECT slug FROM files WHERE path = 'https://example.com/floor.mp4'")->fetchColumn()
+        );
     }
 
     public function testGeneratesFloorSessionTitles(): void

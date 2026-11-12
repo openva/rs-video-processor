@@ -42,6 +42,9 @@ Two kinds of `ignored='y'` rows exist, distinguished by `raw_text`:
 
 Both must be excluded from any query that reads `video_index` as real results.
 
+### Every files row needs a slug
+`files.slug` (four random characters; see `VideoSlug`) identifies each video in its URL on the website (`/video/{slug}/`). `VideoImporter` gives every row it inserts a slug, and tries another if one is taken. Any other code that inserts into `files` must do the same: the column is `NOT NULL` in production. `bin/backfill_slugs.php` gave existing rows slugs. The website makes slugs the same way (`Video::new_slug()`); keep the two alike.
+
 ### S3KeyBuilder and NULL committee_id
 
 `S3KeyBuilder::build()` takes the file ID as its fourth argument and puts it in the key (`chamber/floor/YYYYMMDD-<id>.mp4`). Always pass it. Without it, every video with an unresolved committee on one day gets the same key, and they overwrite each other; that happened in production. `capture_directory` is written once by `ScreenshotGenerator` and must never be moved or recomputed.
