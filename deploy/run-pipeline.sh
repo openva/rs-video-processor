@@ -112,7 +112,8 @@ run_pipeline_pass() {
 
   run_step "Step 5: Generating screenshots" php bin/generate_screenshots.php --limit=5
 
-  run_step "Step 6: Generating transcripts" php bin/generate_transcripts.php --limit=5
+  run_step "Step 6a: Storing transcripts made elsewhere" php bin/transcribe_backlog.php --sync
+  run_step "Step 6b: Generating transcripts" php bin/generate_transcripts.php --limit=5
 
   run_step "Step 7: Repairing committee classifications" php bin/repair_committee_classification.php --limit=50
   run_step "Step 8: Repairing missing manifests" php bin/repair_manifests.php --limit=50

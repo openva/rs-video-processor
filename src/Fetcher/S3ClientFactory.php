@@ -25,4 +25,13 @@ class S3ClientFactory
             ],
         ]);
     }
+
+    /**
+     * A client with the machine's own AWS credentials (the AWS CLI's, in
+     * ~/.aws), for scripts run on Waldo's Mac, which has no settings file.
+     */
+    public static function withDefaultCredentials(string $region = 'us-east-1', string $version = '2006-03-01'): S3Client
+    {
+        return new S3Client(['region' => $region, 'version' => $version]);
+    }
 }
