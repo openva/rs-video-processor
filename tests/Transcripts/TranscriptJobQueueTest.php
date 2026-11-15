@@ -37,7 +37,7 @@ class TranscriptJobQueueTest extends TestCase
             ':path' => 'https://video.richmondsunlight.com/house/floor/20250101.mp4',
         ]);
 
-        $queue = new TranscriptJobQueue($pdo);
+        $queue = TranscriptJobQueue::stage($pdo);
         $jobs = $queue->fetch();
 
         $this->assertCount(1, $jobs);
@@ -79,7 +79,7 @@ class TranscriptJobQueueTest extends TestCase
         $ledger->recordFailure($first, JobLedger::STAGE_TRANSCRIPT, 'earlier failure');
         $pdo->exec("UPDATE video_jobs SET next_attempt_at = '2000-01-01 00:00:00'");
         $ledger->claim($running, JobLedger::STAGE_TRANSCRIPT);
-        $queue = new TranscriptJobQueue($pdo);
+        $queue = TranscriptJobQueue::stage($pdo);
         $this->assertSame(2, $queue->countPending());
 
         $this->assertSame(2, $queue->putAllAside('cap reached', time() + 86400));
@@ -110,7 +110,7 @@ class TranscriptJobQueueTest extends TestCase
         // An old details URL names no file to read.
         $this->addVideo($pdo, 'https://archive.org/details/rs-house-20250102-house-session', '2025-01-02');
 
-        $queue = new TranscriptJobQueue($pdo);
+        $queue = TranscriptJobQueue::stage($pdo);
         $jobs = $queue->fetch(10);
 
         $this->assertSame([$archived], array_map(static fn($job) => $job->fileId, $jobs));
@@ -124,7 +124,7 @@ class TranscriptJobQueueTest extends TestCase
         $this->addVideo($pdo, 'https://archive.org/download/va-house-20250102-2/va-house-20250102-2.mp4', '2025-01-02');
         $this->addVideo($pdo, 'https://archive.org/download/rs-house-20100101-house-session/ia_video_x.mp4', '2010-01-01');
 
-        $this->assertSame(2, (new TranscriptJobQueue($pdo))->countPending());
+        $this->assertSame(2, (TranscriptJobQueue::stage($pdo))->countPending());
     }
 
     public function testArchivedVideosWithTranscriptsAreNotFetched(): void
@@ -134,6 +134,64 @@ class TranscriptJobQueueTest extends TestCase
         $pdo->prepare("INSERT INTO video_transcript (file_id, text, time_start, time_end) VALUES (:id, 'Hello', '00:00:01', '00:00:02')")
             ->execute([':id' => $id]);
 
-        $this->assertSame([], (new TranscriptJobQueue($pdo))->fetch(10));
+        $this->assertSame([], (TranscriptJobQueue::stage($pdo))->fetch(10));
+    }
+
+    private function addCaptionedVideo(PDO $pdo, string $path, string $date): int
+    {
+        $id = $this->addVideo($pdo, $path, $date);
+        $pdo->prepare("UPDATE files SET webvtt = 'WEBVTT' WHERE id = :id")->execute([':id' => $id]);
+        return $id;
+    }
+
+    private static function ids(array $jobs): array
+    {
+        $ids = array_map(static fn($job): int => is_array($job) ? $job['id'] : $job->fileId, $jobs);
+        sort($ids);
+        return $ids;
+    }
+
+    /**
+     * Transcribing a video without captions costs OpenAI $0.36 an hour of
+     * video, so the old ones are left to bin/transcribe_backlog.php; nothing
+     * before 2020 is transcribed at all.
+     */
+    public function testTheStageLeavesOldUncaptionedVideosToTheBacklog(): void
+    {
+        $pdo = $this->database();
+        $recent = $this->addVideo($pdo, 'https://video.richmondsunlight.com/house/floor/20240115.mp4', '2024-01-15');
+        $oldCaptioned = $this->addCaptionedVideo($pdo, 'https://video.richmondsunlight.com/house/floor/20210115.mp4', '2021-01-15');
+        $this->addVideo($pdo, 'https://video.richmondsunlight.com/house/floor/20210116.mp4', '2021-01-16');
+        $this->addVideo($pdo, 'https://archive.org/download/va-house-20210117-3/va-house-20210117-3.mp4', '2021-01-17');
+        $this->addCaptionedVideo($pdo, 'https://video.richmondsunlight.com/house/floor/20190115.mp4', '2019-01-15');
+        $this->addVideo($pdo, 'https://video.richmondsunlight.com/house/floor/20190116.mp4', '2019-01-16');
+
+        $queue = TranscriptJobQueue::stage($pdo);
+        $this->assertSame(2, $queue->countPending());
+        $this->assertSame([$recent, $oldCaptioned], self::ids($queue->fetch(10)));
+    }
+
+    /**
+     * The backlog is read from archive.org, which is free: an S3 copy would
+     * cost $0.09 a GB to read from outside AWS, and again to archive later.
+     */
+    public function testTheBacklogListsOldUncaptionedVideosOnceArchived(): void
+    {
+        $pdo = $this->database();
+        $this->addVideo($pdo, 'https://video.richmondsunlight.com/house/floor/20240115.mp4', '2024-01-15');
+        $this->addCaptionedVideo($pdo, 'https://archive.org/download/va-house-20210115-1/va-house-20210115-1.mp4', '2021-01-15');
+        $this->addVideo($pdo, 'https://video.richmondsunlight.com/house/floor/20210116.mp4', '2021-01-16');
+        $archived = $this->addVideo($pdo, 'https://archive.org/download/va-house-20210117-3/va-house-20210117-3.mp4', '2021-01-17');
+        $this->addVideo($pdo, 'https://archive.org/download/va-house-20190117-4/va-house-20190117-4.mp4', '2019-01-17');
+        $done = $this->addVideo($pdo, 'https://archive.org/download/va-house-20210118-5/va-house-20210118-5.mp4', '2021-01-18');
+        $pdo->prepare("INSERT INTO video_transcript (file_id, text, time_start, time_end) VALUES (:id, 'Hello', '00:00:01', '00:00:02')")
+            ->execute([':id' => $done]);
+
+        $backlog = TranscriptJobQueue::backlog($pdo)->listAll();
+
+        $this->assertSame([$archived], self::ids($backlog));
+        $this->assertSame('https://archive.org/download/va-house-20210117-3/va-house-20210117-3.mp4', $backlog[0]['path']);
+        // Nothing is claimed: the stage never takes these.
+        $this->assertSame(0, (int) $pdo->query('SELECT COUNT(*) FROM video_jobs')->fetchColumn());
     }
 }
