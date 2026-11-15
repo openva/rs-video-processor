@@ -5,7 +5,7 @@ namespace RichmondSunlight\VideoProcessor\Transcripts;
 use GuzzleHttp\ClientInterface;
 use RuntimeException;
 
-class OpenAITranscriber implements WordTranscriber
+class OpenAITranscriber implements WordTranscriber, SegmentTranscriber
 {
     public function __construct(private ClientInterface $client, private string $apiKey)
     {

@@ -13,7 +13,7 @@ class TranscriptProcessor
 
     public function __construct(
         private TranscriptWriter $writer,
-        private OpenAITranscriber $transcriber,
+        private SegmentTranscriber $transcriber,
         ?CaptionParser $parser = null,
         ?AudioExtractor $audioExtractor = null,
         private ?Log $logger = null,
@@ -105,29 +105,6 @@ class TranscriptProcessor
      */
     private function transcribe(string $videoUrl): array
     {
-        $chunks = $this->audioExtractor->extractChunks($videoUrl);
-        $segments = [];
-
-        try {
-            foreach ($chunks as $chunk) {
-                // Each piece is timed from zero; shift it to its place in the video.
-                foreach ($this->transcriber->transcribe($chunk['path']) as $segment) {
-                    $segments[] = [
-                        'start' => $segment['start'] + $chunk['offset'],
-                        'end' => $segment['end'] + $chunk['offset'],
-                        'text' => $segment['text'],
-                    ];
-                }
-            }
-        } finally {
-            foreach ($chunks as $chunk) {
-                @unlink($chunk['path']);
-            }
-            if (!empty($chunks)) {
-                @rmdir(dirname($chunks[0]['path']));
-            }
-        }
-
-        return $segments;
+        return ChunkedTranscription::run($this->audioExtractor, $this->transcriber, $videoUrl);
     }
 }
