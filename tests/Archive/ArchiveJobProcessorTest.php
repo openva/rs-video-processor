@@ -259,7 +259,7 @@ class ArchiveJobProcessorTest extends TestCase
                 parent::__construct(new PDO('sqlite::memory:'));
             }
 
-            public function fetch(int $limit = 3): array
+            public function fetch(int $limit = 3, ?string $which = null): array
             {
                 return array_slice($this->jobs, 0, $limit);
             }

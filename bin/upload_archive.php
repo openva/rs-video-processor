@@ -18,6 +18,9 @@ use RichmondSunlight\VideoProcessor\Jobs\StageRunner;
 $app = require __DIR__ . '/bootstrap.php';
 $log = $app->log;
 
+/** The most waiting uploads one run checks on. */
+const CHECK_LIMIT = 200;
+
 $limit = 10;
 foreach ($argv as $arg) {
     if (preg_match('/^--limit=(\d+)$/', $arg, $m)) {
@@ -51,13 +54,31 @@ $processor = new ArchiveJobProcessor(
 
 $runner = new StageRunner(new JobLedger($app->pdo, $pdoFactory), JobLedger::STAGE_ARCHIVE, $log);
 
+$process = static function (ArchiveJob $job) use ($processor): void {
+    $processor->processJob($job);
+};
+$fileIdOf = static fn(ArchiveJob $job): int => $job->fileId;
+
+// First, the uploads waiting for the archive to list them, whose time to be
+// checked has come. Each check is one question to the archive, so they don't
+// count against --limit: counted with the uploads, as they were from October
+// 2026, they took half of every run's places, and archiving slowed from 25
+// videos a day to 7. The cap only bounds a run if something goes wrong.
+$confirmed = $runner->run(
+    CHECK_LIMIT,
+    static fn() => (new ArchiveJobQueue($pdoFactory()))->fetch(1, ArchiveJobQueue::WAITING)[0] ?? null,
+    $fileIdOf,
+    $process
+);
+if ($confirmed > 0) {
+    $log->put("Confirmed {$confirmed} earlier upload(s) to the Internet Archive.", 3);
+}
+
 $uploaded = $runner->run(
     $limit,
-    static fn() => (new ArchiveJobQueue($pdoFactory()))->fetch(1)[0] ?? null,
-    static fn(ArchiveJob $job): int => $job->fileId,
-    static function (ArchiveJob $job) use ($processor): void {
-        $processor->processJob($job);
-    }
+    static fn() => (new ArchiveJobQueue($pdoFactory()))->fetch(1, ArchiveJobQueue::NOT_WAITING)[0] ?? null,
+    $fileIdOf,
+    $process
 );
 
 $log->put("Uploaded {$uploaded} video(s) to the Internet Archive.", 3);

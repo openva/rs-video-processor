@@ -41,15 +41,39 @@ class ArchiveJobQueue
     }
 
     /**
+     * fetch(): only jobs waiting on the archive. Nearly all are uploads waiting
+     * for the archive to list the video; a few were put aside because the
+     * archive was busy or down.
+     */
+    public const WAITING = 'waiting';
+
+    /** fetch(): only jobs not waiting on the archive: uploads still to make. */
+    public const NOT_WAITING = 'not_waiting';
+
+    /**
+     * @param string|null $which WAITING, NOT_WAITING, or null for both. A
+     *        waiting job is handed out only once its time to be checked again
+     *        has come; checking it is one question to the archive, while an
+     *        upload moves a whole video, so upload_archive.php takes the two
+     *        separately and limits only the uploads.
      * @return ArchiveJob[]
      */
-    public function fetch(int $limit = 3): array
+    public function fetch(int $limit = 3, ?string $which = null): array
     {
+        $where = $this->pendingWhere();
+        if ($which === self::WAITING) {
+            $where .= ' AND NOT ' . JobLedger::notWaitingSql(JobLedger::STAGE_ARCHIVE);
+        } elseif ($which === self::NOT_WAITING) {
+            $where .= ' AND ' . JobLedger::notWaitingSql(JobLedger::STAGE_ARCHIVE);
+        } elseif ($which !== null) {
+            throw new \InvalidArgumentException('Unknown kind of archive job: ' . $which);
+        }
+
         $sql = 'SELECT f.id, f.chamber, f.title, f.date, f.path, f.webvtt, f.srt, f.caption_alignment,
                        f.capture_directory, f.video_index_cache, f.committee_id, c.name as committee_name
             FROM files f
             LEFT JOIN committees c ON f.committee_id = c.id
-            WHERE ' . $this->pendingWhere() . '
+            WHERE ' . $where . '
             ORDER BY ' . ProcessingPriority::orderSql() . ', f.date DESC
             LIMIT :limit';
 

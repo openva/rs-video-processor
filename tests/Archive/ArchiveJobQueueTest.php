@@ -97,6 +97,30 @@ class ArchiveJobQueueTest extends TestCase
         $this->assertCount(1, $queue->fetch(), 'A run that is going anyway checks it.');
     }
 
+    /**
+     * Checking an upload is one question to the archive, so upload_archive.php
+     * takes those apart from new uploads and does not count them against its
+     * limit: counted together, half of every run went on checks.
+     */
+    public function testHandsOutWaitingAndNewJobsSeparately(): void
+    {
+        $pdo = $this->createTestDatabase();
+        foreach ([1, 2, 3] as $n) {
+            $pdo->exec("INSERT INTO files (chamber,title,date,path,capture_directory,date_created) VALUES ('house','Floor','2025-01-0{$n}','https://video.richmondsunlight.com/house/floor/2025010{$n}-{$n}.mp4','/house/floor/{$n}','2025-01-0{$n}')");
+        }
+        $earlier = new \RichmondSunlight\VideoProcessor\Jobs\JobLedger($pdo, null, fn(): int => time() - 7200);
+        // #1 was uploaded two hours ago and is due to be checked; #2 only just now.
+        $earlier->begin(1, 'archive');
+        $earlier->recordWaiting(1, 'archive', 'Uploaded; still processing.', 600);
+        $now = new \RichmondSunlight\VideoProcessor\Jobs\JobLedger($pdo);
+        $now->begin(2, 'archive');
+        $now->recordWaiting(2, 'archive', 'Uploaded; still processing.', 600);
+
+        $ids = static fn(array $jobs): array => array_map(static fn($job): int => $job->fileId, $jobs);
+        $this->assertSame([1], $ids((new ArchiveJobQueue($pdo))->fetch(10, ArchiveJobQueue::WAITING)));
+        $this->assertSame([3], $ids((new ArchiveJobQueue($pdo))->fetch(10, ArchiveJobQueue::NOT_WAITING)));
+    }
+
     private function createTestDatabase(): PDO
     {
         $pdo = new PDO('sqlite::memory:');
