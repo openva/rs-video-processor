@@ -32,7 +32,7 @@ class WorkerScriptsTest extends TestCase
 
         $this->assertStringContainsString('new StageRunner(', $source);
         $this->assertStringContainsString($stage, $source);
-        $this->assertStringContainsString('->fetch(1)', $source, 'Jobs must be claimed one at a time.');
+        $this->assertMatchesRegularExpression('/->fetch\(1[,)]/', $source, 'Jobs must be claimed one at a time.');
         $this->assertStringContainsString('AppBootstrap::connectionFactory()', $source);
 
         exec('php -l ' . escapeshellarg($path) . ' 2>&1', $output, $status);

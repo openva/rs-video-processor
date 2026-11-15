@@ -87,6 +87,11 @@ for pid in "${pids[@]}"; do wait "$pid" || true; done
 echo "✓ Screenshot generation complete"
 echo ""
 
+# Transcripts made on Waldo's Mac for old uncaptioned videos: store what it
+# has sent, and publish the list of what is still waiting for it.
+run_step "transcripts made elsewhere" php "$SCRIPT_DIR/transcribe_backlog.php" --sync
+echo ""
+
 # Step 6: Process transcripts, bills, and speakers in parallel
 # These can all run simultaneously since they depend on different inputs
 echo "[6/9] Processing transcripts, bills, and speakers in parallel..."
