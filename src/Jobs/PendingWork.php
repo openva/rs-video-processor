@@ -32,7 +32,7 @@ class PendingWork
         return [
             JobLedger::STAGE_DOWNLOAD => (new VideoDownloadQueue($this->pdo))->countPending(),
             JobLedger::STAGE_SCREENSHOTS => (new ScreenshotJobQueue($this->pdo))->countPending(),
-            JobLedger::STAGE_TRANSCRIPT => (new TranscriptJobQueue($this->pdo))->countPending(),
+            JobLedger::STAGE_TRANSCRIPT => TranscriptJobQueue::stage($this->pdo)->countPending(),
             JobLedger::STAGE_BILLS => (new BillDetectionJobQueue($this->pdo))->countPending(),
             JobLedger::STAGE_SPEAKERS => (new SpeakerJobQueue($this->pdo))->countPending(),
             JobLedger::STAGE_ARCHIVE => (new ArchiveJobQueue($this->pdo))->countPending(),

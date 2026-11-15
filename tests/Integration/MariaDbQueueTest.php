@@ -123,7 +123,7 @@ class MariaDbQueueTest extends TestCase
                 ['path' => self::S3],
             ],
             'transcript' => [
-                fn(PDO $pdo) => new TranscriptJobQueue($pdo),
+                fn(PDO $pdo) => TranscriptJobQueue::stage($pdo),
                 fn(object $job): int => $job->fileId,
                 ['path' => self::S3],
             ],

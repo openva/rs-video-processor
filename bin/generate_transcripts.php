@@ -57,7 +57,7 @@ $runner = new StageRunner(new JobLedger($app->pdo, $pdoFactory), JobLedger::STAG
 
 $processed = $runner->run(
     $limit,
-    static fn() => (new TranscriptJobQueue($pdoFactory()))->fetch(1)[0] ?? null,
+    static fn() => TranscriptJobQueue::stage($pdoFactory())->fetch(1)[0] ?? null,
     static fn(TranscriptJob $job): int => $job->fileId,
     static function (TranscriptJob $job) use ($processor, $pdoFactory, $log): void {
         try {
@@ -66,7 +66,7 @@ $processed = $runner->run(
             // Every transcript job needs OpenAI. Set them all aside, so none is
             // counted as pending and the instance is not started for them;
             // StageRunner then sets this one aside and stops.
-            $count = (new TranscriptJobQueue($pdoFactory()))->putAllAside($e->getMessage(), $e->resumesAt);
+            $count = TranscriptJobQueue::stage($pdoFactory())->putAllAside($e->getMessage(), $e->resumesAt);
             $log->put(sprintf('Transcripts paused: %s %d other video(s) wait with it.', $e->getMessage(), $count), 6);
             throw $e;
         }

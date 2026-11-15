@@ -38,7 +38,7 @@ class QueueLedgerTest extends TestCase
             ],
             'transcript' => [
                 JobLedger::STAGE_TRANSCRIPT,
-                fn(PDO $pdo) => new TranscriptJobQueue($pdo),
+                fn(PDO $pdo) => TranscriptJobQueue::stage($pdo),
                 ['path' => self::S3],
             ],
             'bills' => [

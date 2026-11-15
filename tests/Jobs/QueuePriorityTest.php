@@ -72,7 +72,7 @@ class QueuePriorityTest extends TestCase
         return [
             'download' => [fn(PDO $pdo) => new VideoDownloadQueue($pdo), fn(object $job): int => $job->id, ['path' => '', 'video_index_cache' => $cache]],
             'screenshots' => [fn(PDO $pdo) => new ScreenshotJobQueue($pdo), fn(object $job): int => $job->id, ['path' => $s3]],
-            'transcript' => [fn(PDO $pdo) => new TranscriptJobQueue($pdo), fn(object $job): int => $job->fileId, ['path' => $s3]],
+            'transcript' => [fn(PDO $pdo) => TranscriptJobQueue::stage($pdo), fn(object $job): int => $job->fileId, ['path' => $s3]],
             'bills' => [fn(PDO $pdo) => new BillDetectionJobQueue($pdo), fn(object $job): int => $job->fileId, ['capture_directory' => $shots]],
             'speakers' => [fn(PDO $pdo) => new SpeakerJobQueue($pdo), fn(object $job): int => $job->fileId, ['path' => $s3, 'capture_directory' => $shots]],
             'archive' => [fn(PDO $pdo) => new ArchiveJobQueue($pdo), fn(object $job): int => $job->fileId, ['path' => $s3, 'webvtt' => 'WEBVTT', 'capture_directory' => $shots, 'transcript' => 'text']],
