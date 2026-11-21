@@ -396,7 +396,7 @@ Worker counts for drain mode, and the switch for paid speaker diarization, are i
 1. PHP syntax linting
 2. Composer install
 3. PHPUnit test suite
-4. Deploy to CodeDeploy (on master branch)
+4. Deploy to CodeDeploy (on main branch)
 
 ## Development Tips
 
