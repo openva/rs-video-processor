@@ -87,6 +87,22 @@ if ! command -v aws &> /dev/null; then
   rm -rf awscliv2.zip aws
 fi
 
+# Install the CloudWatch agent, which reports memory and disk use: EC2 reports
+# only CPU, network and disk traffic, and the instance type is chosen by the
+# work waiting (rs-machine's VideoProcessorSize). It sends with the instance's
+# IAM role, which needs CloudWatchAgentServerPolicy; without one it runs but
+# sends nothing. A few metrics cost about $0.30 a month each.
+if [[ ! -x /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl ]]; then
+  curl -fsSL -o /tmp/amazon-cloudwatch-agent.deb \
+    https://amazoncloudwatch-agent.s3.amazonaws.com/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb \
+    && sudo dpkg -i -E /tmp/amazon-cloudwatch-agent.deb
+  rm -f /tmp/amazon-cloudwatch-agent.deb
+fi
+if [[ -x /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl ]]; then
+  sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+    -a fetch-config -m ec2 -s -c "file:$(pwd)/deploy/cloudwatch-agent.json"
+fi
+
 # Install Python tooling for video downloads.
 python3 -m pip install --upgrade pip --break-system-packages
 python3 -m pip install --upgrade -r requirements.txt --break-system-packages
