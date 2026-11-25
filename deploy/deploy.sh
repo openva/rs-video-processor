@@ -2,180 +2,75 @@
 
 set -euo pipefail
 
-cd /home/ubuntu/video-processor/
+# Configure the video processor after a code update. update-from-s3.sh runs
+# this at each boot that brings a new deploy bundle, which on an instance
+# started from a disk image is every boot.
+#
+# Installing software is deploy/provision.sh. Images built by Packer
+# (image/video-processor.pkr.hcl) have it done already and are marked with
+# /etc/rs-video-processor-image; the hand-built instance runs it here.
 
-# Change the timezone to Eastern
-sudo cp /usr/share/zoneinfo/US/Eastern /etc/localtime
-    
-# Ensure root filesystem entry exists in fstab (required for read-write remount on boot)
-if ! grep -q ' / ' /etc/fstab; then
-    ROOT_PARTUUID=$(findmnt -n -o PARTUUID /)
-    if [ -n "$ROOT_PARTUUID" ]; then
-        echo "PARTUUID=$ROOT_PARTUUID   /   ext4   defaults,discard   0   1" | sudo tee -a /etc/fstab
-    fi
+APP_DIR="${APP_DIR:-/home/ubuntu/video-processor}"
+GUARD_FILE="${GUARD_FILE:-/home/ubuntu/video-processor.txt}"
+DEPLOY_BUCKET="${DEPLOY_BUCKET:-deploy.richmondsunlight.com}"
+COOKIES_KEY="${COOKIES_KEY:-rs-video-processor/youtube-cookies.txt}"
+
+cd "$APP_DIR"
+
+if [[ ! -f /etc/rs-video-processor-image ]]; then
+  # Best-effort: a transient apt/PPA/network failure must not block the
+  # service installation below, which is the part deploys actually need.
+  deploy/provision.sh || echo "WARNING: provisioning did not finish; continuing with the services."
 fi
 
-# Add swap space, if it doesn't exist
-if ! grep -q swap /etc/fstab; then
-    sudo /bin/dd if=/dev/zero of=/var/swap.1 bs=1M count=1024
-    sudo /sbin/mkswap /var/swap.1
-    sudo chmod 600 /var/swap.1
-    sudo /sbin/swapon /var/swap.1
-    echo "/var/swap.1   swap    swap    defaults        0   0" | sudo tee -a /etc/fstab
+deploy/install-services.sh
+
+if [[ ! -f "$GUARD_FILE" ]]; then
+  exit 0
 fi
 
-# OS provisioning below is best-effort: on an already-provisioned box these are
-# no-ops, and a transient apt/PPA/network failure here must NOT block the service
-# installation at the end of this script (which is the part deploys actually
-# need). errexit is restored before that critical section.
-set +e
+sudo systemctl start idle-shutdown.timer
 
-# Update the OS and repositories (need ondrej/php for PHP 8.x).
-# --allow-releaseinfo-change: the ondrej/php PPA periodically changes its repo
-# Label/Origin (it now redirects to packages.sury.org), which makes a plain
-# `apt-get update` exit 100 until the change is acknowledged — that exit code
-# previously aborted the whole deploy.
-sudo apt-get update --allow-releaseinfo-change
-sudo apt-get install -y unattended-upgrades
-sudo unattended-upgrades --verbose
-sudo apt-get install -y software-properties-common
-sudo add-apt-repository -y ppa:ondrej/php
-sudo apt-get update --allow-releaseinfo-change
-
-# Install necessary packages.
-sudo apt-get install -y \
-  curl \
-  git \
-  unzip \
-  jq \
-  ffmpeg \
-  tesseract-ocr \
-  imagemagick \
-  python3 \
-  python3-pip \
-  php8.4-cli \
-  php8.4-mbstring \
-  php8.4-xml \
-  php8.4-curl \
-  php8.4-gd \
-  php8.4-mysql \
-  php8.4-zip \
-  php8.4-intl \
-  php8.4-memcached \
-  internetarchive \
-  composer
-
-# Run PHP 8.4 even if a newer PHP is also installed: apt points `php` at the
-# newest version it has.
-sudo update-alternatives --set php /usr/bin/php8.4
-
-# YouTube downloads require cookies file at /home/ubuntu/youtube-cookies.txt
-# Export from your browser using "Get cookies.txt LOCALLY" extension
-# Instructions: https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp
-
-# Install deno (required by yt-dlp for YouTube signature decryption)
-if ! command -v deno &> /dev/null; then
-  curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sudo -E sh
-  echo "Installed deno $(deno --version | head -1)"
+# The `ia` command that uploads to the Internet Archive reads its credentials
+# from ia.ini, not from settings.inc.php. Write it from the settings when it is
+# missing, so a new instance can archive without anyone running `ia configure`.
+IA_CONFIG="$HOME/.config/internetarchive/ia.ini"
+if [[ ! -f "$IA_CONFIG" ]]; then
+  mkdir -p "$(dirname "$IA_CONFIG")"
+  if php -r '
+    require "includes/settings.inc.php";
+    if (!defined("IA_ACCESS_KEY") || IA_ACCESS_KEY === "" || !defined("IA_SECRET_KEY") || IA_SECRET_KEY === "") {
+        exit(1);
+    }
+    file_put_contents($argv[1], "[s3]\naccess = " . IA_ACCESS_KEY . "\nsecret = " . IA_SECRET_KEY . "\n");
+  ' "$IA_CONFIG"; then
+    chmod 600 "$IA_CONFIG"
+    echo "Wrote Internet Archive credentials to ${IA_CONFIG}."
+  else
+    rm -f "$IA_CONFIG"
+    echo "WARNING: IA_ACCESS_KEY / IA_SECRET_KEY are not set; archiving will not run until ${IA_CONFIG} exists."
+  fi
 fi
 
-# Install the AWS CLI
-if ! command -v aws &> /dev/null; then
-  curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-  unzip awscliv2.zip
-  sudo ./aws/install
-  rm -rf awscliv2.zip aws
+# yt-dlp's YouTube cookies (see VideoDownloadProcessor). They are kept in the
+# deploy bucket, because an instance started from an image has nothing copied
+# onto it by hand. To refresh them, export them from a browser with "Get
+# cookies.txt LOCALLY" and upload them there:
+#   aws s3 cp cookies.txt s3://deploy.richmondsunlight.com/rs-video-processor/youtube-cookies.txt
+# If the bucket has none, a copy already on this machine is kept.
+COOKIES_FILE=$(php -r 'require "includes/settings.inc.php"; echo defined("YTDLP_COOKIES_FILE") ? YTDLP_COOKIES_FILE : "";' 2>/dev/null || true)
+COOKIES_FILE="${COOKIES_FILE:-/home/ubuntu/youtube-cookies.txt}"
+if aws s3 cp --only-show-errors "s3://${DEPLOY_BUCKET}/${COOKIES_KEY}" "${COOKIES_FILE}.new" 2>/dev/null; then
+  chmod 600 "${COOKIES_FILE}.new"
+  mv "${COOKIES_FILE}.new" "$COOKIES_FILE"
+  echo "Fetched YouTube cookies to ${COOKIES_FILE}."
+else
+  rm -f "${COOKIES_FILE}.new"
+  echo "No YouTube cookies in s3://${DEPLOY_BUCKET}/${COOKIES_KEY}; keeping what is at ${COOKIES_FILE}, if anything."
 fi
 
-# Install the CloudWatch agent, which reports memory and disk use: EC2 reports
-# only CPU, network and disk traffic, and the instance type is chosen by the
-# work waiting (rs-machine's VideoProcessorSize). It sends with the instance's
-# IAM role, which needs CloudWatchAgentServerPolicy; without one it runs but
-# sends nothing. A few metrics cost about $0.30 a month each.
-if [[ ! -x /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl ]]; then
-  curl -fsSL -o /tmp/amazon-cloudwatch-agent.deb \
-    https://amazoncloudwatch-agent.s3.amazonaws.com/ubuntu/amd64/latest/amazon-cloudwatch-agent.deb \
-    && sudo dpkg -i -E /tmp/amazon-cloudwatch-agent.deb
-  rm -f /tmp/amazon-cloudwatch-agent.deb
-fi
+# Memory and disk metrics, and /var/log/syslog to CloudWatch Logs.
 if [[ -x /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl ]]; then
   sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
-    -a fetch-config -m ec2 -s -c "file:$(pwd)/deploy/cloudwatch-agent.json"
-fi
-
-# Install Python tooling for video downloads.
-python3 -m pip install --upgrade pip --break-system-packages
-python3 -m pip install --upgrade -r requirements.txt --break-system-packages
-
-# Ensure user-level scripts (e.g., yt-dlp) are on PATH and available system-wide.
-LOCAL_BIN="$HOME/.local/bin"
-if [[ -d "$LOCAL_BIN" ]] && ! printf '%s' "$PATH" | grep -q "$LOCAL_BIN"; then
-  echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.profile"
-fi
-if [[ -x "$LOCAL_BIN/yt-dlp" ]]; then
-  sudo ln -sf "$LOCAL_BIN/yt-dlp" /usr/local/bin/yt-dlp
-fi
-
-# Re-enable errexit: OS provisioning is done (best-effort above); the service
-# installation below is critical and must fail loudly if anything goes wrong.
-set -e
-
-# Install one-shot updater (runs on boot) when enabled via guard file.
-echo "Installing update-from-s3 service..."
-sudo cp deploy/services/update-from-s3.service /etc/systemd/system/update-from-s3.service
-sudo systemctl daemon-reload
-sudo systemctl enable update-from-s3.service
-
-# If this is the video processor instance (guard file present)
-if [[ -f /home/ubuntu/video-processor.txt ]]; then
-  echo "Installing video processing services..."
-
-  # Ensure scripts are executable
-  chmod +x deploy/run-pipeline.sh
-  chmod +x deploy/auto-shutdown.sh
-  chmod +x deploy/idle-shutdown.sh
-  chmod +x deploy/check-pending-work.sh
-  chmod +x deploy/update-from-s3.sh
-
-  # Install the video pipeline service (runs after update, then auto-shuts down)
-  sudo cp deploy/services/video-pipeline.service /etc/systemd/system/video-pipeline.service
-
-  # Re-checks every 15 minutes, so a box left running after someone logs out
-  # still shuts down.
-  sudo cp deploy/services/idle-shutdown.service /etc/systemd/system/idle-shutdown.service
-  sudo cp deploy/services/idle-shutdown.timer /etc/systemd/system/idle-shutdown.timer
-
-  sudo systemctl daemon-reload
-
-  # The `ia` command that uploads to the Internet Archive reads its credentials
-  # from ia.ini, not from settings.inc.php. Write it from the settings when it is
-  # missing, so a new instance can archive without anyone running `ia configure`.
-  IA_CONFIG="$HOME/.config/internetarchive/ia.ini"
-  if [[ ! -f "$IA_CONFIG" ]]; then
-    mkdir -p "$(dirname "$IA_CONFIG")"
-    if php -r '
-      require "includes/settings.inc.php";
-      if (!defined("IA_ACCESS_KEY") || IA_ACCESS_KEY === "" || !defined("IA_SECRET_KEY") || IA_SECRET_KEY === "") {
-          exit(1);
-      }
-      file_put_contents($argv[1], "[s3]\naccess = " . IA_ACCESS_KEY . "\nsecret = " . IA_SECRET_KEY . "\n");
-    ' "$IA_CONFIG"; then
-      chmod 600 "$IA_CONFIG"
-      echo "Wrote Internet Archive credentials to ${IA_CONFIG}."
-    else
-      rm -f "$IA_CONFIG"
-      echo "WARNING: IA_ACCESS_KEY / IA_SECRET_KEY are not set; archiving will not run until ${IA_CONFIG} exists."
-    fi
-  fi
-
-  # Enable services to run on boot
-  sudo systemctl enable video-pipeline.service
-  sudo systemctl enable --now idle-shutdown.timer
-  # The pipeline generates screenshots itself. The standalone worker competed
-  # with it and was killed mid-job at every shutdown, so make sure it is off.
-  sudo systemctl disable --now screenshot-worker.service 2>/dev/null || true
-
-  echo "Video processing services installed and enabled."
-else
-  echo "Skipping video processing services install on this host (guard file not found)."
+    -a fetch-config -m ec2 -s -c "file:${APP_DIR}/deploy/cloudwatch-agent.json"
 fi

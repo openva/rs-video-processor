@@ -22,5 +22,24 @@
                 "drop_device": true
             }
         }
+    },
+    "logs": {
+        "force_flush_interval": 15,
+        "logs_collected": {
+            "files": {
+                "collect_list": [
+                    {
+                        "file_path": "/var/log/syslog",
+                        "log_group_name": "/rs-video-processor/pipeline",
+                        "log_stream_name": "{instance_id}/syslog"
+                    },
+                    {
+                        "file_path": "/var/log/cloud-init-output.log",
+                        "log_group_name": "/rs-video-processor/pipeline",
+                        "log_stream_name": "{instance_id}/cloud-init"
+                    }
+                ]
+            }
+        }
     }
 }

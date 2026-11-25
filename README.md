@@ -210,10 +210,14 @@ wait
 
 ## Server setup
 
-* Manually install on Ubuntu EC2 instance in `~/video-processor/`
-* Run `deploy/deploy.sh`
-* Configure the Archive.org setup on the server with `ia configure`
-* Recommended: Set up a CloudWatch alarm to shut down the instance if it's idle (it could get expensive fast)
+Each run is a fresh EC2 instance, launched by rs-machine from a launch template (`terraform/`) and deleted when the pipeline finishes. It starts from a disk image with the software already installed (`image/`), and downloads the latest deploy bundle when it boots.
+
+* **The AWS setup:** `cd terraform && terraform apply`. See [`terraform/README.md`](terraform/README.md).
+* **The disk image:** `packer init image/ && packer build image/`, from this directory. Rebuild it when `deploy/provision.sh` or `requirements.txt` changes, and monthly for security updates.
+* **YouTube cookies:** upload them to `s3://deploy.richmondsunlight.com/rs-video-processor/youtube-cookies.txt`. Each instance fetches them at boot.
+* **Logs:** each instance's `/var/log/syslog`, which includes the pipeline's output, is in the CloudWatch Logs group `/rs-video-processor/pipeline` for 30 days, one stream per instance.
+
+What runs where: `deploy/provision.sh` installs the software (once per image); `deploy/install-services.sh` installs the systemd units (in the image, and again at each deploy); `deploy/deploy.sh` configures each boot (Internet Archive credentials, cookies, the CloudWatch agent).
 
 ---
 
