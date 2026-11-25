@@ -11,13 +11,15 @@ data "aws_iam_user" "rs_machine" {
 locals {
   ec2_arn = "arn:aws:ec2:${var.region}:${local.account_id}"
 
-  # What a launch creates.
+  # What a launch creates. EC2 gives a Spot request no ec2:LaunchTemplate to check, so it is
+  # allowed on its own (WhatSpotCreates); it can only be made together with an instance, which
+  # must come from the template.
   launched_resources = [
     "${local.ec2_arn}:instance/*",
     "${local.ec2_arn}:volume/*",
     "${local.ec2_arn}:network-interface/*",
-    "${local.ec2_arn}:spot-instances-request/*",
   ]
+  spot_requests = "${local.ec2_arn}:spot-instances-request/*"
 }
 
 data "aws_iam_policy_document" "rs_machine_launch" {
@@ -36,6 +38,12 @@ data "aws_iam_policy_document" "rs_machine_launch" {
       variable = "ec2:LaunchTemplate"
       values   = [aws_launch_template.processor.arn]
     }
+  }
+
+  statement {
+    sid       = "WhatSpotCreates"
+    actions   = ["ec2:RunInstances"]
+    resources = [local.spot_requests]
   }
 
   statement {
@@ -79,7 +87,7 @@ data "aws_iam_policy_document" "rs_machine_launch" {
   statement {
     sid       = "TagAtLaunch"
     actions   = ["ec2:CreateTags"]
-    resources = local.launched_resources
+    resources = concat(local.launched_resources, [local.spot_requests])
     condition {
       test     = "StringEquals"
       variable = "ec2:CreateAction"
