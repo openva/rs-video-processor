@@ -136,12 +136,16 @@ class TranscriptWriter
 
     private function formatWebVttTime(float $seconds): string
     {
-        $totalSeconds = max($seconds, 0);
-        $hours = intdiv((int) $totalSeconds, 3600);
-        $minutes = intdiv((int) $totalSeconds % 3600, 60);
-        $secs = (int) $totalSeconds % 60;
-        $millis = (int) (($totalSeconds - (int) $totalSeconds) * 1000);
-        return sprintf('%02d:%02d:%02d.%03d', $hours, $minutes, $secs, $millis);
+        // Rounded, not truncated: 4154.789 is 4154.78899… as a float.
+        $totalMillis = (int) round(max($seconds, 0) * 1000);
+        $totalSeconds = intdiv($totalMillis, 1000);
+        return sprintf(
+            '%02d:%02d:%02d.%03d',
+            intdiv($totalSeconds, 3600),
+            intdiv($totalSeconds % 3600, 60),
+            $totalSeconds % 60,
+            $totalMillis % 1000
+        );
     }
 
     /**
