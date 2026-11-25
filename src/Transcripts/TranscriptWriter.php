@@ -43,7 +43,7 @@ class TranscriptWriter
             return;
         }
         foreach ($segments as $i => $segment) {
-            $segments[$i]['text'] = $this->sanitizeForUtf8mb3($segment['text']);
+            $segments[$i]['text'] = self::sanitizeForUtf8mb3($segment['text']);
         }
         $now = new DateTimeImmutable('now');
         $this->pdo->beginTransaction();
@@ -74,8 +74,8 @@ class TranscriptWriter
         }
 
         // Update files table with transcript and webvtt
-        $transcript = $this->generatePlainText($segments);
-        $webvtt = $this->generateWebVtt($segments);
+        $transcript = self::generatePlainText($segments);
+        $webvtt = self::generateWebVtt($segments);
 
         $updateStmt = $this->pdo->prepare('UPDATE files SET transcript = :transcript, webvtt = :webvtt, date_modified = CURRENT_TIMESTAMP WHERE id = :id');
         $updateStmt->execute([
@@ -109,7 +109,7 @@ class TranscriptWriter
     /**
      * @param array<int,array{start:float,end:float,text:string}> $segments
      */
-    private function generatePlainText(array $segments): string
+    public static function generatePlainText(array $segments): string
     {
         $lines = [];
         foreach ($segments as $segment) {
@@ -121,12 +121,12 @@ class TranscriptWriter
     /**
      * @param array<int,array{start:float,end:float,text:string}> $segments
      */
-    private function generateWebVtt(array $segments): string
+    public static function generateWebVtt(array $segments): string
     {
         $lines = ["WEBVTT", ""];
         foreach ($segments as $segment) {
-            $start = $this->formatWebVttTime($segment['start']);
-            $end = $this->formatWebVttTime($segment['end']);
+            $start = self::formatWebVttTime($segment['start']);
+            $end = self::formatWebVttTime($segment['end']);
             $lines[] = sprintf('%s --> %s', $start, $end);
             $lines[] = trim($segment['text']);
             $lines[] = '';
@@ -134,7 +134,7 @@ class TranscriptWriter
         return implode("\n", $lines);
     }
 
-    private function formatWebVttTime(float $seconds): string
+    private static function formatWebVttTime(float $seconds): string
     {
         // Rounded, not truncated: 4154.789 is 4154.78899… as a float.
         $totalMillis = (int) round(max($seconds, 0) * 1000);
@@ -157,7 +157,7 @@ class TranscriptWriter
      * characters and null bytes are removed so one emoji can't poison a
      * transcript forever.
      */
-    private function sanitizeForUtf8mb3(string $text): string
+    public static function sanitizeForUtf8mb3(string $text): string
     {
         // Repair/replace ill-formed byte sequences first, so the /u regex below
         // never fails on malformed input and silently no-ops. Malformed bytes are
