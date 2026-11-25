@@ -1,0 +1,78 @@
+name: Terraform
+
+# Checks terraform/ on every pull request that touches it, and shows the plan.
+# Nothing here applies: Run "terraform apply" by hand.
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/terraform.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/terraform.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: terraform
+
+jobs:
+  check:
+    name: Format, validate and plan
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      # For the OIDC token that signs in to AWS as the read-only plan role.
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.17.2
+          terraform_wrapper: false
+
+      - name: Check formatting
+        run: terraform fmt -check -diff -recursive
+
+      - name: Validate
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate
+
+      # The plan needs the role terraform/github.tf creates, so it is skipped
+      # until that has been applied and its ARN saved as the repository
+      # variable TERRAFORM_PLAN_ROLE_ARN. Pull requests from forks get no
+      # token, so they are skipped too.
+      - name: Sign in to AWS (read-only)
+        id: aws
+        if: vars.TERRAFORM_PLAN_ROLE_ARN != '' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.TERRAFORM_PLAN_ROLE_ARN }}
+          aws-region: us-east-1
+
+      # -lock=false: the role can't write the lock file, and a plan changes nothing.
+      - name: Plan
+        if: steps.aws.outcome == 'success'
+        run: |
+          terraform init -input=false -reconfigure
+          terraform plan -lock=false -input=false -no-color | tee plan.txt
+          {
+            echo '## Terraform plan'
+            echo '```'
+            grep -E '^(Plan:|No changes|  # )' plan.txt || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
