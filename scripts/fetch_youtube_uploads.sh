@@ -66,7 +66,7 @@ jq -c '.videos[]' "$MANIFEST_FILE" | while IFS= read -r entry; do
         --merge-output-format mp4 \
         --write-auto-sub --sub-lang en --convert-subs vtt \
         --no-abort-on-error \
-        --cookies-from-browser firefox \
+        --cookies-from-browser "firefox:$HOME/Library/Application Support/Firefox/Profiles/4gctenat.default-release" \
         -o "$TMPDIR_BASE/${youtube_id}.%(ext)s" \
         "$youtube_url"
     then
