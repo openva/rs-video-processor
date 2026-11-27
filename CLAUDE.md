@@ -124,6 +124,9 @@ Most stages' jobs exist for every video their queue matches. `archive_captions` 
 
 New SQL in `src/` must run on SQLite as well as MariaDB, because the unit tests use SQLite: no `NOW()`, no `ON DUPLICATE KEY`. `tests/Integration/MariaDbQueueTest.php` runs the queues on MariaDB, inside Docker only.
 
+### video_index.raw_text must stay indexed
+`HistoricalRawTextLookup` looks up every entry the resolvers can't match by `raw_text`, and nearly all of them are OCR noise that never matches. Without the `raw_text` key on `video_index`, each lookup scanned the whole table (`EXPLAIN`: type ALL, about 4.2 million rows) and took over a second on the database: in November 2026 the "Resolving raw text" step ran five hours, retrying 12,378 entries to resolve 2, with the instance idle, until the 8-hour service timeout ended the run. A slow pipeline step with low CPU on the instance is the database working, not the instance.
+
 ## Manual YouTube Upload Pipeline
 
 When the server's `yt-dlp` cookie authentication fails for Senate videos:
