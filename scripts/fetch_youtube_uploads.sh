@@ -13,6 +13,17 @@
 #   - yt-dlp   (brew install yt-dlp)
 #   - AWS CLI  (brew install awscli) with credentials for video.richmondsunlight.com
 #   - jq       (brew install jq)
+#   - Optionally, a YouTube PO token provider, for the YouTube clients that need
+#     one. It didn't cure the HTTP 429 on captions in November 2026 (asking for
+#     "en-orig" did), but it's ready if YouTube starts requiring tokens. The
+#     bgutil-ytdlp-pot-provider yt-dlp plugin gets them from a local server,
+#     which runs in Docker:
+#       mkdir -p ~/.config/yt-dlp/plugins
+#       curl -fL -o ~/.config/yt-dlp/plugins/bgutil-ytdlp-pot-provider.zip \
+#         https://github.com/Brainicism/bgutil-ytdlp-pot-provider/releases/download/2.0.2/bgutil-ytdlp-pot-provider.zip
+#       docker run --name bgutil-provider -d --init --restart unless-stopped \
+#         -p 127.0.0.1:4416:4416 brainicism/bgutil-ytdlp-pot-provider:2.0.2
+#     Keep the plugin and the server at the same version.
 #
 # Usage:
 #   ./scripts/fetch_youtube_uploads.sh
@@ -29,6 +40,17 @@ RATE_LIMIT_WAIT="${RATE_LIMIT_WAIT:-300}"
 # Note: cookies are read directly from Firefox for each download via
 # --cookies-from-browser firefox. Firefox cookie storage does not require
 # keychain access, so no prompts are expected.
+
+# Start the PO token provider if it's installed but not running. Any HTTP
+# answer means it is up.
+POT_PROVIDER="http://127.0.0.1:4416"
+if ! curl -s -o /dev/null --max-time 3 "$POT_PROVIDER"; then
+    if docker start bgutil-provider > /dev/null 2>&1; then
+        sleep 3
+    else
+        echo "Note: the PO token provider isn't running (see the top of this script). Continuing without it."
+    fi
+fi
 
 # Download manifest from S3
 echo "Fetching manifest from S3..."
@@ -59,7 +81,9 @@ jq -c '.videos[]' "$MANIFEST_FILE" | while IFS= read -r entry; do
     fi
 
     video_file="$TMPDIR_BASE/${youtube_id}.mp4"
-    caption_file="$TMPDIR_BASE/${youtube_id}.en.vtt"
+    # "en-orig" is YouTube's speech recognition track. On these videos "en" is a
+    # machine translation of it, which YouTube refuses with HTTP 429.
+    caption_file="$TMPDIR_BASE/${youtube_id}.en-orig.vtt"
 
     # Download video + auto-generated captions via yt-dlp. Its errors are also
     # copied to $error_log, to tell why it failed; stdout stays on the terminal.
@@ -69,7 +93,7 @@ jq -c '.videos[]' "$MANIFEST_FILE" | while IFS= read -r entry; do
         { yt-dlp \
             -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best" \
             --merge-output-format mp4 \
-            --write-auto-sub --sub-lang en --convert-subs vtt \
+            --write-auto-sub --sub-lang en-orig --convert-subs vtt \
             --sleep-subtitles 5 --sleep-requests 1 \
             --cookies-from-browser "firefox:$HOME/Library/Application Support/Firefox/Profiles/4gctenat.default-release" \
             -o "$TMPDIR_BASE/${youtube_id}.%(ext)s" \
@@ -108,6 +132,21 @@ jq -c '.videos[]' "$MANIFEST_FILE" | while IFS= read -r entry; do
         fi
     fi
     rm -f "$error_log"
+
+    # A video without an "en-orig" track may still have "en" captions. Without any,
+    # the server transcribes it with Whisper at OpenAI's expense, so don't upload
+    # it if they exist but were refused.
+    if [[ ! -f "$caption_file" ]]; then
+        echo "  No en-orig captions; trying en..."
+        if ! yt-dlp --skip-download --write-auto-sub --write-sub --sub-lang en --convert-subs vtt \
+            --cookies-from-browser "firefox:$HOME/Library/Application Support/Firefox/Profiles/4gctenat.default-release" \
+            -o "$TMPDIR_BASE/${youtube_id}.%(ext)s" "$youtube_url"; then
+            echo "  WARNING: captions exist but couldn't be downloaded — skipping $youtube_id."
+            rm -f "$video_file"
+            continue
+        fi
+        caption_file="$TMPDIR_BASE/${youtube_id}.en.vtt"
+    fi
 
     # Upload video
     if [[ -f "$video_file" ]]; then

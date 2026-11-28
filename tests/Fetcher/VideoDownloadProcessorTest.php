@@ -52,6 +52,45 @@ class VideoDownloadProcessorTest extends TestCase
     }
 
     /**
+     * YouTube answers HTTP 429 to "en" on Senate videos, a machine translation of the
+     * "en-orig" speech recognition track, so "en-orig" is used whenever it was written.
+     */
+    public function testYouTubeCaptionsPreferTheOriginalTrack(): void
+    {
+        $dir = sys_get_temp_dir() . '/rs-captions-' . bin2hex(random_bytes(4));
+        mkdir($dir);
+        file_put_contents($dir . '/senate-7.en-orig.vtt', 'WEBVTT');
+        file_put_contents($dir . '/senate-7.en.vtt', 'WEBVTT');
+        file_put_contents($dir . '/senate-8.en.vtt', 'WEBVTT');
+
+        $processor = $this->captionProcessor($dir);
+
+        $this->assertSame($dir . '/senate-7.en-orig.vtt', $processor->captionsFor($this->youTubeJob(7)));
+        $this->assertFileDoesNotExist($dir . '/senate-7.en.vtt');
+        $this->assertSame($dir . '/senate-8.en.vtt', $processor->captionsFor($this->youTubeJob(8)));
+        $this->assertNull($processor->captionsFor($this->youTubeJob(9)));
+
+        array_map('unlink', glob($dir . '/*'));
+        rmdir($dir);
+    }
+
+    private function youTubeJob(int $id): VideoDownloadJob
+    {
+        return new VideoDownloadJob($id, 'senate', null, '2026-02-25', 'https://www.youtube.com/watch?v=x', ['source' => 'senate-youtube'], 'Senate Session');
+    }
+
+    private function captionProcessor(string $dir): VideoDownloadProcessor
+    {
+        $pdo = $this->createDatabase();
+        return new class ($pdo, new InMemoryStorage(), new CommitteeDirectory($pdo), new StubMetadataExtractor(), new S3KeyBuilder(), null, null, $dir) extends VideoDownloadProcessor {
+            public function captionsFor(VideoDownloadJob $job): ?string
+            {
+                return $this->downloadCaptions($job);
+            }
+        };
+    }
+
+    /**
      * Granicus's CloudFront answers 403 to non-browser user agents (curl's,
      * Guzzle's) and 200 to a browser's, for the same video. Checked 2026-10-17.
      */

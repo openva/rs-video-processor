@@ -270,9 +270,12 @@ class VideoDownloadProcessor
             );
         }
 
+        // "en-orig" is the speech recognition track itself. YouTube serves "en" on these
+        // videos as a machine translation of it, and since November 2026 answers HTTP 429
+        // to every request for that, so "en" is only a fallback for videos without "en-orig".
         $cmd = sprintf(
             'yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" ' .
-            '--merge-output-format mp4 --write-auto-sub --sub-lang en ' .
+            '--merge-output-format mp4 --write-auto-sub --sub-lang en-orig,en ' .
             '--convert-subs vtt --no-abort-on-error --ignore-errors %s -o %s %s 2>&1',
             $cookiesArg,
             escapeshellarg($destinationBase . '.%(ext)s'),
@@ -314,9 +317,14 @@ class VideoDownloadProcessor
 
         // For YouTube videos, check if yt-dlp downloaded captions automatically
         if (isset($metadata['youtube_id']) || (isset($metadata['source']) && $metadata['source'] === 'senate-youtube')) {
-            $vttPath = $this->downloadDir . '/' . $job->chamber . '-' . $job->id . '.en.vtt';
-            if (file_exists($vttPath)) {
-                return $vttPath;
+            $base = $this->downloadDir . '/' . $job->chamber . '-' . $job->id;
+            if (file_exists($base . '.en-orig.vtt')) {
+                // Only the file returned is deleted after use.
+                @unlink($base . '.en.vtt');
+                return $base . '.en-orig.vtt';
+            }
+            if (file_exists($base . '.en.vtt')) {
+                return $base . '.en.vtt';
             }
         }
 
